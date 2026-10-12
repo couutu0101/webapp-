@@ -110,9 +110,6 @@ with sync_playwright() as p:
     duy.fill('input[name=han_bao_hiem]', '01/03/2027')
     chup(duy, '02-tiep-nhan')
     duy.click('button[type=submit]')
-    toast_co(duy, 'Chụp ít nhất 1 ảnh')
-    duy.set_input_files('input[name=anh]', ANH)
-    duy.click('button[type=submit]')
     duy.wait_for_url(re.compile(r'#/ho-so/\d+$'), timeout=10000)
     duy.wait_for_selector('h1')
     id_hs = duy.url.rsplit('/', 1)[1]
@@ -120,6 +117,12 @@ with sync_playwright() as p:
     expect(duy.locator('h1')).to_contain_text('50H-923.61')
     expect(duy.locator('dl.thong-tin')).to_contain_text('20/05/2027')
     ghi('Hồ sơ hiện hạn BH thân vỏ 20/05/2027 và TNDS 01/03/2027: ' + str('01/03/2027' in duy.locator('dl.thong-tin').inner_text()))
+
+    expect(duy.locator('text=Chưa có ảnh.')).to_be_visible()
+    ghi('Lưu hồ sơ không cần ảnh; chụp bổ sung ảnh nhận xe trong hồ sơ')
+    duy.set_input_files('.tai-tep input[type=file]', ANH)
+    toast_co(duy, 'Đã tải 1 tệp')
+    cho_xong(duy)
 
     # ---------- Báo giá ----------
     duy.click('text=+ Thêm dòng báo giá')
@@ -281,6 +284,14 @@ with sync_playwright() as p:
     duy.fill('input[name=han_bh_than_vo]', '01/01/2027')
     duy.locator('input[name=han_bh_than_vo]').blur()
     ghi('Gia hạn xong thì lời nhắc tự bỏ: ' + str(duy.locator('textarea[name=tu_van]').input_value() == ''))
+    # Khách ngoài bảo hiểm + dấu tích "Xe không mua bảo hiểm"
+    o_khong = duy.locator('input[name=khong_mua_bh]')
+    o_khong.check()
+    expect(duy.locator('input[name=han_bh_than_vo]')).to_be_disabled()
+    expect(duy.locator('input[name=han_bao_hiem]')).to_be_disabled()
+    expect(duy.locator('textarea[name=tu_van]')).to_have_value(re.compile(r'Khách không có bảo hiểm thân vỏ và TNDS'))
+    o_khong.uncheck()
+    ghi('Tích "không có BH thân vỏ và TNDS": khóa 2 ô ngày, tự nhắc tư vấn; bỏ tích thì mất nhắc: ' + str('không có bảo hiểm' not in duy.locator('textarea[name=tu_van]').input_value()))
     duy.locator('textarea[name=tinh_trang_xe]').click()
     ghi('Bấm vào ô tình trạng tự có ngày: ' + duy.locator('textarea[name=tinh_trang_xe]').input_value())
     chup(duy, '17-xe-quay-lai')
