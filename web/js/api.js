@@ -82,6 +82,8 @@ export const suaThongTin = (id, p) => rpc('sua_thong_tin_ho_so', { p_id: id, p }
 export const luuBaoGia = (id, dong) => rpc('luu_bao_gia', { p_ho_so: id, dong });
 // Báo giá theo nguồn (009): xe bảo hiểm chờ duyệt; khách ngoài bảo hiểm duyệt luôn. vat: 0.08 / 0.10 / 0.12
 export const lapBaoGia = (id, dong, vat) => rpc('lap_bao_gia', { p_ho_so: id, dong, p_vat: vat });
+// Giao / đổi người làm bước tiếp theo (010)
+export const giaoViec = (id, nguoi) => rpc('giao_viec', { p_ho_so: id, p_nguoi: nguoi });
 export const xoaHangMuc = (id) => rpc('xoa_hang_muc', { p_id: id });
 export const duyetGia = (id, ngay, ketQua) => rpc('duyet_gia', { p_ho_so: id, p_ngay: ngay, ket_qua: ketQua });
 export const lapLenh = (id, henGiao, phanCong) => rpc('lap_lenh_sua_chua', { p_ho_so: id, p_hen_giao: henGiao, phan_cong: phanCong });

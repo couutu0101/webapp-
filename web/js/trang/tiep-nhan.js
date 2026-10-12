@@ -1,6 +1,7 @@
 // Bước 1: Tiếp nhận xe – 10 thông tin bắt buộc + ảnh nhận xe
 import { h, oGoiY, bienSo, vietBienSo, oChonTep, oCheck, truong, oChu, oChon, oVung, oNgayVN, isoSangVN, vnSangIso, docForm, chay, toast, nenAnh, choODatetime, dat, veDanhSachHoSo } from '../ui.js';
 import * as api from '../api.js';
+import { khungGiaoViec, giaoSauKhiLuu, VAI_TRO_BUOC } from './giao-viec.js';
 import { homNayVN, themNgay, tuGhiNgayKhiBam, nhacHetHan, layLichSu, khoiLichSu } from './lich-su-xe.js';
 
 export default async function trangTiepNhan(el) {
@@ -125,6 +126,9 @@ export default async function trangTiepNhan(el) {
     dat(xemAnh, ...[...oAnh.files].map((f) => h('img', { src: URL.createObjectURL(f), alt: f.name })));
   });
 
+  // Người thực hiện + giao bước báo giá (mặc định: chính CVDV tiếp nhận)
+  const giao = khungGiaoViec('Lập báo giá', VAI_TRO_BUOC.bao_gia);
+  giao.el.classList.add('nhom-o');
   const form = h('form', { class: 'the', novalidate: true },
     h('fieldset', { class: 'nhom-o' }, h('legend', null, 'Thông tin xe'),
       h('div', { class: 'luoi-o' },
@@ -154,6 +158,7 @@ export default async function trangTiepNhan(el) {
         truong('Những gì có thể tư vấn', oTuVan, 'Anh Long dùng để tư vấn khi giao xe. Bảo hiểm hết hạn sẽ tự ghi nhắc ở đầu.', { batBuoc: true, rong: true }))),
     h('fieldset', { class: 'nhom-o' }, h('legend', null, 'Ảnh nhận xe'),
       truong('Ảnh xe lúc nhận', chonAnh, 'Không bắt buộc. Có thể chụp bổ sung sau trong hồ sơ.'), xemAnh),
+    giao.el,
     h('div', { class: 'hang-nut' },
       h('a', { class: 'nut', href: '#/ho-so' }, 'Hủy'),
       h('button', { class: 'nut chinh', type: 'submit' }, 'Lưu hồ sơ')));
@@ -220,6 +225,7 @@ export default async function trangTiepNhan(el) {
     try {
       const kq = await chay((boQua) => api.tiepNhanXe({ ...p, bo_qua_canh_bao: boQua }));
       nut.textContent = 'Đang tải ảnh…';
+      await giaoSauKhiLuu(kq.id, giao.nguoi());
       const hoSo = { id: kq.id, ma: kq.ma, chi_nhanh_id: api.toi.chi_nhanh_id };
       let loiAnh = 0;
       for (const f of oAnh.files) {

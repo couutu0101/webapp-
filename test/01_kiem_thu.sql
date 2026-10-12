@@ -361,6 +361,36 @@ select public.duyet_gia((select v::bigint from ctx where k='hs_b'), current_date
 select kt.ghi('Xe BH: duyệt 1.800.000, VAT 12% → BH duyệt 2.016.000',
   (select bh_duyet from public.tien_ho_so((select v::bigint from ctx where k='hs_b'))) = 2016000,
   (select bh_duyet::text from public.tien_ho_so((select v::bigint from ctx where k='hs_b'))));
+-- ---------------------------------------------------------------------
+-- 010: Người làm bước tiếp theo
+-- ---------------------------------------------------------------------
+select kt.ghi('Tiếp nhận xong: bước báo giá tự giao cho CVDV tiếp nhận (Duy)',
+  (select nguoi_tiep_theo from public.ho_so where id=(select v::bigint from ctx where k='hs_b')) = (select id from public.nhan_vien where email='duy@gara.vn'));
+select kt.ghi('Bảng xem việc hiện tên người được giao',
+  (select nguoi_tiep_theo_ten from public.v_viec_ho_so where ho_so_id=(select v::bigint from ctx where k='hs_b')) = (select ho_ten from public.nhan_vien where email='duy@gara.vn'));
+select public.giao_viec((select v::bigint from ctx where k='hs_b'), (select id from public.nhan_vien where email='thuan@gara.vn'));
+select kt.ghi('Người vừa làm bước được chọn người làm bước tiếp theo',
+  (select nguoi_tiep_theo from public.ho_so where id=(select v::bigint from ctx where k='hs_b')) = (select id from public.nhan_vien where email='thuan@gara.vn')
+  and exists (select 1 from public.ho_so_nhat_ky where ho_so_id=(select v::bigint from ctx where k='hs_b') and ghi_chu like 'Giao bước tiếp theo cho %'));
+select kt.dong_vai('tien@gara.vn');
+select kt.mong_loi('Kế toán không đổi được người của hồ sơ mình không làm', format($$select public.giao_viec(%s, null)$$,
+  (select v from ctx where k='hs_b')), 'Chỉ quản lý chung hoặc giám đốc');
+select kt.dong_vai('long@gara.vn');
+select public.giao_viec((select v::bigint from ctx where k='hs_b'), (select id from public.nhan_vien where email='duy@gara.vn'));
+select kt.ghi('Quản lý chung đổi người được giao',
+  (select nguoi_tiep_theo from public.ho_so where id=(select v::bigint from ctx where k='hs_b')) = (select id from public.nhan_vien where email='duy@gara.vn'));
+select public.lap_lenh_sua_chua((select v::bigint from ctx where k='hs_b'), now() + interval '1 day',
+  (select jsonb_agg(jsonb_build_object('id',id,'to_id','DS')) from public.hang_muc where ho_so_id=(select v::bigint from ctx where k='hs_b')));
+select kt.ghi('Đang sửa: giao theo tổ, không giao một người',
+  (select trang_thai = 'dang_sua' and nguoi_tiep_theo is null from public.ho_so where id=(select v::bigint from ctx where k='hs_b')));
+select kt.dong_vai(null);  -- chuyển bước trực tiếp để thử gợi ý (bỏ qua KCS thật)
+update public.ho_so set trang_thai = 'cho_kcs' where id=(select v::bigint from ctx where k='hs_b');
+select kt.ghi('Chờ KCS: tự giao quản lý chung',
+  (select nguoi_tiep_theo from public.ho_so where id=(select v::bigint from ctx where k='hs_b')) = (select id from public.nhan_vien where email='long@gara.vn'));
+update public.ho_so set trang_thai = 'dat_kcs' where id=(select v::bigint from ctx where k='hs_b');
+select kt.ghi('Đạt KCS: tự giao kế toán',
+  (select nguoi_tiep_theo from public.ho_so where id=(select v::bigint from ctx where k='hs_b')) = (select id from public.nhan_vien where email='tien@gara.vn'));
+select kt.ghi('Hồ sơ từ Excel không giao ai', not exists (select 1 from public.ho_so where tu_excel and nguoi_tiep_theo is not null));
 select kt.dong_vai(null);
 \o
 \echo '======== KẾT QUẢ ========'

@@ -3,6 +3,7 @@ import {
   h, oChonTep, bienSo, oNgayVN, tien, ngay, ngayGio, homNay, choODatetime, truong, oChu, oTien, oChon, oVung, oNgay, oCheck, docForm, docTien,
   chay, moModal, toast, nhanTrangThai, nenAnh, bang, BUOC_SO, NHOM, NGUON, TRANG_THAI, xacNhan, dat, veDanhSachHoSo,
 } from '../ui.js';
+import { khungGiaoViec, giaoSauKhiLuu, dongDangCho, nguoiLamTungBuoc, tenGoi, VAI_TRO_BUOC } from './giao-viec.js';
 import * as api from '../api.js';
 import { ghiTiep, tuGhiNgayKhiBam, nhacHetHan, layLichSu, khoiLichSu } from './lich-su-xe.js';
 
@@ -16,13 +17,14 @@ export default async function trangChiTiet(el, idChu) {
   let hsDangXem = { id, ma: '' };
   const ve = () => veDanhSachHoSo(hsDangXem);
   const veLai = ve.lai = async () => {
-    const [hs, hm, nk, tep, ps, dsKcs] = await Promise.all([
-      api.layHoSo(id), api.layHangMuc(id), api.layNhatKy(id), api.layTep(id), api.layPhatSinh(id), api.layKcs(id)]);
+    const [hs, hm, nk, tep, ps, dsKcs, [viec]] = await Promise.all([
+      api.layHoSo(id), api.layHangMuc(id), api.layNhatKy(id), api.layTep(id), api.layPhatSinh(id), api.layKcs(id),
+      api.doc('v_viec_ho_so', (q) => q.eq('ho_so_id', id)).catch(() => [])]);
     if (!hs) { dat(el, h('p', { class: 'trong' }, 'Không tìm thấy hồ sơ, hoặc bạn không có quyền xem.')); return; }
     hsDangXem = hs;
-    const ctx = { hs, hm, nk, tep, ps, dsKcs, ve };
+    const ctx = { hs, hm, nk, tep, ps, dsKcs, ve, viec };
     dat(el, 
-      dau(ctx), tienDo(hs),
+      dau(ctx), dongDangCho(hs, viec, hm, veLai), tienDo(hs, nk),
       h('div', { class: 'cot-doi' },
         h('div', null, theThongTin(ctx), theBaoGia(ctx), theSuaChua(ctx), theKcs(ctx), theGiaoXe(ctx), theHoSoBH(ctx), theChamSoc(ctx)),
         h('div', null, theTien(ctx), theTep(ctx), theNhatKy(ctx))));
@@ -48,7 +50,8 @@ function dau({ hs }) {
         ? h('a', { class: 'nut', href: `#/ho-so/moi?bao_hanh=${hs.id}` }, 'Tạo hồ sơ bảo hành') : null));
 }
 
-function tienDo(hs) {
+function tienDo(hs, nk = []) {
+  const nguoi = nguoiLamTungBuoc(nk);
   const hienTai = BUOC_SO[hs.trang_thai] || 0;
   if (hs.trang_thai === 'huy') return h('p', { class: 'thong-bao canh-bao' }, 'Hồ sơ đã hủy: ', hs.ly_do_huy || '');
   const daXong = hs.trang_thai === 'dong';
@@ -57,7 +60,9 @@ function tienDo(hs) {
     h('ol', { class: 'tien-do', 'aria-label': 'Tiến độ 10 bước' }, BUOC.map((b, i) => {
       const so = i + 1;
       const lop = so < hienTai || daXong ? 'xong' : so === hienTai ? 'dang' : '';
-      return h('li', { class: lop, 'aria-current': so === hienTai && !daXong ? 'step' : null }, h('span', null, so), h('small', null, b));
+      const ai = nguoi[so];
+      return h('li', { class: lop, 'aria-current': so === hienTai && !daXong ? 'step' : null }, h('span', null, so), h('small', null, b),
+        ai ? h('small', { class: 'nguoi-lam', title: `${ngayGio(ai.luc)}` }, `${tenGoi(ai.boi)} · ${ngay(ai.luc).slice(0, 5)}`) : null);
     })));
 }
 
@@ -227,6 +232,9 @@ function moBaoGia(hs, hm, ve, boSung) {
       khach ? chiXem('Nguồn', 'Khách ngoài bảo hiểm – không qua duyệt giá') : chiXem('Hãng bảo hiểm', hs.hang_bh || '—'),
       truong('VAT', chonVat)),
     danhSach, nut('+ Thêm dòng', themDong), tong);
+  // Báo giá gốc: chọn người làm bước tiếp theo (xe BH: nhập kết quả duyệt; khách: lập lệnh sửa chữa)
+  const giao = boSung ? null : khach ? khungGiaoViec('Lập lệnh sửa chữa', VAI_TRO_BUOC.lenh) : khungGiaoViec('Nhập kết quả duyệt giá', VAI_TRO_BUOC.duyet_gia);
+  if (giao) noiDung.append(giao.el);
   moModal(boSung ? 'Báo giá bổ sung' : 'Lập báo giá', noiDung, {
     rong: true, nhanNut: 'Lưu báo giá',
     nutChinh: async () => {
@@ -236,6 +244,7 @@ function moBaoGia(hs, hm, ve, boSung) {
       })).filter((d) => d.ten || d.gia_bao);
       if (!dong.length) { toast('Nhập ít nhất một dòng.', 'loi'); return false; }
       await api.lapBaoGia(hs.id, dong, tyLe());
+      if (giao) await giaoSauKhiLuu(hs.id, giao.nguoi());
       toast(khach ? 'Đã lưu báo giá – đã duyệt, lập lệnh sửa chữa được ngay.' : 'Đã lưu báo giá.'); await ve();
     },
   });
@@ -255,11 +264,14 @@ function moDuyetGia(hs, choDuyet, ve) {
       h('thead', null, h('tr', null, h('th', null, 'Hạng mục (bỏ chọn nếu không duyệt)'), h('th', { class: 'so' }, 'Giá báo'), h('th', null, 'Giá duyệt (chưa VAT)'))),
       h('tbody', null, dongs.map((d) => d.el)))),
     hs.nguon_tt !== 'khach' ? h('p', { class: 'goi-y' }, 'Nhớ chụp biên bản giám định, bản duyệt giá, HĐ 3 bên vào mục Ảnh & giấy tờ.') : null);
+  const giao = hs.trang_thai === 'bao_gia' ? khungGiaoViec('Lập lệnh sửa chữa', VAI_TRO_BUOC.lenh) : null;
+  if (giao) noiDung.append(giao.el);
   moModal('Kết quả duyệt giá', noiDung, {
     rong: true, nhanNut: 'Lưu kết quả',
     nutChinh: async () => {
       const ketQua = dongs.map((d) => ({ id: d.m.id, dong_y: d.dongY.checked, gia_duyet: d.dongY.checked ? docTien(d.gia.value) : null }));
       await api.duyetGia(hs.id, oNgayDuyet.value, ketQua);
+      if (giao) await giaoSauKhiLuu(hs.id, giao.nguoi());
       toast('Đã lưu kết quả duyệt.'); await ve();
     },
   });

@@ -1,6 +1,7 @@
 // Việc hôm nay: số xe theo bước, việc cần xử lý, bảng việc của tổ
 import { h, oChonTep, bienSo, icon, ngayGio, chay, moModal, oVung, truong, docForm, nhanTrangThai, nenAnh, TRANG_THAI, dat } from '../ui.js';
 import * as api from '../api.js';
+import { viecTiepTheo } from './giao-viec.js';
 
 const NHOM_DEM = [
   { nhan: 'Chờ duyệt giá', tt: ['tiep_nhan', 'bao_gia'] },
@@ -15,10 +16,11 @@ const MUC_DO = { cao: 'Cần làm ngay', vua: 'Trong tuần', thap: 'Bổ sung k
 
 export default async function trangViec(el) {
   const laVanPhong = api.laNhanVien();
-  const [hoSo, canhBao, bangViec] = await Promise.all([
+  const [hoSo, canhBao, bangViec, viecCuaToi] = await Promise.all([
     laVanPhong ? api.doc('v_ho_so', (q) => q.not('trang_thai', 'in', '(dong,huy)')) : [],
     laVanPhong ? api.doc('v_canh_bao') : [],
     api.coVaiTro('truong_nhom', 'quan_ly', 'cvdv', 'giam_doc') ? api.bangViecTo() : [],
+    laVanPhong ? layViecCuaToi() : [],
   ]);
 
   const nut = [];
@@ -28,6 +30,7 @@ export default async function trangViec(el) {
 
   dat(el, 
     h('div', { class: 'tieu-de-trang' }, h('h1', null, 'Việc hôm nay'), h('div', { class: 'hang-nut' }, nut)),
+    laVanPhong ? khoiViecCuaToi(viecCuaToi) : null,
     laVanPhong ? h('section', { class: 'luoi-dem' }, NHOM_DEM.map((n) => {
       const so = hoSo.filter((x) => n.tt.includes(x.trang_thai)).length;
       return h('a', { class: `o-dem ${so ? '' : 'mo'}`, href: `#/ho-so?tt=${n.tt.join(',')}` },
@@ -86,3 +89,26 @@ function moPhatSinh(x, taiLai) {
 }
 
 export { TRANG_THAI };
+
+// ---------- Việc của tôi: các xe đang giao bước tiếp theo cho người đăng nhập ----------
+async function layViecCuaToi() {
+  try {
+    const viec = await api.doc('v_viec_ho_so', (q) => q.eq('nguoi_tiep_theo', api.toi.id).neq('trang_thai', 'huy').order('giao_viec_luc', { ascending: true }));
+    if (!viec.length) return [];
+    const hs = await api.doc('v_ho_so', (q) => q.in('id', viec.map((v) => v.ho_so_id)));
+    const theoId = Object.fromEntries(hs.map((x) => [x.id, x]));
+    return viec.map((v) => ({ ...v, hs: theoId[v.ho_so_id] })).filter((v) => v.hs && viecTiepTheo(v.hs));
+  } catch { return []; }
+}
+
+function khoiViecCuaToi(ds) {
+  return h('section', { class: 'the viec-cua-toi' },
+    h('h2', null, `Việc của tôi (${ds.length})`),
+    ds.length
+      ? h('ul', { class: 'ds-viec-toi' }, ds.map((v) => h('li', null,
+        h('a', { href: `#/ho-so/${v.ho_so_id}` },
+          bienSo(v.hs.bien_so_hien_thi, { maThay: v.hs.ma }),
+          h('span', { class: 'viec-ten' }, h('b', null, viecTiepTheo(v.hs).ten), h('small', null, [v.hs.xe, v.hs.ten_khach].filter(Boolean).join(' · '))),
+          h('small', { class: 'viec-luc' }, `Giao ${ngayGio(v.giao_viec_luc)}`)))))
+      : h('p', { class: 'trong' }, 'Không có xe nào đang chờ anh/chị làm.'));
+}

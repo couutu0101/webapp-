@@ -384,3 +384,19 @@ a.o-dem:not(.mo) b { color: var(--muc); }
 .goi-y-xe { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .goi-y-xe > span:last-child { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; font-size: .92rem; }
 .goi-y-xe small { color: var(--muc-phu); }
+
+/* ===== Giao việc: người thực hiện, bước tiếp theo ===== */
+.khung-giao-viec { margin-top: var(--k4); padding: var(--k3); border-radius: var(--bo); background: var(--vang-nhat); border: 1px solid #f0dc9a; }
+.dang-cho { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--k2) var(--k3);
+  margin: var(--k3) 0 0; padding: 10px 14px; border-radius: var(--bo); background: var(--vang-nhat); border-left: 5px solid var(--vang); }
+.dang-cho small { color: var(--muc-phu); }
+.tien-do li small.nguoi-lam { color: var(--muc-phu); font-size: .72rem; margin-top: -3px; }
+.viec-tiep { display: flex; flex-direction: column; line-height: 1.3; }
+.viec-tiep small { color: var(--muc-phu); }
+.ds-viec-toi { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--k2); }
+.ds-viec-toi a { display: grid; grid-template-columns: auto 1fr auto; gap: var(--k3); align-items: center; padding: 10px 12px; border-radius: var(--bo);
+  border: 1px solid var(--vien); background: var(--mat); color: inherit; text-decoration: none; min-height: var(--cham); }
+.ds-viec-toi a:hover { border-color: var(--vang-dam); background: var(--vang-nhat); }
+.ds-viec-toi .viec-ten { display: flex; flex-direction: column; min-width: 0; }
+.ds-viec-toi .viec-ten small, .ds-viec-toi .viec-luc { color: var(--muc-phu); }
+@media (max-width: 640px) { .ds-viec-toi a { grid-template-columns: auto 1fr; } .ds-viec-toi .viec-luc { grid-column: 1 / -1; } }
