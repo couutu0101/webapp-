@@ -353,3 +353,15 @@ a.o-dem:not(.mo) b { color: var(--muc); }
 .ls-noi-dung { white-space: pre-wrap; }
 @media (max-width: 560px) { .ls-dong { grid-template-columns: 1fr; } .ls-nhan { font-size: .82rem; } }
 .nhat-ky-ghi { white-space: pre-wrap; font-size: .92rem; background: var(--mat-lom); border: 1px solid var(--vien); border-radius: var(--bo); padding: var(--k2) var(--k3); max-height: 160px; overflow-y: auto; }
+
+/* ===== Ô gợi ý (tìm xe theo biển số) ===== */
+.o-goi-y { position: relative; }
+.goi-y-ds { position: absolute; z-index: 30; left: 0; right: 0; top: calc(100% + 4px); margin: 0; padding: 4px; list-style: none;
+  background: var(--mat); border: 1px solid var(--vien-dam); border-radius: var(--bo); box-shadow: 0 12px 28px rgba(0, 0, 0, .16);
+  max-height: 340px; overflow-y: auto; }
+@media (min-width: 640px) { .goi-y-ds { min-width: 380px; right: auto; } }
+.goi-y-ds li { padding: 8px 10px; border-radius: 4px; cursor: pointer; min-height: var(--cham); display: flex; align-items: center; }
+.goi-y-ds li:hover, .goi-y-ds li[aria-selected=true] { background: var(--vang-nhat); }
+.goi-y-xe { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.goi-y-xe > span:last-child { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; font-size: .92rem; }
+.goi-y-xe small { color: var(--muc-phu); }

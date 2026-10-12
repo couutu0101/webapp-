@@ -1,5 +1,5 @@
 // Bước 1: Tiếp nhận xe – 10 thông tin bắt buộc + ảnh nhận xe
-import { h, oChonTep, truong, oChu, oChon, oVung, oNgayVN, isoSangVN, vnSangIso, docForm, chay, toast, nenAnh, choODatetime, dat } from '../ui.js';
+import { h, oGoiY, bienSo, vietBienSo, oChonTep, truong, oChu, oChon, oVung, oNgayVN, isoSangVN, vnSangIso, docForm, chay, toast, nenAnh, choODatetime, dat } from '../ui.js';
 import * as api from '../api.js';
 import { homNayVN, themNgay, tuGhiNgayKhiBam, nhacHetHan, layLichSu, khoiLichSu } from './lich-su-xe.js';
 
@@ -9,6 +9,10 @@ export default async function trangTiepNhan(el) {
     return;
   }
   const dm = api.dm;
+  const tenLoaiXe = (idDong) => {
+    const d = dm.dong_xe.find((x) => String(x.id) === String(idDong));
+    return d ? `${dm.ten('hang_xe', d.hang_xe_id)} ${d.ten}` : '';
+  };
   const chonHangXe = oChon('hang_xe_id', dm.hang_xe.map((x) => ({ value: x.id, label: x.ten })), null, { required: true });
   const chonDongXe = oChon('dong_xe_id', [], null, { required: true });
   const capNhatDongXe = (giu) => {
@@ -101,7 +105,14 @@ export default async function trangTiepNhan(el) {
   const form = h('form', { class: 'the', novalidate: true },
     h('fieldset', { class: 'nhom-o' }, h('legend', null, 'Thông tin xe'),
       h('div', { class: 'luoi-o' },
-        truong('Biển số', oBienSo, null, { batBuoc: true }),
+        truong('Biển số', oGoiY(oBienSo, {
+          tim: api.goiYXe,
+          ve: (x) => h('span', { class: 'goi-y-xe' }, bienSo(x.bien_so),
+            h('span', null,
+              h('span', null, [tenLoaiXe(x.dong_xe_id), x.mau].filter(Boolean).join(' – ') || 'Chưa rõ loại xe'),
+              h('small', null, [x.khach && x.khach.ten !== 'Chưa có tên' ? x.khach.ten : null, x.khach?.dien_thoai].filter(Boolean).join(' – ') || 'Chưa có thông tin khách'))),
+          chon: (x) => { oBienSo.value = vietBienSo(x.bien_so); traCuu(); },
+        }), 'Gõ vài số của biển số (hoặc SĐT khách) để chọn xe cũ', { batBuoc: true }),
         thongBaoXe,
         truong('Hãng xe', chonHangXe, null, { batBuoc: true }),
         truong('Dòng xe', chonDongXe, null, { batBuoc: true }),
@@ -126,8 +137,12 @@ export default async function trangTiepNhan(el) {
   hienBH();
 
   // Tra cứu xe cũ khi nhập xong biển số
+  let daTraCuu = null;
   async function traCuu() {
     const bs = oBienSo.value.trim();
+    const gon = bs.toUpperCase().replace(/[^0-9A-Z]/g, '');
+    if (gon === daTraCuu) return; // vừa tra xe này rồi (chọn từ gợi ý rồi rời ô)
+    daTraCuu = gon;
     thongBaoXe.hidden = true;
     dat(khungLichSu);
     if (!bs) return;

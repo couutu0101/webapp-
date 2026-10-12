@@ -129,6 +129,46 @@ export function icon(ten) {
     html: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICON[ten] || ''}</svg>` });
 }
 
+// Ô nhập có danh sách gợi ý thả xuống (gõ tới đâu gợi ý tới đó).
+// tim(chuoi) -> Promise<mục[]>; ve(mục) -> nội dung một dòng; chon(mục) khi bấm hoặc Enter.
+let soGoiY = 0;
+export function oGoiY(input, { tim, ve, chon, choMs = 200 }) {
+  const id = `goi-y-${++soGoiY}`;
+  const ds = h('ul', { class: 'goi-y-ds', role: 'listbox', id, hidden: true });
+  input.setAttribute('role', 'combobox');
+  input.setAttribute('aria-autocomplete', 'list');
+  input.setAttribute('aria-controls', id);
+  input.setAttribute('aria-expanded', 'false');
+  input.setAttribute('autocomplete', 'off');
+  let muc = []; let dangChon = -1; let hen = null; let lan = 0;
+  const dong = () => { ds.hidden = true; input.setAttribute('aria-expanded', 'false'); input.removeAttribute('aria-activedescendant'); dangChon = -1; };
+  const danhDau = () => {
+    [...ds.children].forEach((li, i) => li.setAttribute('aria-selected', String(i === dangChon)));
+    if (dangChon >= 0) { input.setAttribute('aria-activedescendant', `${id}-${dangChon}`); ds.children[dangChon].scrollIntoView({ block: 'nearest' }); }
+  };
+  const lay = (m) => { dong(); chon(m); };
+  async function tai() {
+    const so = ++lan;
+    let kq = [];
+    try { kq = await tim(input.value); } catch { kq = []; }
+    if (so !== lan) return; // đã gõ tiếp, bỏ kết quả cũ
+    muc = kq;
+    dat(ds, muc.map((m, i) => h('li', { role: 'option', id: `${id}-${i}`, 'aria-selected': 'false',
+      onmousedown: (e) => e.preventDefault(), onclick: () => lay(m) }, ve(m))));
+    if (muc.length && document.activeElement === input) { ds.hidden = false; input.setAttribute('aria-expanded', 'true'); dangChon = -1; } else dong();
+  }
+  input.addEventListener('input', () => { clearTimeout(hen); hen = setTimeout(tai, choMs); });
+  input.addEventListener('keydown', (e) => {
+    if (ds.hidden) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); dangChon = Math.min(muc.length - 1, dangChon + 1); danhDau(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); dangChon = Math.max(0, dangChon - 1); danhDau(); }
+    else if (e.key === 'Enter' && dangChon >= 0) { e.preventDefault(); lay(muc[dangChon]); }
+    else if (e.key === 'Escape') { dong(); }
+  });
+  input.addEventListener('blur', () => setTimeout(dong, 150));
+  return h('div', { class: 'o-goi-y' }, input, ds);
+}
+
 // Nút chọn/chụp ảnh to, dễ bấm; ô file thật nằm ẩn bên trong để vẫn dùng bàn phím và trình đọc màn hình được
 export function oChonTep(attrs = {}, nhan = 'Chụp hoặc chọn ảnh') {
   const input = h('input', { type: 'file', accept: 'image/*', ...attrs });

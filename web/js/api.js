@@ -132,6 +132,25 @@ export async function linkTepNhieu(dsDuongDan) {
   return Object.fromEntries(dsDuongDan.map((d) => [d, { lon: theoDuong[d], nho: theoDuong[duongDanAnhNho(d)] || theoDuong[d] }]));
 }
 
+// Gợi ý xe khi gõ biển số (hoặc 4 số trở lên của SĐT khách): tối đa 8 xe
+export async function goiYXe(chu) {
+  const gon = String(chu || '').toUpperCase().replace(/[^0-9A-Z]/g, '');
+  if (gon.length < 2) return [];
+  let xe = await doc('xe', (q) => q.ilike('bien_so', `%${gon}%`).order('bien_so').limit(8), 'id,bien_so,mau,dong_xe_id,khach_hang_id');
+  if (/^\d{4,}$/.test(gon) && xe.length < 8) {
+    const khTheoSdt = await doc('khach_hang', (q) => q.ilike('dien_thoai', `%${gon}%`).limit(8), 'id');
+    if (khTheoSdt.length) {
+      const them = await doc('xe', (q) => q.in('khach_hang_id', khTheoSdt.map((k) => k.id)).limit(8), 'id,bien_so,mau,dong_xe_id,khach_hang_id');
+      for (const x of them) if (!xe.some((y) => y.id === x.id)) xe.push(x);
+      xe = xe.slice(0, 8);
+    }
+  }
+  const idKh = [...new Set(xe.map((x) => x.khach_hang_id).filter(Boolean))];
+  const kh = idKh.length ? await doc('khach_hang', (q) => q.in('id', idKh), 'id,ten,dien_thoai') : [];
+  const theoId = Object.fromEntries(kh.map((k) => [k.id, k]));
+  return xe.filter((x) => x.bien_so).map((x) => ({ ...x, khach: theoId[x.khach_hang_id] || null }));
+}
+
 // ---------- Dịch vụ nhanh ----------
 export const ghiDichVuNhanh = (p) => rpc('ghi_dich_vu_nhanh', { p });
 export const huyDichVuNhanh = (id, lyDo) => rpc('huy_dich_vu_nhanh', { p_id: id, p_ly_do: lyDo });
