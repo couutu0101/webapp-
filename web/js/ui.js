@@ -128,6 +128,7 @@ const ICON = {
   anh: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
   menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
   them: '<path d="M12 5v14M5 12h14"/>',
+  kho: '<path d="M3 8 12 4l9 4v11H3z"/><path d="M7 19v-7h10v7"/><path d="M7 15h10"/>',
 };
 export function icon(ten) {
   return h('span', { class: 'ic', 'aria-hidden': 'true',

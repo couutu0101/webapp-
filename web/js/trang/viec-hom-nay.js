@@ -2,6 +2,7 @@
 import { h, oChonTep, bienSo, icon, ngayGio, chay, moModal, oVung, truong, docForm, nhanTrangThai, nenAnh, TRANG_THAI, dat } from '../ui.js';
 import * as api from '../api.js';
 import { viecTiepTheo } from './giao-viec.js';
+import { moLapDeXuat } from './kho.js';
 
 const NHOM_DEM = [
   { nhan: 'Chờ duyệt giá', tt: ['tiep_nhan', 'bao_gia'] },
@@ -16,11 +17,12 @@ const MUC_DO = { cao: 'Cần làm ngay', vua: 'Trong tuần', thap: 'Bổ sung k
 
 export default async function trangViec(el) {
   const laVanPhong = api.laNhanVien();
-  const [hoSo, canhBao, bangViec, viecCuaToi] = await Promise.all([
+  const [hoSo, canhBao, bangViec, viecCuaToi, kho] = await Promise.all([
     laVanPhong ? api.doc('v_ho_so', (q) => q.not('trang_thai', 'in', '(dong,huy)')) : [],
     laVanPhong ? api.doc('v_canh_bao') : [],
     api.coVaiTro('truong_nhom', 'quan_ly', 'cvdv', 'giam_doc') ? api.bangViecTo() : [],
     laVanPhong ? layViecCuaToi() : [],
+    laVanPhong ? demKho() : null,
   ]);
 
   const nut = [];
@@ -36,6 +38,7 @@ export default async function trangViec(el) {
       return h('a', { class: `o-dem ${so ? '' : 'mo'}`, href: `#/ho-so?tt=${n.tt.join(',')}` },
         h('b', null, so), h('span', null, n.nhan));
     })) : null,
+    kho ? khoiKho(kho) : null,
     laVanPhong ? khoiCanhBao(canhBao) : null,
     bangViec.length || api.coVaiTro('truong_nhom') ? khoiBangViec(bangViec, () => trangViec(el)) : null,
   );
@@ -69,6 +72,7 @@ function khoiBangViec(ds, taiLai) {
             ? h('button', { class: 'nut nho', type: 'button', onclick: () => chay(() => api.baoXong(m.id), { thanhCong: `Đã báo xong: ${m.ten}` }).then(taiLai, taiLai) }, 'Báo xong')
             : h('span', { class: 'xong' }, '✓ Xong')))),
         h('div', { class: 'hang-nut' },
+          h('button', { class: 'nut nho', type: 'button', onclick: () => moLapDeXuat({ id: x.ho_so_id, ma: x.ma, bien_so_hien_thi: x.bien_so, xe: x.xe }, taiLai) }, 'Đề xuất vật tư'),
           h('button', { class: 'nut nho', type: 'button', onclick: () => moPhatSinh(x, taiLai) }, 'Báo phát sinh')),
       ))));
 }
@@ -111,4 +115,27 @@ function khoiViecCuaToi(ds) {
           h('span', { class: 'viec-ten' }, h('b', null, viecTiepTheo(v.hs).ten), h('small', null, [v.hs.xe, v.hs.ten_khach].filter(Boolean).join(' · '))),
           h('small', { class: 'viec-luc' }, `Giao ${ngayGio(v.giao_viec_luc)}`)))))
       : h('p', { class: 'trong' }, 'Không có xe nào đang chờ anh/chị làm.'));
+}
+
+// ---------- Việc kho: số phiếu chờ xử lý theo vai trò ----------
+async function demKho() {
+  try {
+    const [dx, thieu, mua, nhap] = await Promise.all([
+      api.coVaiTro('kho', 'giam_doc', 'quan_ly') ? api.doc('de_xuat_vat_tu', (q) => q.eq('trang_thai', 'cho_xuat'), 'id') : [],
+      api.coVaiTro('kho', 'giam_doc', 'quan_ly') ? api.doc('v_ton_kho', (q) => q.eq('duoi_toi_thieu', true).eq('hoat_dong', true), 'id') : [],
+      api.coVaiTro('quan_ly', 'giam_doc') ? api.doc('de_nghi_mua', (q) => q.eq('trang_thai', 'cho_duyet'), 'id') : [],
+      api.coVaiTro('ke_toan', 'giam_doc') ? api.doc('phieu_nhap', (q) => q.in('trang_thai', ['cho_khop', 'treo']), 'id') : [],
+    ]);
+    const o = [
+      api.coVaiTro('kho', 'giam_doc', 'quan_ly') ? ['de_xuat', 'Đề xuất vật tư chờ xuất', dx.length] : null,
+      api.coVaiTro('kho', 'giam_doc', 'quan_ly') ? ['ton', 'Mã hàng dưới mức tối thiểu', thieu.length] : null,
+      api.coVaiTro('quan_ly', 'giam_doc') ? ['mua', 'Đề nghị mua chờ duyệt', mua.length] : null,
+      api.coVaiTro('ke_toan', 'giam_doc') ? ['nhap', 'Phiếu nhập chờ khớp hóa đơn', nhap.length] : null,
+    ].filter(Boolean);
+    return o.length ? o : null;
+  } catch { return null; }
+}
+function khoiKho(o) {
+  return h('section', { class: 'luoi-dem' }, o.map(([the, nhan, so]) =>
+    h('a', { class: `o-dem ${so ? '' : 'mo'}`, href: `#/kho?the=${the}` }, h('b', null, so), h('span', null, nhan))));
 }

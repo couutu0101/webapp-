@@ -10,6 +10,7 @@ import trangChiTiet from './trang/ho-so-chi-tiet.js';
 import trangDichVu from './trang/dich-vu-nhanh.js';
 import trangThuChi from './trang/thu-chi.js';
 import trangDeNghi from './trang/de-nghi-chi.js';
+import trangKho from './trang/kho.js';
 import trangDoanhThu from './trang/doanh-thu.js';
 import trangDanhMuc from './trang/danh-muc.js';
 import trangNhanVien from './trang/nhan-vien.js';
@@ -20,6 +21,7 @@ const MENU = [
   { duong: 'dich-vu', nhan: 'Dịch vụ nhanh', ic: 'nhanh', ai: () => api.laNhanVien() || api.coVaiTro('truong_nhom') },
   { duong: 'thu-chi', nhan: 'Thu chi', ic: 'quy', ai: () => api.coVaiTro('giam_doc', 'ke_toan', 'quan_ly') },
   { duong: 'de-nghi', nhan: 'Đề nghị chi', ic: 'phieu', ai: () => api.laNhanVien() || api.coVaiTro('truong_nhom') },
+  { duong: 'kho', nhan: 'Kho', ic: 'kho', ai: () => api.laNhanVien() || api.coVaiTro('truong_nhom') },
   { duong: 'doanh-thu', nhan: 'Doanh thu', ic: 'doanhThu', ai: () => api.coVaiTro('giam_doc', 'ke_toan', 'quan_ly') },
   { duong: 'danh-muc', nhan: 'Danh mục', ic: 'danhMuc', ai: () => api.coVaiTro('giam_doc', 'ke_toan') },
   { duong: 'nhan-vien', nhan: 'Nhân viên', ic: 'nguoi', ai: () => api.coVaiTro('giam_doc') },
@@ -35,6 +37,7 @@ const TUYEN = [
   [/^dich-vu$/, trangDichVu, quyenMenu('dich-vu')],
   [/^thu-chi$/, trangThuChi, quyenMenu('thu-chi')],
   [/^de-nghi$/, trangDeNghi, quyenMenu('de-nghi')],
+  [/^kho$/, trangKho, quyenMenu('kho')],
   [/^doanh-thu$/, trangDoanhThu, quyenMenu('doanh-thu')],
   [/^danh-muc$/, trangDanhMuc, quyenMenu('danh-muc')],
   [/^nhan-vien$/, trangNhanVien, quyenMenu('nhan-vien')],

@@ -3,6 +3,7 @@ import {
   h, oChonTep, bienSo, oNgayVN, tien, ngay, ngayGio, homNay, choODatetime, truong, oChu, oTien, oChon, oVung, oNgay, oCheck, docForm, docTien,
   chay, moModal, toast, nhanTrangThai, nenAnh, bang, BUOC_SO, NHOM, NHOM_CHON, NGUON, TRANG_THAI, xacNhan, dat, veDanhSachHoSo,
 } from '../ui.js';
+import { khoiPhuTungXe } from './kho.js';
 import { khungGiaoViec, giaoSauKhiLuu, dongDangCho, nguoiLamTungBuoc, tenGoi, VAI_TRO_BUOC } from './giao-viec.js';
 import * as api from '../api.js';
 import { ghiTiep, tuGhiNgayKhiBam, nhacHetHan, layLichSu, khoiLichSu } from './lich-su-xe.js';
@@ -17,12 +18,14 @@ export default async function trangChiTiet(el, idChu) {
   let hsDangXem = { id, ma: '' };
   const ve = () => veDanhSachHoSo(hsDangXem);
   const veLai = ve.lai = async () => {
-    const [hs, hm, nk, tep, ps, dsKcs, [viec]] = await Promise.all([
+    const [hs, hm, nk, tep, ps, dsKcs, [viec], [gv], [cho]] = await Promise.all([
       api.layHoSo(id), api.layHangMuc(id), api.layNhatKy(id), api.layTep(id), api.layPhatSinh(id), api.layKcs(id),
-      api.doc('v_viec_ho_so', (q) => q.eq('ho_so_id', id)).catch(() => [])]);
+      api.doc('v_viec_ho_so', (q) => q.eq('ho_so_id', id)).catch(() => []),
+      api.doc('v_gia_von_ho_so', (q) => q.eq('ho_so_id', id)).catch(() => []),
+      api.doc('v_cho_phu_tung', (q) => q.eq('ho_so_id', id)).catch(() => [])]);
     if (!hs) { dat(el, h('p', { class: 'trong' }, 'Không tìm thấy hồ sơ, hoặc bạn không có quyền xem.')); return; }
     hsDangXem = hs;
-    const ctx = { hs, hm, nk, tep, ps, dsKcs, ve, viec };
+    const ctx = { hs, hm, nk, tep, ps, dsKcs, ve, viec, giaVon: Number(gv?.gia_von || 0), cho };
     dat(el, 
       dau(ctx), dongDangCho(hs, viec, hm, veLai), tienDo(hs, nk),
       h('div', { class: 'cot-doi' },
@@ -35,11 +38,12 @@ export default async function trangChiTiet(el, idChu) {
 const q = (...ds) => api.coVaiTro(...ds);
 const nut = (nhan, onclick, chinh = false) => h('button', { class: `nut ${chinh ? 'chinh' : ''}`, type: 'button', onclick }, nhan);
 
-function dau({ hs }) {
+function dau({ hs, cho }) {
   return h('div', { class: 'tieu-de-trang' },
     h('div', null,
       h('p', { class: 'mo-ta' }, h('a', { href: '#/ho-so' }, '← Hồ sơ xe')),
-      h('h1', { class: 'tieu-de-xe' }, bienSo(hs.bien_so_hien_thi, { lon: true }), nhanTrangThai(hs.trang_thai)),
+      h('h1', { class: 'tieu-de-xe' }, bienSo(hs.bien_so_hien_thi, { lon: true }), nhanTrangThai(hs.trang_thai),
+        cho ? h('span', { class: 'nhan tt-canh-bao' }, `Chờ phụ tùng ${cho.so_ngay} ngày`) : null),
       h('p', { class: 'mo-ta' }, [hs.ma, hs.xe, hs.mau].filter(Boolean).join(' · '),
         hs.loai === 'bao_hanh' ? h('span', { class: 'nhan tt-canh-bao' }, 'Bảo hành') : null,
         hs.tu_excel ? h('span', { class: 'nhan' }, 'Chuyển từ Excel') : null)),
@@ -281,6 +285,9 @@ function moDuyetGia(hs, choDuyet, ve) {
 
 // ---------- Lệnh sửa chữa, sửa chữa (bước 4–6) ----------
 function theSuaChua({ hs, hm, ps, ve }) {
+  // Cấp phụ tùng, vật tư (kho): tải sau, chèn vào cuối thẻ
+  const khoiPT = h('div');
+  khoiPhuTungXe(hs, ve).then((k) => { if (k) dat(khoiPT, k); }).catch(() => {});
   if (!['da_duyet', 'dang_sua', 'cho_kcs', 'dat_kcs'].includes(hs.trang_thai) && !hm.some((m) => m.to_id)) return null;
   const chuaGiao = hm.filter((m) => m.trang_thai === 'duyet');
   const dangLam = hm.filter((m) => ['dang_lam', 'xong'].includes(m.trang_thai));
@@ -301,7 +308,8 @@ function theSuaChua({ hs, hm, ps, ve }) {
         { nhan: 'Người làm', lay: (m) => m.nguoi_lam || '' },
         { nhan: 'Trạng thái', lay: (m) => m.trang_thai === 'xong' ? `Xong ${ngayGio(m.xong_luc)}` :
           duocLap ? h('button', { class: 'nut nho', type: 'button', onclick: () => chay(() => api.baoXong(m.id), { thanhCong: 'Đã báo xong.' }).then(ve, ve.lai) }, 'Báo xong') : 'Đang làm' },
-      ], dangLam));
+      ], dangLam),
+    khoiPT);
 }
 
 function moLenh(hs, ds, ve) {
@@ -468,7 +476,7 @@ function moChamSoc(hs, ve) {
 }
 
 // ---------- Tiền ----------
-function theTien({ hs }) {
+function theTien({ hs, giaVon }) {
   const d = (nhan, gt, dam) => h('div', { class: `dong-tien ${dam ? 'dam' : ''}` }, h('span', null, nhan), h('b', null, tien(gt) || '0'));
   const bh = hs.nguon_tt !== 'khach';
   return h('section', { class: 'the' }, h('h2', null, 'Tiền'),
@@ -478,6 +486,10 @@ function theTien({ hs }) {
     bh && Number(hs.khau_tru_giam_tru) ? d('+ Khấu trừ – giảm trừ', hs.khau_tru_giam_tru) : null,
     Number(hs.giam_gia) ? d('− Giảm giá đã duyệt', hs.giam_gia) : null,
     d('Khách phải trả', hs.phai_thu_khach), d('Khách đã trả (gồm cọc)', hs.da_thu_khach), d('Khách còn nợ', hs.con_no_khach, true),
+    // Giá vốn phụ tùng, vật tư đã xuất cho xe và lãi gộp (doanh thu sau VAT − giá vốn)
+    q('giam_doc', 'quan_ly', 'ke_toan') && (giaVon || Number(hs.bh_duyet) || Number(hs.khach_duyet)) ? [h('hr'),
+      d('Phụ tùng, vật tư đã xuất (giá vốn)', giaVon),
+      d('Lãi gộp', Number(hs.bh_duyet) + Number(hs.khach_duyet) - Number(hs.giam_gia || 0) - giaVon, true)] : null,
     q('ke_toan', 'giam_doc') && !['dong', 'huy'].includes(hs.trang_thai)
       ? h('div', { class: 'hang-nut' }, h('a', { class: 'nut nho', href: `#/thu-chi?ho_so=${hs.id}` }, 'Lập phiếu thu cho xe này')) : null);
 }

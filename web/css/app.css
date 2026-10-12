@@ -413,3 +413,15 @@ a.o-dem:not(.mo) b { color: var(--muc); }
 
 /* Nút xếp dọc ở đầu trang hồ sơ (Tiếp nhận xe trên, Tạo hồ sơ bảo hành dưới) */
 .hang-nut.doc { flex-direction: column; align-items: stretch; }
+
+/* ===== Kho ===== */
+.dong-kho { display: flex; flex-wrap: wrap; gap: var(--k2) var(--k3); align-items: flex-end; padding: var(--k3); border-radius: var(--bo); background: var(--mat-lom); border: 1px solid var(--vien); }
+.dong-kho > .truong { flex: 1 1 130px; min-width: 0; }
+.dong-kho > .truong.rong-hon { flex: 3 1 280px; }
+.dong-kho > .nut-chu { align-self: center; }
+.o-so { text-align: right; }
+.tong-phieu { text-align: right; margin: var(--k3) 0; font-size: 1.02rem; }
+.tabs.nho button { min-height: 38px; font-size: .92rem; }
+.khoi-phu-tung { margin-top: var(--k4); padding-top: var(--k3); border-top: 1px solid var(--vien); }
+.khoi-phu-tung h3 { margin: 0; font-size: 1rem; }
+.tieu-de-xe .nhan.tt-canh-bao { margin-left: 6px; }

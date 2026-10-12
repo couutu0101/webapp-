@@ -51,6 +51,8 @@ export default async function trangHoSo(el) {
     // Ai đang được giao bước tiếp theo
     const viec = ds.length ? await api.doc('v_viec_ho_so', (q) => q.in('ho_so_id', ds.map((d) => d.id))).catch(() => []) : [];
     const nguoiCua = Object.fromEntries(viec.map((v) => [v.ho_so_id, v.nguoi_tiep_theo_ten]));
+    const choPT = Object.fromEntries((ds.length ? await api.doc('v_cho_phu_tung', (q) => q.in('ho_so_id', ds.map((d) => d.id))).catch(() => []) : [])
+      .map((c) => [c.ho_so_id, c.so_ngay]));
     const oViec = (d) => {
       const v = viecTiepTheo(d);
       if (!v) return '';
@@ -68,7 +70,8 @@ export default async function trangHoSo(el) {
         { nhan: 'Khách', lay: (d) => d.ten_khach },
         { nhan: 'Nguồn', lay: (d) => d.nguon_tt === 'khach' ? 'Ngoài BH' : (d.hang_bh || NGUON[d.nguon_tt]) },
         { nhan: 'Vào ngày', lay: (d) => ngay(d.ngay_vao) },
-        { nhan: 'Bước', lay: (d) => h('span', null, nhanTrangThai(d.trang_thai), d.co_phat_sinh ? h('span', { class: 'nhan tt-canh-bao' }, 'Phát sinh') : null) },
+        { nhan: 'Bước', lay: (d) => h('span', null, nhanTrangThai(d.trang_thai), d.co_phat_sinh ? h('span', { class: 'nhan tt-canh-bao' }, 'Phát sinh') : null,
+          choPT[d.id] !== undefined ? h('span', { class: 'nhan tt-canh-bao' }, `Chờ phụ tùng ${choPT[d.id]} ngày`) : null) },
         { nhan: 'Việc tiếp theo – Ai làm', lay: oViec },
         coTien ? { nhan: 'Còn nợ', so: true, lay: (d) => tien(Number(d.con_no_bh) + Number(d.con_no_khach)) || '0' } : null,
       ].filter(Boolean), ds, { onRow: (d) => { location.hash = `#/ho-so/${d.id}`; }, idDong: (d) => d.id, trong: 'Không có hồ sơ nào.' }));

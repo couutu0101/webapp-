@@ -173,3 +173,30 @@ export const chiTien = (id, taiKhoan, ngay) => rpc('chi_tien', { p_de_nghi: id, 
 export const luuNhanVien = (id, p) => rpc('luu_nhan_vien', { p_id: id, p });
 export const nhapBangLuong = (thang, tong) => rpc('nhap_bang_luong', { p_thang: thang, p_tong: tong });
 export const ghiKiemQuy = (taiKhoan, soDem, ghiChu) => rpc('ghi_kiem_quy', { p_tai_khoan: taiKhoan, p_so_dem: soDem, p_ghi_chu: ghiChu });
+
+// ---------- Kho (012) ----------
+export const luuHangKho = (p) => rpc('luu_hang_kho', { p });
+export const lapPhieuNhap = (p) => rpc('lap_phieu_nhap', { p });
+export const khopPhieuNhap = (id, khop, lyDo) => rpc('khop_phieu_nhap', { p_id: id, p_khop: khop, p_ly_do: lyDo ?? null });
+export const huyPhieuNhap = (id, lyDo) => rpc('huy_phieu_nhap', { p_id: id, p_ly_do: lyDo });
+export const lapDeXuat = (p) => rpc('lap_de_xuat_vat_tu', { p });
+export const huyDeXuat = (id) => rpc('huy_de_xuat_vat_tu', { p_id: id });
+export const xuatTheoDeXuat = (id, dong = null) => rpc('xuat_kho_de_xuat', { p_de_xuat: id, p_dong: dong });
+export const chuyenMua = (id, p) => rpc('chuyen_mua', { p_de_xuat: id, p });
+export const xuatDungChung = (p) => rpc('xuat_dung_chung', { p });
+export const huyPhieuXuat = (id, lyDo) => rpc('huy_phieu_xuat', { p_id: id, p_ly_do: lyDo });
+export const lapDeNghiMua = (p) => rpc('lap_de_nghi_mua', { p });
+export const duyetDeNghiMua = (id, dongY, lyDo) => rpc('duyet_de_nghi_mua', { p_id: id, p_dong_y: dongY, p_ly_do: lyDo ?? null });
+export const huyDeNghiMua = (id) => rpc('huy_de_nghi_mua', { p_id: id });
+export const taoKiemKe = (p) => rpc('tao_kiem_ke', { p });
+export const luuDemKiemKe = (id, dong) => rpc('luu_dem_kiem_ke', { p_id: id, p_dong: dong });
+export const chotKiemKe = (id, bienBan) => rpc('chot_kiem_ke', { p_id: id, p_bien_ban: bienBan ?? null });
+export const huyKiemKe = (id) => rpc('huy_kiem_ke', { p_id: id });
+// Ảnh hóa đơn / báo giá NCC: lưu vào 'ho-so-xe' dưới thư mục kho của chi nhánh
+export async function taiTepKho(loai, chungTu, file) {
+  const ten = file.name.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w.-]+/g, '-');
+  const duongDan = `${chungTu.chi_nhanh_id}/kho/${chungTu.ma}/${Date.now()}-${ten}`;
+  const { error } = await sb.storage.from('ho-so-xe').upload(duongDan, file, { upsert: false });
+  if (error) throw loi(error);
+  return rpc('them_tep_kho', { p_loai: loai, p_id: chungTu.id, p_duong_dan: duongDan, p_ten: file.name });
+}
