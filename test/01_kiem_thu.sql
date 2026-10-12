@@ -383,6 +383,9 @@ select public.lap_lenh_sua_chua((select v::bigint from ctx where k='hs_b'), now(
   (select jsonb_agg(jsonb_build_object('id',id,'to_id','DS')) from public.hang_muc where ho_so_id=(select v::bigint from ctx where k='hs_b')));
 select kt.ghi('Đang sửa: giao theo tổ, không giao một người',
   (select trang_thai = 'dang_sua' and nguoi_tiep_theo is null from public.ho_so where id=(select v::bigint from ctx where k='hs_b')));
+select kt.ghi('Đang sửa: bảng xem hiện tên trưởng nhóm của tổ',
+  (select nguoi_tiep_theo_ten from public.v_viec_ho_so where ho_so_id=(select v::bigint from ctx where k='hs_b')) = 'Đặng Thanh Hận (tổ DS)',
+  (select nguoi_tiep_theo_ten from public.v_viec_ho_so where ho_so_id=(select v::bigint from ctx where k='hs_b')));
 select kt.dong_vai(null);  -- chuyển bước trực tiếp để thử gợi ý (bỏ qua KCS thật)
 update public.ho_so set trang_thai = 'cho_kcs' where id=(select v::bigint from ctx where k='hs_b');
 select kt.ghi('Chờ KCS: tự giao quản lý chung',
@@ -390,6 +393,9 @@ select kt.ghi('Chờ KCS: tự giao quản lý chung',
 update public.ho_so set trang_thai = 'dat_kcs' where id=(select v::bigint from ctx where k='hs_b');
 select kt.ghi('Đạt KCS: tự giao kế toán',
   (select nguoi_tiep_theo from public.ho_so where id=(select v::bigint from ctx where k='hs_b')) = (select id from public.nhan_vien where email='tien@gara.vn'));
+update public.nhan_vien set hoat_dong = false where email = 'tien@gara.vn';
+select kt.ghi('Chưa có kế toán thì giao cho giám đốc', app.nhan_vien_dau('ke_toan', 'TK') = (select id from public.nhan_vien where email='thuan@gara.vn'));
+update public.nhan_vien set hoat_dong = true where email = 'tien@gara.vn';
 select kt.ghi('Hồ sơ từ Excel không giao ai', not exists (select 1 from public.ho_so where tu_excel and nguoi_tiep_theo is not null));
 select kt.dong_vai(null);
 \o

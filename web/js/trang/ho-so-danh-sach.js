@@ -54,7 +54,7 @@ export default async function trangHoSo(el) {
     const oViec = (d) => {
       const v = viecTiepTheo(d);
       if (!v) return '';
-      const ai = v.theoTo ? 'các tổ' : nguoiCua[d.id];
+      const ai = nguoiCua[d.id];
       return h('span', { class: 'viec-tiep' }, v.ten, h('small', null, ai || 'Chưa giao'));
     };
     const coTien = api.coVaiTro('giam_doc', 'ke_toan', 'quan_ly');

@@ -2376,12 +2376,14 @@ alter table public.ho_so add column if not exists giao_viec_luc timestamptz;
 comment on column public.ho_so.nguoi_tiep_theo is 'Nhân viên được giao làm bước tiếp theo';
 create index if not exists ho_so_nguoi_tiep_theo_idx on public.ho_so (nguoi_tiep_theo) where nguoi_tiep_theo is not null;
 
--- Nhân viên đầu tiên (theo tên) có vai trò này ở chi nhánh của hồ sơ
+-- Nhân viên đầu tiên (theo tên) có vai trò này ở chi nhánh của hồ sơ.
+-- Chưa có ai đúng vai trò thì giao cho giám đốc – bước nào cũng phải có người cụ thể.
 create or replace function app.nhan_vien_dau(p_vai_tro text, p_chi_nhanh text) returns uuid
 language sql stable security definer set search_path = public as $$
   select id from public.nhan_vien
-  where hoat_dong and p_vai_tro = any(vai_tro) and (chi_nhanh_id = p_chi_nhanh or chi_nhanh_id is null)
-  order by (chi_nhanh_id is null), ho_ten limit 1
+  where hoat_dong and (p_vai_tro = any(vai_tro) or 'giam_doc' = any(vai_tro))
+    and (chi_nhanh_id = p_chi_nhanh or chi_nhanh_id is null)
+  order by (p_vai_tro = any(vai_tro)) desc, (chi_nhanh_id is null), ho_ten limit 1
 $$;
 
 -- Gợi ý người làm bước tiếp theo theo bước hiện tại của hồ sơ
@@ -2393,7 +2395,8 @@ begin
     -- Báo giá, nhập duyệt giá, lập lệnh: CVDV đang làm (người bấm), không thì CVDV tiếp nhận
     when 'tiep_nhan', 'bao_gia', 'da_duyet' then
       return case when app.co_vai_tro('cvdv') then auth.uid()
-                  else coalesce(h.tao_boi, app.nhan_vien_dau('cvdv', h.chi_nhanh_id)) end;
+                  else coalesce((select id from public.nhan_vien where id = h.tao_boi and hoat_dong),
+                                app.nhan_vien_dau('cvdv', h.chi_nhanh_id)) end;
     when 'dang_sua' then return null;                                           -- các tổ được giao
     when 'cho_kcs' then return app.nhan_vien_dau('quan_ly', h.chi_nhanh_id);     -- KCS
     when 'dat_kcs' then return app.nhan_vien_dau('ke_toan', h.chi_nhanh_id);     -- thu tiền, giao xe
@@ -2456,9 +2459,19 @@ revoke execute on function public.giao_viec(bigint, uuid) from public, anon;
 grant execute on function public.giao_viec(bigint, uuid) to authenticated;
 revoke execute on function app.nhan_vien_dau(text, text), app.goi_y_nguoi_tiep_theo(public.ho_so), app.tu_giao_viec() from public, anon;
 
--- Ai đang được giao bước tiếp theo của từng hồ sơ (theo quyền xem hồ sơ của người đăng nhập)
+-- Ai đang được giao bước tiếp theo của từng hồ sơ (theo quyền xem hồ sơ của người đăng nhập).
+-- Đang sửa: tên trưởng nhóm của các tổ đang làm, ví dụ "Đặng Thanh Hận (tổ DS)".
 create or replace view public.v_viec_ho_so with (security_invoker = true) as
-select h.id as ho_so_id, h.trang_thai, h.nguon_tt, h.nguoi_tiep_theo, nv.ho_ten as nguoi_tiep_theo_ten, h.giao_viec_luc
+select h.id as ho_so_id, h.trang_thai, h.nguon_tt, h.nguoi_tiep_theo,
+  case when h.trang_thai = 'dang_sua' then (
+         select string_agg(distinct coalesce(tn.ho_ten || ' (tổ ' || m.to_id || ')', 'Tổ ' || m.to_id), ', ')
+         from public.hang_muc m
+         left join lateral (select t.ho_ten from public.nhan_vien t
+                            where t.hoat_dong and 'truong_nhom' = any(t.vai_tro) and t.to_id = m.to_id
+                            order by t.ho_ten limit 1) tn on true
+         where m.ho_so_id = h.id and m.trang_thai in ('duyet','dang_lam') and m.to_id is not null)
+       else nv.ho_ten end as nguoi_tiep_theo_ten,
+  h.giao_viec_luc
 from public.ho_so h
 left join public.nhan_vien nv on nv.id = h.nguoi_tiep_theo;
 grant select on public.v_viec_ho_so to authenticated;
