@@ -46,7 +46,9 @@ export async function layLichSu(xeId, boQuaId = null) {
   return ds.filter((x) => String(x.id) !== String(boQuaId));
 }
 
-const dongNoiDung = (nhan, noiDung, ngayGhi) => noiDung
+// Bỏ các câu giữ chỗ của dữ liệu chuyển từ Excel
+const GIU_CHO = /^\d{2}\/\d{2}\/\d{4}: \((Chuyển từ Excel|Excel không ghi tình trạng)\)$/;
+const dongNoiDung = (nhan, noiDung, ngayGhi) => noiDung && !GIU_CHO.test(noiDung.trim())
   ? h('div', { class: 'ls-dong' }, h('span', { class: 'ls-nhan' }, nhan),
     h('span', { class: 'ls-noi-dung' }, CO_NGAY.test(noiDung.trim()) || !ngayGhi ? noiDung : `${ngay(ngayGhi)}: ${noiDung}`))
   : null;
@@ -59,7 +61,8 @@ export function khoiLichSu(ds, { tieuDe = 'Lịch sử các lần trước', moS
       h('div', { class: 'ls-dau' },
         h('b', null, ngay(x.ngay_vao)), ' ',
         h('a', { href: `#/ho-so/${x.id}` }, x.ma), ' ',
-        h('small', null, x.nguon_tt === 'khach' ? NGUON.khach : (x.hang_bh || NGUON[x.nguon_tt]))),
+        h('small', null, x.nguon_tt === 'khach' ? NGUON.khach : (x.hang_bh || NGUON[x.nguon_tt])),
+        x.tu_excel ? h('span', { class: 'nhan' }, 'Từ Excel') : null),
       dongNoiDung('Tình trạng', x.tinh_trang_xe, x.ngay_vao),
       dongNoiDung('Tư vấn', x.tu_van, x.ngay_vao),
       dongNoiDung('Phản hồi khi giao xe', x.cam_nhan_khach, x.giao_luc),

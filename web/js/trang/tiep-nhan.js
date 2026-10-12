@@ -137,7 +137,7 @@ export default async function trangTiepNhan(el) {
       oBienSo.value = x.bien_so;
       if (x.hang_xe_id) { chonHangXe.value = x.hang_xe_id; capNhatDongXe(x.dong_xe_id); }
       if (x.mau && !oMau.value) oMau.value = x.mau;
-      if (!oTen.value) oTen.value = x.ten_khach || '';
+      if (!oTen.value && x.ten_khach !== 'Chưa có tên') oTen.value = x.ten_khach || '';
       if (!oSdt.value) oSdt.value = x.dien_thoai || '';
       if (x.han_bao_hiem && !oHan.value) oHan.value = isoSangVN(x.han_bao_hiem);
       if (x.han_bh_than_vo && !oHanThanVo.value) oHanThanVo.value = isoSangVN(x.han_bh_than_vo);
