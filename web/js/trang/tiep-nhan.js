@@ -1,5 +1,5 @@
 // Bước 1: Tiếp nhận xe – 10 thông tin bắt buộc + ảnh nhận xe
-import { h, oGoiY, bienSo, vietBienSo, oChonTep, oCheck, truong, oChu, oChon, oVung, oNgayVN, isoSangVN, vnSangIso, docForm, chay, toast, nenAnh, choODatetime, dat } from '../ui.js';
+import { h, oGoiY, bienSo, vietBienSo, oChonTep, oCheck, truong, oChu, oChon, oVung, oNgayVN, isoSangVN, vnSangIso, docForm, chay, toast, nenAnh, choODatetime, dat, veDanhSachHoSo } from '../ui.js';
 import * as api from '../api.js';
 import { homNayVN, themNgay, tuGhiNgayKhiBam, nhacHetHan, layLichSu, khoiLichSu } from './lich-su-xe.js';
 
@@ -226,7 +226,7 @@ export default async function trangTiepNhan(el) {
         try { await api.taiTep(hoSo, 'tiep_nhan', await nenAnh(f)); } catch { loiAnh++; }
       }
       toast(loiAnh ? `Đã tạo hồ sơ ${kq.ma}, nhưng ${loiAnh} ảnh tải lên lỗi – tải lại trong hồ sơ.` : `Đã tạo hồ sơ ${kq.ma}`, loiAnh ? 'loi' : 'ok');
-      location.hash = `#/ho-so/${kq.id}`;
+      veDanhSachHoSo({ id: kq.id, ma: kq.ma });
     } catch {
       nut.disabled = false; nut.textContent = 'Lưu hồ sơ';
     }

@@ -70,6 +70,15 @@ def ve_trang(page, hash_):
     page.wait_for_timeout(300)
 
 
+def ve_ds(page, id_hs, mo_lai=True):
+    """Lưu xong trong hồ sơ: phải về danh sách Hồ sơ xe, dòng vừa lưu tô vàng; rồi mở lại hồ sơ để làm tiếp."""
+    page.wait_for_url(re.compile(r'#/ho-so(\?[^/]*)?$'), timeout=10000)
+    page.wait_for_selector(f'tr.vua-luu[data-id="{id_hs}"]', timeout=10000)
+    if mo_lai:
+        ve_trang(page, f'#/ho-so/{id_hs}')
+        page.wait_for_selector('h1')
+
+
 def modal(page):
     return page.locator('.modal').last
 
@@ -110,10 +119,16 @@ with sync_playwright() as p:
     duy.fill('input[name=han_bao_hiem]', '01/03/2027')
     chup(duy, '02-tiep-nhan')
     duy.click('button[type=submit]')
-    duy.wait_for_url(re.compile(r'#/ho-so/\d+$'), timeout=10000)
+    duy.wait_for_url(re.compile(r'#/ho-so(\?[^/]*)?$'), timeout=10000)
+    lien_ket = duy.locator('.toast-mo').last
+    id_hs = lien_ket.get_attribute('href').rsplit('/', 1)[1]
+    duy.wait_for_selector(f'tr.vua-luu[data-id="{id_hs}"]')
+    chup(duy, '02b-luu-xong-ve-danh-sach')
+    ghi('Lưu xong tự về danh sách Hồ sơ xe, dòng vừa lưu tô vàng; thông báo: ' + duy.locator('.toast').last.inner_text())
+    lien_ket.click()
+    duy.wait_for_url(re.compile(r'#/ho-so/\d+$'))
     duy.wait_for_selector('h1')
-    id_hs = duy.url.rsplit('/', 1)[1]
-    ghi('Tiếp nhận xong, hồ sơ ' + duy.locator('.tieu-de-trang .mo-ta').last.inner_text())
+    ghi('Bấm "Mở lại hồ sơ" trên thông báo → mở hồ sơ ' + duy.locator('.tieu-de-trang .mo-ta').last.inner_text())
     expect(duy.locator('h1')).to_contain_text('50H-923.61')
     expect(duy.locator('dl.thong-tin')).to_contain_text('20/05/2027')
     ghi('Hồ sơ hiện hạn BH thân vỏ 20/05/2027 và TNDS 01/03/2027: ' + str('01/03/2027' in duy.locator('dl.thong-tin').inner_text()))
@@ -122,7 +137,7 @@ with sync_playwright() as p:
     ghi('Lưu hồ sơ không cần ảnh; chụp bổ sung ảnh nhận xe trong hồ sơ')
     duy.set_input_files('.tai-tep input[type=file]', ANH)
     toast_co(duy, 'Đã tải 1 tệp')
-    cho_xong(duy)
+    ve_ds(duy, id_hs)
 
     # ---------- Báo giá ----------
     duy.click('text=+ Thêm dòng báo giá')
@@ -140,7 +155,7 @@ with sync_playwright() as p:
     chup(duy, '03-bao-gia')
     m.locator('text=Lưu báo giá').click()
     toast_co(duy, 'Đã lưu báo giá')
-    cho_xong(duy)
+    ve_ds(duy, id_hs)
     expect(duy.locator('h1 .nhan')).to_contain_text('Chờ duyệt giá')
     ghi('Lập báo giá 3 dòng → Chờ duyệt giá')
 
@@ -150,7 +165,7 @@ with sync_playwright() as p:
     m.locator('tbody tr').nth(1).locator('input.o-tien').fill('1900000')
     m.locator('text=Lưu kết quả').click()
     toast_co(duy, 'Đã lưu kết quả duyệt')
-    cho_xong(duy)
+    ve_ds(duy, id_hs)
     expect(duy.locator('h1 .nhan')).to_contain_text('Đã duyệt giá')
     ghi('Duyệt giá → Đã duyệt giá; tiền BH: ' + duy.locator('.dong-tien').first.inner_text().replace('\n', ' '))
 
@@ -159,7 +174,7 @@ with sync_playwright() as p:
     m.locator('input[name=hen_giao]').fill('2026-10-14T17:00')
     m.locator('text=Giao việc').click()
     toast_co(duy, 'Đã giao việc')
-    cho_xong(duy)
+    ve_ds(duy, id_hs)
     expect(duy.locator('h1 .nhan')).to_contain_text('Đang sửa')
     chup(duy, '04-chi-tiet-dang-sua')
     ghi('Lập lệnh sửa chữa → Đang sửa')
@@ -182,7 +197,7 @@ with sync_playwright() as p:
     for _ in range(6):
         if not duy.locator('button:has-text("Báo xong")').count(): break
         duy.locator('button:has-text("Báo xong")').first.click()
-        cho_xong(duy)
+        ve_ds(duy, id_hs)
         o_loi = duy.locator('.toast.loi')
         if o_loi.count(): raise AssertionError('Báo xong lỗi: ' + o_loi.first.inner_text())
     expect(duy.locator('h1 .nhan')).to_contain_text('Chờ KCS')
@@ -196,11 +211,11 @@ with sync_playwright() as p:
     long_.select_option('.tai-tep select', 'kcs')
     long_.set_input_files('.tai-tep input[type=file]', ANH)
     toast_co(long_, 'Đã tải 1 tệp')
+    ve_ds(long_, id_hs)
     expect(long_.locator('text=Chưa có ảnh sau sửa')).to_have_count(0)
-    cho_xong(long_)
     long_.click('text=Đạt KCS')
     toast_co(long_, 'Đã ký đạt KCS')
-    cho_xong(long_)
+    ve_ds(long_, id_hs)
     expect(long_.locator('h1 .nhan')).to_contain_text('Đạt KCS')
     ghi('KCS đạt (sau khi có ảnh sau sửa)')
 
@@ -219,17 +234,16 @@ with sync_playwright() as p:
     chup(tien_, '06-phieu-thu-khach')
     m.locator('text=Lập phiếu thu').click()
     toast_co(tien_, 'Đã lập phiếu thu')
-    tien_.wait_for_url(re.compile(r'#/ho-so/\d+$'))
-    cho_xong(tien_)
+    ve_ds(tien_, id_hs)
     tien_.fill('input[name=so_hd_bao_hiem]', 'HD0001')
     tien_.locator('.the button:has-text("Giao xe")').click()
     toast_co(tien_, 'Đã giao xe')
-    cho_xong(tien_)
+    ve_ds(tien_, id_hs)
     expect(tien_.locator('h1 .nhan')).to_contain_text('Đã giao xe')
     ghi('Thu đủ phần khách → giao xe')
     tien_.click('text=Đã gửi hồ sơ bảo hiểm')
     toast_co(tien_, 'Đã ghi ngày gửi')
-    cho_xong(tien_)
+    ve_ds(tien_, id_hs)
     tien_.click('text=Nhập hoa hồng')
     m = modal(tien_)
     m.locator('[name=so_tien]').fill('4500000')
@@ -243,6 +257,7 @@ with sync_playwright() as p:
     m.locator('[name=ghi_chu]').fill('5% + 200.000')
     m.locator('text=Lưu').click()
     toast_co(tien_, 'Đã lưu hoa hồng')
+    ve_ds(tien_, id_hs)
     chup(tien_, '07-chi-tiet-cho-bh-tra')
 
     # Bảo hiểm chuyển gộp, chia theo bảng kê
@@ -303,9 +318,9 @@ with sync_playwright() as p:
     tv.check(); tn.check()
     chup(duy, '17-xe-quay-lai')
     duy.click('button[type=submit]')
-    duy.wait_for_url(re.compile(r'#/ho-so/\d+$'), timeout=10000)
-    duy.wait_for_selector('h1')
-    ghi('Xe bảo hiểm tích không có cả 2 loại, không ảnh → lưu được hồ sơ ' + duy.locator('.tieu-de-trang .mo-ta').last.inner_text())
+    duy.wait_for_url(re.compile(r'#/ho-so(\?[^/]*)?$'), timeout=10000)
+    duy.wait_for_selector('tr.vua-luu')
+    ghi('Xe bảo hiểm tích không có cả 2 loại, không ảnh → lưu được: ' + duy.locator('.toast').last.inner_text())
 
     # ---------- Đề nghị chi ----------
     ve_trang(duy, '#/de-nghi')

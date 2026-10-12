@@ -1,5 +1,5 @@
 // Danh sách hồ sơ xe
-import { h, bienSo, tien, ngay, bang, nhanTrangThai, NGUON, dat } from '../ui.js';
+import { h, bienSo, tien, ngay, bang, nhanTrangThai, NGUON, dat, nhoPhien } from '../ui.js';
 import * as api from '../api.js';
 
 const LOC = [
@@ -13,7 +13,9 @@ const LOC = [
 export default async function trangHoSo(el) {
   const thamSo = new URLSearchParams(location.hash.split('?')[1] || '');
   let ttRieng = thamSo.get('tt') ? thamSo.get('tt').split(',') : null;
-  let loc = ttRieng ? null : 'dang';
+  // Nhớ tab đang xem để lưu xong trong hồ sơ thì quay về đúng chỗ
+  let loc = ttRieng ? null : (LOC.some((l) => l.ma === nhoPhien.doc('hs_tab')) ? nhoPhien.doc('hs_tab') : 'dang');
+  nhoPhien.ghi('hs_ds', location.hash.startsWith('#/ho-so') ? location.hash : '#/ho-so');
   let tuKhoa = '';
 
   const ketQua = h('div');
@@ -23,7 +25,7 @@ export default async function trangHoSo(el) {
 
   const tabs = h('div', { class: 'tabs', role: 'tablist' }, LOC.map((l) => h('button', {
     type: 'button', role: 'tab', 'data-ma': l.ma, 'aria-selected': String(l.ma === loc),
-    onclick: () => { loc = l.ma; ttRieng = null; capNhatTab(); tai(); },
+    onclick: () => { loc = l.ma; ttRieng = null; nhoPhien.ghi('hs_tab', loc); nhoPhien.ghi('hs_ds', '#/ho-so'); capNhatTab(); tai(); },
   }, l.nhan)));
   function capNhatTab() { for (const b of tabs.children) b.setAttribute('aria-selected', String(b.dataset.ma === loc)); }
 
@@ -48,7 +50,7 @@ export default async function trangHoSo(el) {
     const coTien = api.coVaiTro('giam_doc', 'ke_toan', 'quan_ly');
     dat(ketQua, 
       ttRieng ? h('p', { class: 'mo-ta' }, 'Đang lọc theo bước được chọn ở trang Việc hôm nay. ',
-        h('button', { class: 'nut-chu', type: 'button', onclick: () => { ttRieng = null; loc = 'dang'; capNhatTab(); tai(); } }, 'Bỏ lọc')) : null,
+        h('button', { class: 'nut-chu', type: 'button', onclick: () => { ttRieng = null; loc = 'dang'; nhoPhien.ghi('hs_tab', loc); nhoPhien.ghi('hs_ds', '#/ho-so'); capNhatTab(); tai(); } }, 'Bỏ lọc')) : null,
       h('p', { class: 'mo-ta' }, `${ds.length} hồ sơ`),
       bang([
         { nhan: 'Biển số', lay: (d) => bienSo(d.bien_so_hien_thi, { maThay: d.ma }) },
@@ -58,7 +60,26 @@ export default async function trangHoSo(el) {
         { nhan: 'Vào ngày', lay: (d) => ngay(d.ngay_vao) },
         { nhan: 'Bước', lay: (d) => h('span', null, nhanTrangThai(d.trang_thai), d.co_phat_sinh ? h('span', { class: 'nhan tt-canh-bao' }, 'Phát sinh') : null) },
         coTien ? { nhan: 'Còn nợ', so: true, lay: (d) => tien(Number(d.con_no_bh) + Number(d.con_no_khach)) || '0' } : null,
-      ].filter(Boolean), ds, { onRow: (d) => { location.hash = `#/ho-so/${d.id}`; }, trong: 'Không có hồ sơ nào.' }));
+      ].filter(Boolean), ds, { onRow: (d) => { location.hash = `#/ho-so/${d.id}`; }, idDong: (d) => d.id, trong: 'Không có hồ sơ nào.' }));
+    return ds;
   }
   await tai();
+  await toVuaLuu();
+
+  // Hồ sơ vừa lưu: tô vàng dòng đó. Nếu hồ sơ đã chuyển bước sang tab khác thì tự mở tab đó.
+  async function toVuaLuu() {
+    const id = nhoPhien.doc('hs_vua_luu');
+    if (!id) return;
+    nhoPhien.xoa('hs_vua_luu');
+    let dong = ketQua.querySelector(`tr[data-id="${id}"]`);
+    if (!dong && !ttRieng) {
+      const [x] = await api.doc('v_ho_so', (q) => q.eq('id', id), 'trang_thai');
+      const tab = x && LOC.find((l) => l.tt && l.tt.includes(x.trang_thai));
+      if (tab && tab.ma !== loc) { loc = tab.ma; nhoPhien.ghi('hs_tab', loc); capNhatTab(); await tai(); }
+      dong = ketQua.querySelector(`tr[data-id="${id}"]`);
+    }
+    if (!dong) return;
+    dong.classList.add('vua-luu');
+    dong.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
 }

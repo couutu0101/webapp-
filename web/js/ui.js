@@ -180,12 +180,35 @@ export function oChonTep(attrs = {}, nhan = 'Chụp hoặc chọn ảnh') {
 }
 
 // ---------- Thông báo ----------
-export function toast(msg, loai = 'ok') {
+export function toast(msg, loai = 'ok', giuMs = null) {
   let khung = $('#toast');
   if (!khung) { khung = h('div', { id: 'toast', role: 'status', 'aria-live': 'polite' }); document.body.append(khung); }
   const el = h('div', { class: `toast ${loai}` }, msg);
   khung.append(el);
-  setTimeout(() => el.remove(), loai === 'loi' ? 7000 : 3500);
+  setTimeout(() => el.remove(), giuMs || (loai === 'loi' ? 7000 : 3500));
+  return el;
+}
+
+// Ghi nhớ trong phiên làm việc (tab trình duyệt); lỗi bộ nhớ thì bỏ qua
+export const nhoPhien = {
+  doc(k) { try { return JSON.parse(sessionStorage.getItem(k)); } catch { return null; } },
+  ghi(k, v) { try { sessionStorage.setItem(k, JSON.stringify(v)); } catch { /* bỏ qua */ } },
+  xoa(k) { try { sessionStorage.removeItem(k); } catch { /* bỏ qua */ } },
+};
+
+// Lưu xong một thao tác của hồ sơ: về danh sách "Hồ sơ xe" (đúng tab đang xem),
+// dòng vừa lưu được tô vàng, thông báo có nút mở lại hồ sơ.
+export function veDanhSachHoSo(hs) {
+  nhoPhien.ghi('hs_vua_luu', hs.id);
+  const mo = h('a', { class: 'toast-mo', href: `#/ho-so/${hs.id}` }, `Mở lại hồ sơ ${hs.ma || ''}`.trim());
+  $$('#toast .toast.loi').forEach((x) => x.remove()); // lưu được rồi thì bỏ các báo lỗi cũ
+  const cu = $('#toast')?.querySelector('.toast.ok:last-child');
+  const noiDung = cu ? cu.textContent : 'Đã lưu.';
+  cu?.remove();
+  toast(h('span', null, noiDung, ' ', mo), 'ok', 7000);
+  const dich = nhoPhien.doc('hs_ds') || '#/ho-so';
+  if (location.hash === dich) window.dispatchEvent(new HashChangeEvent('hashchange'));
+  else location.hash = dich;
 }
 
 // ---------- Hộp thoại ----------
@@ -342,12 +365,12 @@ export function trangThaiTai(el, dangTai = true) {
   dat(el, h('div', { class: 'dang-tai', role: 'status' }, dangTai ? 'Đang tải…' : ''));
 }
 
-export function bang(cot, dong, { trong = 'Chưa có dữ liệu.', onRow } = {}) {
+export function bang(cot, dong, { trong = 'Chưa có dữ liệu.', onRow, idDong } = {}) {
   if (!dong.length) return h('p', { class: 'trong' }, trong);
   return h('div', { class: 'bang-cuon' },
     h('table', { class: 'bang' },
       h('thead', null, h('tr', null, cot.map((c) => h('th', { class: c.so ? 'so' : null }, c.nhan)))),
-      h('tbody', null, dong.map((d) => h('tr', { class: onRow ? 'bam-duoc' : null, onclick: onRow ? () => onRow(d) : null },
+      h('tbody', null, dong.map((d) => h('tr', { class: onRow ? 'bam-duoc' : null, onclick: onRow ? () => onRow(d) : null, 'data-id': idDong ? idDong(d) : null },
         cot.map((c) => h('td', { class: c.so ? 'so' : null, 'data-nhan': c.nhan }, c.lay ? c.lay(d) : d[c.khoa])))))));
 }
 

@@ -1,7 +1,7 @@
 // Chi tiết hồ sơ xe: 10 bước trên một trang, mỗi bước chỉ hiện nút cho đúng người
 import {
   h, oChonTep, bienSo, oNgayVN, tien, ngay, ngayGio, homNay, choODatetime, truong, oChu, oTien, oChon, oVung, oNgay, oCheck, docForm, docTien,
-  chay, moModal, toast, nhanTrangThai, nenAnh, bang, BUOC_SO, NHOM, NGUON, TRANG_THAI, xacNhan, dat,
+  chay, moModal, toast, nhanTrangThai, nenAnh, bang, BUOC_SO, NHOM, NGUON, TRANG_THAI, xacNhan, dat, veDanhSachHoSo,
 } from '../ui.js';
 import * as api from '../api.js';
 import { ghiTiep, tuGhiNgayKhiBam, nhacHetHan, layLichSu, khoiLichSu } from './lich-su-xe.js';
@@ -12,10 +12,14 @@ const BUOC_TEP = { tiep_nhan: 'Nhận xe', duyet_gia: 'Giám định / duyệt g
 
 export default async function trangChiTiet(el, idChu) {
   const id = Number(idChu);
-  const ve = async () => {
+  // Lưu xong bất kỳ thao tác nào: về danh sách Hồ sơ xe; lỗi thì vẽ lại trang để thấy dữ liệu mới nhất
+  let hsDangXem = { id, ma: '' };
+  const ve = () => veDanhSachHoSo(hsDangXem);
+  const veLai = ve.lai = async () => {
     const [hs, hm, nk, tep, ps, dsKcs] = await Promise.all([
       api.layHoSo(id), api.layHangMuc(id), api.layNhatKy(id), api.layTep(id), api.layPhatSinh(id), api.layKcs(id)]);
     if (!hs) { dat(el, h('p', { class: 'trong' }, 'Không tìm thấy hồ sơ, hoặc bạn không có quyền xem.')); return; }
+    hsDangXem = hs;
     const ctx = { hs, hm, nk, tep, ps, dsKcs, ve };
     dat(el, 
       dau(ctx), tienDo(hs),
@@ -23,7 +27,7 @@ export default async function trangChiTiet(el, idChu) {
         h('div', null, theThongTin(ctx), theBaoGia(ctx), theSuaChua(ctx), theKcs(ctx), theGiaoXe(ctx), theHoSoBH(ctx), theChamSoc(ctx)),
         h('div', null, theTien(ctx), theTep(ctx), theNhatKy(ctx))));
   };
-  await ve();
+  await veLai();
 }
 
 const q = (...ds) => api.coVaiTro(...ds);
@@ -155,8 +159,7 @@ function theBaoGia({ hs, hm, ve }) {
 
 async function xoaDong(m, ve) {
   if (!(await xacNhan(`Xóa dòng "${m.ten}"?`, 'Xóa'))) return;
-  await chay(() => api.xoaHangMuc(m.id), { thanhCong: 'Đã xóa.' }).catch(() => {});
-  ve();
+  await chay(() => api.xoaHangMuc(m.id), { thanhCong: 'Đã xóa.' }).then(ve, ve.lai);
 }
 
 function moBaoGia(hs, ve, boSung) {
@@ -244,7 +247,7 @@ function theSuaChua({ hs, hm, ps, ve }) {
         { nhan: 'Tổ', lay: (m) => api.dm.ten('to_thuc_hien', m.to_id) },
         { nhan: 'Người làm', lay: (m) => m.nguoi_lam || '' },
         { nhan: 'Trạng thái', lay: (m) => m.trang_thai === 'xong' ? `Xong ${ngayGio(m.xong_luc)}` :
-          duocLap ? h('button', { class: 'nut nho', type: 'button', onclick: () => chay(() => api.baoXong(m.id), { thanhCong: 'Đã báo xong.' }).then(ve, ve) }, 'Báo xong') : 'Đang làm' },
+          duocLap ? h('button', { class: 'nut nho', type: 'button', onclick: () => chay(() => api.baoXong(m.id), { thanhCong: 'Đã báo xong.' }).then(ve, ve.lai) }, 'Báo xong') : 'Đang làm' },
       ], dangLam));
 }
 
@@ -294,7 +297,7 @@ function theKcs({ hs, hm, tep, dsKcs, ve }) {
         nut('Chưa đạt – làm lại', () => moKhongDat(hs, hm, ve)),
         nut('Đạt KCS', async () => {
           if (!coAnh) { toast('Tải ảnh sau sửa ở mục "Ảnh & giấy tờ" (bước: Sau sửa) trước khi ký KCS.', 'loi'); return; }
-          await chay(() => api.kcs(hs.id, true, null, null), { thanhCong: 'Đã ký đạt KCS.' }).then(ve, ve);
+          await chay(() => api.kcs(hs.id, true, null, null), { thanhCong: 'Đã ký đạt KCS.' }).then(ve, ve.lai);
         }, true)) : null),
     hs.trang_thai === 'cho_kcs' && !q('quan_ly', 'giam_doc') ? h('p', { class: 'goi-y' }, 'Chờ quản lý chung nghiệm thu.') : null,
     hs.trang_thai === 'cho_kcs' && !coAnh ? h('p', { class: 'goi-y' }, 'Chưa có ảnh sau sửa.') : null,
@@ -340,11 +343,11 @@ function theGiaoXe({ hs, ve }) {
     h('div', { class: 'hang-nut' },
       q('quan_ly', 'giam_doc') ? nut('Duyệt giảm giá cho khách', () => moGiamGia(hs, ve)) : null,
       q('quan_ly', 'giam_doc') && !hs.cho_giao_no_boi ? nut('Duyệt giao khi khách còn nợ', () =>
-        chay(() => api.duyetGiaoConNo(hs.id), { thanhCong: 'Đã duyệt giao xe khi còn nợ.' }).then(ve, ve)) : null,
+        chay(() => api.duyetGiaoConNo(hs.id), { thanhCong: 'Đã duyệt giao xe khi còn nợ.' }).then(ve, ve.lai)) : null,
       q('ke_toan', 'giam_doc') ? h('a', { class: 'nut', href: `#/thu-chi?ho_so=${hs.id}` }, 'Thu tiền khách') : null,
       q('ke_toan', 'cvdv', 'quan_ly', 'giam_doc') ? nut('Giao xe', async () => {
         const d = docForm(form);
-        await chay(() => api.giaoXe(hs.id, d), { thanhCong: 'Đã giao xe.' }).then(ve, ve);
+        await chay(() => api.giaoXe(hs.id, d), { thanhCong: 'Đã giao xe.' }).then(ve, ve.lai);
       }, true) : null));
 }
 
@@ -369,7 +372,7 @@ function theHoSoBH({ hs, ve }) {
         oNgay('ngay_gui', homNay(), { max: homNay(), 'aria-label': 'Ngày gửi hồ sơ' }),
         nut('Đã gửi hồ sơ bảo hiểm', (e) => {
           const ngayGui = e.target.parentElement.querySelector('[name=ngay_gui]').value;
-          chay(() => api.guiHoSoBH(hs.id, ngayGui), { thanhCong: 'Đã ghi ngày gửi hồ sơ.' }).then(ve, ve);
+          chay(() => api.guiHoSoBH(hs.id, ngayGui), { thanhCong: 'Đã ghi ngày gửi hồ sơ.' }).then(ve, ve.lai);
         }, true))
         : h('p', { class: 'goi-y' }, 'Chờ kế toán gửi hồ sơ (trong 3 ngày sau giao xe).'),
     hs.gdv_id ? h('div', { class: 'hang-nut' },
@@ -469,6 +472,6 @@ function moHuy(hs) {
   const form = h('form', null, truong('Lý do hủy', oVung('ly_do', ''), 'Ví dụ: khách không sửa, bảo hiểm từ chối. Nếu đã thu cọc, lập đề nghị chi "Trả lại cọc cho khách".', { batBuoc: true }));
   moModal('Hủy hồ sơ', form, {
     nhanNut: 'Hủy hồ sơ',
-    nutChinh: async () => { await api.huyHoSo(hs.id, docForm(form).ly_do); toast('Đã hủy hồ sơ.'); location.hash = '#/ho-so'; },
+    nutChinh: async () => { await api.huyHoSo(hs.id, docForm(form).ly_do); toast('Đã hủy hồ sơ.'); veDanhSachHoSo(hs); },
   });
 }

@@ -340,6 +340,11 @@ a.o-dem:not(.mo) b { color: var(--muc); }
 .toast { padding: 12px 16px; border-radius: var(--bo); background: var(--muc); color: #fff; box-shadow: 0 10px 24px rgba(0, 0, 0, .25); font-size: .95rem;
   border-left: 5px solid #4cc38a; animation: modal-vao .16s ease-out; }
 .toast.loi { border-left-color: #ff8a7a; }
+.toast-mo { color: var(--vang); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; }
+
+/* Dòng hồ sơ vừa lưu: tô vàng rồi nhạt dần */
+.bang tr.vua-luu > td { animation: vua-luu 2.6s ease-out; }
+@keyframes vua-luu { 0%, 45% { background: #ffe58a; } 100% { background: transparent; } }
 
 /* ===== Dải báo bản thử ===== */
 .dai-ban-thu { position: sticky; top: 0; z-index: 70; background: var(--muc); color: var(--vang); font-weight: 700; font-size: .85rem;
