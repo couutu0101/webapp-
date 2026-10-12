@@ -43,9 +43,12 @@ function dau({ hs }) {
       h('p', { class: 'mo-ta' }, [hs.ma, hs.xe, hs.mau].filter(Boolean).join(' · '),
         hs.loai === 'bao_hanh' ? h('span', { class: 'nhan tt-canh-bao' }, 'Bảo hành') : null,
         hs.tu_excel ? h('span', { class: 'nhan' }, 'Chuyển từ Excel') : null)),
-    h('div', { class: 'hang-nut' },
+    h('div', { class: 'hang-nut doc' },
       ['tiep_nhan', 'bao_gia', 'da_duyet'].includes(hs.trang_thai) && q('cvdv', 'quan_ly', 'giam_doc')
         ? nut('Hủy hồ sơ', () => moHuy(hs)) : null,
+      // Xe đã rời xưởng quay lại: tiếp nhận lần mới với mọi thông tin điền sẵn
+      ['da_giao', 'da_gui_hs', 'dong'].includes(hs.trang_thai) && q('cvdv', 'quan_ly', 'giam_doc')
+        ? h('a', { class: 'nut chinh', href: `#/ho-so/moi?tu_ho_so=${hs.id}` }, '+ Tiếp nhận xe') : null,
       hs.trang_thai === 'dong' && q('cvdv', 'quan_ly', 'giam_doc')
         ? h('a', { class: 'nut', href: `#/ho-so/moi?bao_hanh=${hs.id}` }, 'Tạo hồ sơ bảo hành') : null));
 }

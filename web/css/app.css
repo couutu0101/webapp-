@@ -410,3 +410,6 @@ a.o-dem:not(.mo) b { color: var(--muc); }
 .tong-bao-gia dt.tong-chinh small { font-size: .78rem; color: var(--muc-phu); }
 @media (max-width: 760px) { .khoi-bao-gia { grid-template-columns: 1fr; } }
 @media (max-width: 760px) { .dong-nhap.dong-bao-gia { grid-template-columns: 1fr 1fr; } }
+
+/* Nút xếp dọc ở đầu trang hồ sơ (Tiếp nhận xe trên, Tạo hồ sơ bảo hành dưới) */
+.hang-nut.doc { flex-direction: column; align-items: stretch; }

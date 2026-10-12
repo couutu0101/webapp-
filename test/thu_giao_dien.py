@@ -320,10 +320,16 @@ with sync_playwright() as p:
     ghi('Tình trạng lưu kèm ngày ở đầu: ' + str(f'{hom_nay}: Móp cửa' in duy.locator('dl.thong-tin').inner_text()))
 
     # ---------- Xe quay lại: tự điền + lịch sử + nhắc bảo hiểm hết hạn ----------
-    ve_trang(duy, '#/ho-so/moi')
-    duy.fill('input[name=bien_so]', '50h92361')
-    duy.locator('input[name=bien_so]').blur()
+    # Từ hồ sơ đã đóng bấm "+ Tiếp nhận xe" → form điền sẵn mọi thông tin
+    ve_trang(duy, f'#/ho-so/{id_hs}')
+    nut_tn = duy.locator('.tieu-de-trang a', has_text='+ Tiếp nhận xe')
+    expect(duy.locator('.tieu-de-trang .hang-nut a').first).to_have_text('+ Tiếp nhận xe')
+    nut_tn.click()
+    duy.wait_for_url(re.compile(r'#/ho-so/moi\?tu_ho_so=\d+$'))
     expect(duy.locator('input[name=ten_khach]')).to_have_value('Phạm Nguyễn Liêm')
+    expect(duy.locator('input[name=bien_so]')).to_have_value(re.compile('50H'))
+    ghi('Hồ sơ đã đóng: nút "+ Tiếp nhận xe" nằm trên "Tạo hồ sơ bảo hành"; form điền sẵn khách, SĐT '
+        + duy.locator('input[name=dien_thoai]').input_value() + ', hãng BH ' + duy.locator('select[name=hang_bh_id] option:checked').inner_text())
     expect(duy.locator('details.lich-su')).to_contain_text('Móp cửa trước trái')
     ghi('Nhập lại biển số: tự điền khách "' + duy.locator('input[name=ten_khach]').input_value() + '", hạn thân vỏ '
         + duy.locator('input[name=han_bh_than_vo]').input_value() + ', GDV ' + duy.locator('select[name=gdv_id] option:checked').inner_text()

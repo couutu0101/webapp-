@@ -251,7 +251,18 @@ export default async function trangTiepNhan(el) {
     }
   }
 
+  // Tiếp nhận lại xe từ một hồ sơ cũ: điền sẵn biển số rồi tự tra cứu – xe, khách, bảo hiểm, GĐV, hạn BH, lịch sử
+  const tuHoSo = !baoHanh && new URLSearchParams(location.hash.split('?')[1] || '').get('tu_ho_so');
+  if (tuHoSo) {
+    const cu = await api.layHoSo(tuHoSo);
+    if (cu?.bien_so_hien_thi) {
+      oBienSo.value = cu.bien_so_hien_thi;
+      await traCuu();
+      form.prepend(h('p', { class: 'thong-bao' }, `Đã điền sẵn thông tin từ hồ sơ ${cu.ma}. Kiểm tra lại, ghi tình trạng và tư vấn lần này rồi lưu.`));
+    }
+  }
+
   dat(el, h('div', { class: 'tieu-de-trang' }, h('h1', null, hoSoGoc ? 'Tiếp nhận xe bảo hành' : 'Tiếp nhận xe'),
     h('p', { class: 'mo-ta' }, 'Bước 1 · CVDV · trong 30 phút. Mục có dấu * là bắt buộc.')), form);
-  oBienSo.focus();
+  if (tuHoSo) oTinhTrang.focus(); else oBienSo.focus();
 }
