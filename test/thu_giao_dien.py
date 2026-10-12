@@ -1,4 +1,4 @@
-"""Kiểm thử giao diện từ đầu đến cuối: một chiếc xe bảo hiểm đi hết 10 bước, đổi người dùng theo vai trò.
+"""Kiểm thử giao diện từ đầu đến cuối: một chiếc xe bảo hiểm đi hết 9 bước, đổi người dùng theo vai trò.
 Chạy: test/lam_moi_csdl.sh && python3 test/may_chu_thu.py 8765 & python3 test/thu_giao_dien.py"""
 import os, sys, base64, re
 from playwright.sync_api import sync_playwright, expect
@@ -173,6 +173,7 @@ with sync_playwright() as p:
     expect(duy.locator('.dang-cho')).to_contain_text('Trần Tử Long')
     ghi('Báo giá giao bước "Nhập kết quả duyệt giá" cho anh Long: ' + duy.locator('.dang-cho').inner_text().replace('\n', ' ')[:90])
     lg = mo(b, 'long@gara.vn')
+    lg.wait_for_selector('.viec-cua-toi', timeout=20000)
     expect(lg.locator('.viec-cua-toi')).to_contain_text('Nhập kết quả duyệt giá')
     chup(lg, '10b-viec-cua-toi')
     ghi('Việc hôm nay của anh Long: ' + lg.locator('.viec-cua-toi h2').inner_text())

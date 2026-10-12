@@ -84,7 +84,7 @@ export const TRANG_THAI = {
   cho_kcs: 'Chờ KCS', dat_kcs: 'Đạt KCS – chờ giao', da_giao: 'Đã giao xe', da_gui_hs: 'Đã gửi hồ sơ BH',
   dong: 'Đã đóng', huy: 'Đã hủy',
 };
-export const BUOC_SO = { tiep_nhan: 1, bao_gia: 2, da_duyet: 3, dang_sua: 6, cho_kcs: 7, dat_kcs: 8, da_giao: 9, da_gui_hs: 9, dong: 10, huy: 0 };
+export const BUOC_SO = { tiep_nhan: 1, bao_gia: 2, da_duyet: 3, dang_sua: 5, cho_kcs: 6, dat_kcs: 7, da_giao: 8, da_gui_hs: 8, dong: 9, huy: 0 };
 export const NHOM = { dong_son: 'Đồng sơn', phu_tung: 'Phụ tùng', dmg: 'Điện – máy – gầm', detailing: 'Detailing' };
 export const NGUON = { bao_hiem: 'Bảo hiểm', khach: 'Khách ngoài bảo hiểm', bao_hiem_khach: 'Bảo hiểm + khách trả thêm' };
 export const VAI_TRO = {

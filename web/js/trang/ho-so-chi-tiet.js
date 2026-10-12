@@ -1,4 +1,4 @@
-// Chi tiết hồ sơ xe: 10 bước trên một trang, mỗi bước chỉ hiện nút cho đúng người
+// Chi tiết hồ sơ xe: 9 bước trên một trang, mỗi bước chỉ hiện nút cho đúng người
 import {
   h, oChonTep, bienSo, oNgayVN, tien, ngay, ngayGio, homNay, choODatetime, truong, oChu, oTien, oChon, oVung, oNgay, oCheck, docForm, docTien,
   chay, moModal, toast, nhanTrangThai, nenAnh, bang, BUOC_SO, NHOM, NGUON, TRANG_THAI, xacNhan, dat, veDanhSachHoSo,
@@ -7,7 +7,7 @@ import { khungGiaoViec, giaoSauKhiLuu, dongDangCho, nguoiLamTungBuoc, tenGoi, VA
 import * as api from '../api.js';
 import { ghiTiep, tuGhiNgayKhiBam, nhacHetHan, layLichSu, khoiLichSu } from './lich-su-xe.js';
 
-const BUOC = ['Tiếp nhận', 'Báo giá', 'Duyệt giá', 'Lệnh SC', 'Cấp vật tư', 'Sửa chữa', 'KCS', 'Giao xe', 'Hồ sơ BH', 'Chăm sóc'];
+const BUOC = ['Tiếp nhận', 'Báo giá', 'Duyệt giá', 'Lệnh SC', 'Cấp phụ tùng – Sửa chữa', 'KCS', 'Giao xe', 'Hồ sơ BH', 'Chăm sóc'];
 const TT_DONG = { cho_duyet: 'Chờ duyệt', duyet: 'Đã duyệt', tu_choi: 'Không duyệt', dang_lam: 'Đang làm', xong: 'Xong' };
 const BUOC_TEP = { tiep_nhan: 'Nhận xe', duyet_gia: 'Giám định / duyệt giá / HĐ 3 bên', phat_sinh: 'Phát sinh', kcs: 'Sau sửa (KCS)', giao_xe: 'Giao xe', ho_so_bh: 'Hồ sơ bảo hiểm', khac: 'Khác' };
 
@@ -56,8 +56,8 @@ function tienDo(hs, nk = []) {
   if (hs.trang_thai === 'huy') return h('p', { class: 'thong-bao canh-bao' }, 'Hồ sơ đã hủy: ', hs.ly_do_huy || '');
   const daXong = hs.trang_thai === 'dong';
   return h('div', { class: 'tien-do-khung' },
-    h('p', { class: 'tien-do-chu' }, daXong ? 'Đã xong cả 10 bước' : `Bước ${hienTai} trên 10: ${BUOC[hienTai - 1]}`),
-    h('ol', { class: 'tien-do', 'aria-label': 'Tiến độ 10 bước' }, BUOC.map((b, i) => {
+    h('p', { class: 'tien-do-chu' }, daXong ? 'Đã xong cả 9 bước' : `Bước ${hienTai} trên 9: ${BUOC[hienTai - 1]}`),
+    h('ol', { class: 'tien-do', 'aria-label': 'Tiến độ 9 bước' }, BUOC.map((b, i) => {
       const so = i + 1;
       const lop = so < hienTai || daXong ? 'xong' : so === hienTai ? 'dang' : '';
       const ai = nguoi[so];
@@ -285,14 +285,14 @@ function theSuaChua({ hs, hm, ps, ve }) {
   const duocLap = q('cvdv', 'quan_ly', 'giam_doc');
   const psMo = ps.filter((p) => !p.da_xu_ly);
   return h('section', { class: 'the' },
-    h('div', { class: 'the-dau' }, h('h2', null, '4–6. Lệnh sửa chữa và sửa chữa'),
+    h('div', { class: 'the-dau' }, h('h2', null, '4–5. Lệnh sửa chữa, cấp phụ tùng và sửa chữa'),
       h('div', { class: 'hang-nut' },
         duocLap && chuaGiao.length && ['da_duyet', 'dang_sua'].includes(hs.trang_thai)
           ? nut(hs.trang_thai === 'da_duyet' ? 'Lập lệnh sửa chữa' : `Giao thêm cho tổ (${chuaGiao.length})`, () => moLenh(hs, chuaGiao, ve), true) : null,
         ['dang_sua', 'cho_kcs'].includes(hs.trang_thai) ? nut('Báo phát sinh', () => moPhatSinh(hs, ve)) : null)),
     psMo.length ? h('div', { class: 'thong-bao canh-bao' }, h('b', null, 'Phát sinh chờ báo giá bổ sung: '),
       psMo.map((p) => h('div', null, `${ngayGio(p.luc)} – ${p.mo_ta}`))) : null,
-    !dangLam.length ? h('p', { class: 'trong' }, 'Chưa giao việc cho tổ nào. Chưa có lệnh sửa chữa thì chưa làm, chưa xuất vật tư.') :
+    !dangLam.length ? h('p', { class: 'trong' }, 'Chưa giao việc cho tổ nào. Chưa có lệnh sửa chữa thì chưa làm, chưa cấp phụ tùng.') :
       bang([
         { nhan: 'Hạng mục', khoa: 'ten' },
         { nhan: 'Tổ', lay: (m) => api.dm.ten('to_thuc_hien', m.to_id) },
@@ -343,7 +343,7 @@ function theKcs({ hs, hm, tep, dsKcs, ve }) {
   if (!['cho_kcs', 'dat_kcs', 'da_giao', 'da_gui_hs', 'dong'].includes(hs.trang_thai) && !dsKcs.length) return null;
   const coAnh = tep.some((t) => t.buoc === 'kcs');
   return h('section', { class: 'the' },
-    h('div', { class: 'the-dau' }, h('h2', null, '7. Nghiệm thu (KCS) và rửa xe'),
+    h('div', { class: 'the-dau' }, h('h2', null, '6. Nghiệm thu (KCS) và rửa xe'),
       hs.trang_thai === 'cho_kcs' && q('quan_ly', 'giam_doc') ? h('div', { class: 'hang-nut' },
         nut('Chưa đạt – làm lại', () => moKhongDat(hs, hm, ve)),
         nut('Đạt KCS', async () => {
@@ -376,7 +376,7 @@ function moKhongDat(hs, hm, ve) {
 function theGiaoXe({ hs, ve }) {
   if (hs.trang_thai !== 'dat_kcs' && !hs.giao_luc) return null;
   if (hs.giao_luc) {
-    return h('section', { class: 'the' }, h('h2', null, '8. Thanh toán và giao xe'),
+    return h('section', { class: 'the' }, h('h2', null, '7. Thanh toán và giao xe'),
       h('p', null, 'Đã giao lúc ', h('b', null, ngayGio(hs.giao_luc)), hs.cho_giao_no_boi ? ' (được duyệt giao khi khách còn nợ)' : ''),
       hs.cam_nhan_khach ? h('p', null, 'Cảm nhận của khách: ', hs.cam_nhan_khach) : null,
       h('p', { class: 'mo-ta' }, `Số HĐ bảo hiểm: ${hs.so_hd_bao_hiem || '—'} · Số HĐ khách: ${hs.so_hd_khach || '—'}`));
@@ -388,7 +388,7 @@ function theGiaoXe({ hs, ve }) {
     truong('Số hóa đơn phần khách (nếu có)', oChu('so_hd_khach', hs.so_hd_khach)),
     q('quan_ly', 'giam_doc') ? truong('Cảm nhận của khách khi nhận xe', oVung('cam_nhan_khach', hs.cam_nhan_khach), 'Quản lý chung ghi', { rong: true }) : null);
   return h('section', { class: 'the' },
-    h('div', { class: 'the-dau' }, h('h2', null, '8. Thanh toán và giao xe')),
+    h('div', { class: 'the-dau' }, h('h2', null, '7. Thanh toán và giao xe')),
     h('p', { class: 'goi-y' }, 'Kế toán thu tiền phần khách trước (mục Thu chi), rồi bấm Giao xe. Khách còn nợ thì cần giám đốc hoặc quản lý chung duyệt.'),
     form,
     h('div', { class: 'hang-nut' },
@@ -417,7 +417,7 @@ function theHoSoBH({ hs, ve }) {
   if (hs.nguon_tt === 'khach' || !hs.giao_luc) return null;
   const keToan = q('ke_toan', 'giam_doc');
   return h('section', { class: 'the' },
-    h('h2', null, '9. Hồ sơ bảo hiểm, thu nợ, hoa hồng'),
+    h('h2', null, '8. Hồ sơ bảo hiểm, thu nợ, hoa hồng'),
     hs.gui_hs_ngay ? h('p', null, 'Đã gửi hồ sơ ngày ', h('b', null, ngay(hs.gui_hs_ngay)))
       : keToan ? h('div', { class: 'hang-nut' },
         oNgay('ngay_gui', homNay(), { max: homNay(), 'aria-label': 'Ngày gửi hồ sơ' }),
@@ -449,7 +449,7 @@ function moHoaHong(hs, ve) {
 function theChamSoc({ hs, ve }) {
   if (!hs.giao_luc) return null;
   return h('section', { class: 'the' },
-    h('div', { class: 'the-dau' }, h('h2', null, '10. Chăm sóc sau giao'),
+    h('div', { class: 'the-dau' }, h('h2', null, '9. Chăm sóc sau giao'),
       q('quan_ly', 'giam_doc') ? nut(hs.cham_soc_luc ? 'Ghi lại' : 'Ghi kết quả gọi', () => moChamSoc(hs, ve), !hs.cham_soc_luc) : null),
     hs.cham_soc_luc ? h('p', null, `${ngayGio(hs.cham_soc_luc)}: ${hs.cham_soc_ket_qua}`,
       hs.hen_bao_duong ? h('br') : null, hs.hen_bao_duong ? `Hẹn bảo dưỡng: ${ngay(hs.hen_bao_duong)}` : null)

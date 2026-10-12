@@ -24,7 +24,7 @@ export function viecTiepTheo(hs) {
     case 'tiep_nhan': return { ten: 'Lập báo giá', vaiTro: VAI_TRO_BUOC.bao_gia };
     case 'bao_gia': return { ten: 'Nhập kết quả duyệt giá', vaiTro: VAI_TRO_BUOC.duyet_gia };
     case 'da_duyet': return { ten: 'Lập lệnh sửa chữa', vaiTro: VAI_TRO_BUOC.lenh };
-    case 'dang_sua': return { ten: 'Sửa chữa', vaiTro: [], theoTo: true };
+    case 'dang_sua': return { ten: 'Cấp phụ tùng – Sửa chữa', vaiTro: [], theoTo: true };
     case 'cho_kcs': return { ten: 'KCS', vaiTro: VAI_TRO_BUOC.kcs };
     case 'dat_kcs': return { ten: 'Thu tiền – giao xe', vaiTro: VAI_TRO_BUOC.giao_xe };
     case 'da_giao':
@@ -102,14 +102,15 @@ function moDoiNguoi(hs, v, viec, veLai) {
   });
 }
 
-// Người làm và ngày làm của từng bước (lấy từ nhật ký) – dùng cho thanh 10 bước
-const BUOC_CUA_TRANG_THAI = { tiep_nhan: 1, bao_gia: 2, da_duyet: 3, dang_sua: 4, cho_kcs: 6, dat_kcs: 7, da_giao: 8, da_gui_hs: 9 };
+// Người làm và ngày làm của từng bước (lấy từ nhật ký) – dùng cho thanh 9 bước
+// Vào trạng thái nào = vừa xong bước nào (bước 5 "Cấp phụ tùng – Sửa chữa" xong khi sang chờ KCS)
+const BUOC_CUA_TRANG_THAI = { tiep_nhan: 1, bao_gia: 2, da_duyet: 3, dang_sua: 4, cho_kcs: 5, dat_kcs: 6, da_giao: 7, da_gui_hs: 8 };
 export function nguoiLamTungBuoc(nk) {
   const kq = {};
   for (const n of [...nk].sort((a, b) => new Date(a.luc) - new Date(b.luc))) {
     let so = null;
     if (n.sang_trang_thai && n.tu_trang_thai !== n.sang_trang_thai) so = BUOC_CUA_TRANG_THAI[n.sang_trang_thai] ?? null;
-    else if ((n.ghi_chu || '').startsWith('Gọi chăm sóc')) so = 10;
+    else if ((n.ghi_chu || '').startsWith('Gọi chăm sóc')) so = 9;
     if (!so || !n.boi) continue;
     kq[so] = { boi: n.boi, luc: n.luc };
     // Khách ngoài bảo hiểm: báo giá xong là duyệt luôn – bước 2 và 3 cùng một người

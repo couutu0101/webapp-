@@ -1,4 +1,4 @@
-// Dịch vụ nhanh: rửa xe, vá lốp, thay bóng đèn, kích bình… (không đi qua 10 bước)
+// Dịch vụ nhanh: rửa xe, vá lốp, thay bóng đèn, kích bình… (không đi qua 9 bước)
 import { h, bienSo, tien, ngay, homNay, truong, oChu, oTien, oNgay, oCheck, docForm, chay, bang, moModal, oVung, toast, dat } from '../ui.js';
 import * as api from '../api.js';
 

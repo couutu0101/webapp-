@@ -293,10 +293,10 @@ a.o-dem:not(.mo) b { color: var(--muc); }
 .ds-hang-muc li.xong > span:first-child { color: var(--muc-phu); }
 .ds-hang-muc .xong { color: var(--tot); font-weight: 600; white-space: nowrap; }
 
-/* ===== Chi tiết hồ sơ: thanh 10 bước ===== */
+/* ===== Chi tiết hồ sơ: thanh 9 bước ===== */
 .tien-do-khung { margin: var(--k4) 0 20px; }
 .tien-do-chu { display: none; margin: 0 0 var(--k2); font-weight: 600; font-size: .92rem; }
-.tien-do { list-style: none; display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; padding: 0; margin: 0; }
+.tien-do { list-style: none; display: grid; grid-template-columns: repeat(9, 1fr); gap: 3px; padding: 0; margin: 0; }
 .tien-do li { display: flex; flex-direction: column; gap: 6px; }
 .tien-do li span { height: 28px; display: flex; align-items: center; padding: 0 8px; font-family: var(--chu-hep); font-weight: 700; font-size: 1rem;
   background: #dfe3e0; color: #6b737a; }

@@ -1,6 +1,6 @@
 # Phần mềm quản lý Gara Hoàng Sơn – Hướng dẫn cài đặt (đợt 1, chi nhánh Tô Ký)
 
-Đợt 1 gồm: đăng nhập và phân quyền, danh mục, hồ sơ xe 10 bước, dịch vụ nhanh, thu chi, đề nghị chi, doanh thu tháng, cảnh báo việc tồn đọng.
+Đợt 1 gồm: đăng nhập và phân quyền, danh mục, hồ sơ xe 9 bước, dịch vụ nhanh, thu chi, đề nghị chi, doanh thu tháng, cảnh báo việc tồn đọng.
 Đợt 2 (sau): kho và mua hàng, chốt tháng và báo cáo lãi lỗ, trang cổ đông.
 
 Toàn bộ chạy trên 3 dịch vụ miễn phí ở mức dùng của một chi nhánh:
