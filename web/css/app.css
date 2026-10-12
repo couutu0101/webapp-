@@ -203,7 +203,17 @@ input[type=checkbox], input[type=radio] { width: 20px; height: 20px; min-height:
 .ds-dong-nhap { display: flex; flex-direction: column; gap: var(--k3); margin-bottom: var(--k3); }
 .dong-nhap { display: grid; grid-template-columns: 2fr 1.2fr 1.1fr 1.2fr auto auto; gap: var(--k2); align-items: end; padding: var(--k3);
   border: 1px solid var(--vien); border-radius: var(--bo); background: var(--mat-lom); }
+.dong-nhap.dong-bh { grid-template-columns: 2.2fr 1.1fr 1.4fr auto; }
+.dong-nhap.dong-khach { grid-template-columns: 2fr 1fr 1.3fr 1.3fr auto; }
 @media (max-width: 760px) { .dong-nhap { grid-template-columns: 1fr 1fr; } .dong-nhap > :first-child { grid-column: 1 / -1; } }
+/* Báo giá: hãng BH / nguồn + VAT ở đầu, dòng tổng ở cuối */
+.dau-bao-gia { margin-bottom: var(--k3); }
+.o-chi-xem { min-height: var(--cham); display: flex; align-items: center; padding: 0 12px; border-radius: var(--bo); background: var(--mat-lom); border: 1px solid var(--vien); font-weight: 600; }
+.tong-bao-gia { display: grid; grid-template-columns: 1fr auto; gap: 6px var(--k4); margin: var(--k4) 0 0 auto; max-width: 380px; padding-top: var(--k3); border-top: 1px solid var(--vien); font-variant-numeric: tabular-nums; }
+.tong-bao-gia dt { color: var(--muc-phu); }
+.tong-bao-gia dd { margin: 0; text-align: right; }
+.tong-bao-gia dt:last-of-type, .tong-bao-gia dd:last-of-type { font-size: 1.05rem; color: inherit; }
+
 .dong-phan-bo { display: grid; grid-template-columns: 1fr auto 160px; gap: var(--k2); align-items: center; padding: var(--k2) 0; border-bottom: 1px solid var(--vien); }
 @media (max-width: 520px) { .dong-phan-bo { grid-template-columns: 1fr auto; } .dong-phan-bo > :first-child { grid-column: 1 / -1; } }
 .tai-tep { display: flex; gap: var(--k2); margin-bottom: var(--k3); flex-wrap: wrap; }

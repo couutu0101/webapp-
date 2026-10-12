@@ -142,16 +142,20 @@ with sync_playwright() as p:
     # ---------- Báo giá ----------
     duy.click('text=+ Thêm dòng báo giá')
     m = modal(duy)
-    dong = [('Gò sơn cửa trước trái', 'Đồng sơn', 'bao_hiem', '3000000'), ('Thay tay nắm cửa', 'Phụ tùng', 'bao_hiem', '2000000'),
-            ('Phủ ceramic', 'Detailing', 'khach', '500000')]
-    for i, (ten, nhom, tra, gia) in enumerate(dong):
+    expect(m.locator('.dau-bao-gia')).to_contain_text('Tasco')
+    expect(m.locator('[name=nguoi_tra]')).to_have_count(0)
+    expect(m.locator('[name=gia_sau_vat]')).to_have_count(0)
+    dong = [('Gò sơn cửa trước trái', 'Đồng sơn', '3000000'), ('Thay tay nắm cửa', 'Phụ tùng', '2000000'),
+            ('Vệ sinh khoang máy', 'Detailing', '500000')]
+    for i, (ten, nhom, gia) in enumerate(dong):
         if i:
             m.locator('text=+ Thêm dòng').click()
         r = m.locator('.dong-nhap').nth(i)
         r.locator('[name=ten]').fill(ten)
         r.locator('[name=nhom]').select_option(label=nhom)
-        r.locator('[name=nguoi_tra]').select_option(tra)
         r.locator('[name=gia_bao]').fill(gia)
+    expect(m.locator('.tong-bao-gia')).to_contain_text('5.940.000')
+    ghi('Báo giá xe BH: hiện hãng Tasco, không có cột ai trả; VAT 8% → tổng sau VAT ' + m.locator('.tong-bao-gia dd b').inner_text())
     chup(duy, '03-bao-gia')
     m.locator('text=Lưu báo giá').click()
     toast_co(duy, 'Đã lưu báo giá')
@@ -226,21 +230,27 @@ with sync_playwright() as p:
     tien_.fill('input[name=so_hd_bao_hiem]', 'HD0001')
     tien_.click('.the button:has-text("Giao xe")')
     toast_co(tien_, 'Khách còn nợ')
-    ghi('Giao xe khi khách còn nợ bị chặn đúng')
-    # Thu tiền phần khách (ceramic 500.000) trước — chưa có khấu trừ nên khách nợ 500.000
-    tien_.click('text=Thu tiền khách')
+    ghi('Giao xe khi khách còn nợ (khấu trừ 500.000) bị chặn đúng')
+    ve_trang(long_, f'#/ho-so/{id_hs}')
+    long_.click('text=Duyệt giao khi khách còn nợ')
+    toast_co(long_, 'Đã duyệt giao xe khi còn nợ')
+    ve_ds(long_, id_hs, mo_lai=False)
+    ve_trang(tien_, f'#/ho-so/{id_hs}')
+    tien_.fill('input[name=khau_tru_giam_tru]', '500000')
+    tien_.fill('input[name=so_hd_bao_hiem]', 'HD0001')
+    tien_.locator('.the button:has-text("Giao xe")').click()
+    toast_co(tien_, 'Đã giao xe')
+    ve_ds(tien_, id_hs)
+    expect(tien_.locator('h1 .nhan')).to_contain_text('Đã giao xe')
+    ghi('Quản lý duyệt giao khi còn nợ → giao xe')
+    # Thu phần khấu trừ của khách từ hồ sơ
+    tien_.click('text=Lập phiếu thu cho xe này')
     tien_.wait_for_selector('.modal')
     m = modal(tien_)
     chup(tien_, '06-phieu-thu-khach')
     m.locator('text=Lập phiếu thu').click()
     toast_co(tien_, 'Đã lập phiếu thu')
     ve_ds(tien_, id_hs)
-    tien_.fill('input[name=so_hd_bao_hiem]', 'HD0001')
-    tien_.locator('.the button:has-text("Giao xe")').click()
-    toast_co(tien_, 'Đã giao xe')
-    ve_ds(tien_, id_hs)
-    expect(tien_.locator('h1 .nhan')).to_contain_text('Đã giao xe')
-    ghi('Thu đủ phần khách → giao xe')
     tien_.click('text=Đã gửi hồ sơ bảo hiểm')
     toast_co(tien_, 'Đã ghi ngày gửi')
     ve_ds(tien_, id_hs)
@@ -321,6 +331,40 @@ with sync_playwright() as p:
     duy.wait_for_url(re.compile(r'#/ho-so(\?[^/]*)?$'), timeout=10000)
     duy.wait_for_selector('tr.vua-luu')
     ghi('Xe bảo hiểm tích không có cả 2 loại, không ảnh → lưu được: ' + duy.locator('.toast').last.inner_text())
+
+    # ---------- Khách ngoài bảo hiểm: báo giá trước/sau VAT, không qua duyệt giá ----------
+    ve_trang(duy, '#/ho-so/moi')
+    duy.fill('input[name=bien_so]', '51G22233')
+    duy.locator('input[name=bien_so]').dispatch_event('change')
+    cho_xong(duy)
+    duy.select_option('select[name=hang_xe_id]', label='VinFast')
+    duy.select_option('select[name=dong_xe_id]', label='VF6 Plus')
+    duy.fill('input[name=ten_khach]', 'Khách lẻ Tô Ký')
+    duy.fill('input[name=dien_thoai]', '0909000333')
+    duy.locator('.chon-nut span', has_text='Khách ngoài bảo hiểm').click()
+    duy.fill('textarea[name=tinh_trang_xe]', 'Trầy cản sau')
+    duy.fill('textarea[name=tu_van]', 'Không')
+    duy.click('button[type=submit]')
+    duy.wait_for_url(re.compile(r'#/ho-so(\?[^/]*)?$'), timeout=10000)
+    id_k = duy.locator('.toast-mo').last.get_attribute('href').rsplit('/', 1)[1]
+    ve_ds(duy, id_k)
+    duy.click('text=+ Thêm dòng báo giá')
+    m = modal(duy)
+    expect(m.locator('.dau-bao-gia')).to_contain_text('không qua duyệt giá')
+    r = m.locator('.dong-nhap').first
+    r.locator('[name=ten]').fill('Sơn cản sau')
+    r.locator('[name=gia_sau_vat]').press_sequentially('1080000')
+    expect(r.locator('[name=gia_bao]')).to_have_value('1.000.000')
+    m.locator('select[name=vat]').select_option(label='10%')
+    expect(r.locator('[name=gia_sau_vat]')).to_have_value('1.100.000')
+    ghi('Khách ngoài BH: nhập sau VAT 1.080.000 → trước VAT tự ra 1.000.000; đổi VAT 10% → sau VAT ' + r.locator('[name=gia_sau_vat]').input_value())
+    chup(duy, '03b-bao-gia-khach')
+    m.locator('text=Lưu báo giá').click()
+    toast_co(duy, 'đã duyệt')
+    ve_ds(duy, id_k)
+    expect(duy.locator('h1 .nhan')).to_contain_text('Đã duyệt giá')
+    ghi('Khách ngoài BH: lưu báo giá → ' + duy.locator('h1 .nhan').inner_text() + ' ngay, không qua duyệt; nút lập lệnh: '
+        + str(duy.locator('text=Lập lệnh sửa chữa').count()))
 
     # ---------- Đề nghị chi ----------
     ve_trang(duy, '#/de-nghi')

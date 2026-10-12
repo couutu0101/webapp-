@@ -322,6 +322,45 @@ select kt.ghi('Duy thấy cảnh báo', true, (select string_agg(loai || ': ' ||
 select kt.dong_vai('tien@gara.vn');
 select kt.mong_loi('Kiểm quỹ lệch phải ghi lý do', $$select public.ghi_kiem_quy((select id from public.tai_khoan_quy where ten='Tiền mặt'), 3400000)$$, 'Lệch');
 select kt.ghi('Kiểm quỹ khớp', (public.ghi_kiem_quy((select id from public.tai_khoan_quy where ten='Tiền mặt'), 3580000)->>'chenh_lech')::numeric = 0);
+-- ---------------------------------------------------------------------
+-- 009: Báo giá theo nguồn + VAT riêng từng báo giá
+-- ---------------------------------------------------------------------
+select kt.dong_vai('duy@gara.vn');
+insert into ctx select 'hs_k', (public.tiep_nhan_xe(jsonb_build_object(
+  'bien_so','51G-222.33','ten_khach','Khách lẻ','dien_thoai','0909000333','dong_xe_id',(select id from public.dong_xe where ten='VF3'),
+  'nguon_tt','khach','tinh_trang_xe','Trầy cản','tu_van','Không')))->>'id';
+select public.lap_bao_gia((select v::bigint from ctx where k='hs_k'),
+  '[{"ten":"Sơn cản sau","nhom":"dong_son","gia_bao":1000000},{"ten":"Phủ ceramic","nhom":"detailing","gia_bao":500000}]', 0.10);
+select kt.ghi('Khách ngoài BH: lưu báo giá là Đã duyệt giá, không qua duyệt',
+  (select trang_thai from public.ho_so where id=(select v::bigint from ctx where k='hs_k')) = 'da_duyet'
+  and not exists (select 1 from public.hang_muc where ho_so_id=(select v::bigint from ctx where k='hs_k') and trang_thai <> 'duyet'));
+select kt.ghi('Khách ngoài BH: VAT 10% → phải thu 1.650.000',
+  (select phai_thu_khach from public.tien_ho_so((select v::bigint from ctx where k='hs_k'))) = 1650000,
+  (select phai_thu_khach::text from public.tien_ho_so((select v::bigint from ctx where k='hs_k'))));
+select kt.ghi('Doanh thu ghi ngày lưu báo giá, theo VAT 10%',
+  (select sum(so_tien) from public.v_doanh_thu where ho_so_id=(select v::bigint from ctx where k='hs_k')) = 1650000
+  and (select sum(vat_ra) from public.v_doanh_thu where ho_so_id=(select v::bigint from ctx where k='hs_k')) = 150000);
+select public.lap_bao_gia((select v::bigint from ctx where k='hs_k'), '[{"ten":"Thay gạt mưa","nhom":"phu_tung","gia_bao":200000}]', 0.08);
+select kt.ghi('Khách ngoài BH: báo giá bổ sung cũng tự duyệt, VAT riêng 8%',
+  (select trang_thai = 'duyet' and lan_bao_gia = 1 and ty_le_vat = 0.08 from public.hang_muc
+    where ho_so_id=(select v::bigint from ctx where k='hs_k') and ten='Thay gạt mưa')
+  and (select phai_thu_khach from public.tien_ho_so((select v::bigint from ctx where k='hs_k'))) = 1866000);
+select kt.mong_loi('VAT ngoài 8/10/12% bị chặn', format($$select public.lap_bao_gia(%s, '[{"ten":"X","gia_bao":1}]', 0.09)$$,
+  (select v from ctx where k='hs_k')), 'VAT chỉ chọn');
+insert into ctx select 'hs_b', (public.tiep_nhan_xe(jsonb_build_object(
+  'bien_so','51G-444.55','ten_khach','Khách BH','dien_thoai','0909000444','dong_xe_id',(select id from public.dong_xe where ten='VF3'),
+  'nguon_tt','bao_hiem','hang_bh_id',(select id from public.hang_bao_hiem where ten='Tasco'),
+  'gdv_id',(select id from public.giam_dinh_vien where ten='Hảo'),'tinh_trang_xe','Móp cửa','tu_van','Không')))->>'id';
+select public.lap_bao_gia((select v::bigint from ctx where k='hs_b'), '[{"ten":"Gò cửa","nhom":"dong_son","gia_bao":2000000}]', 0.12);
+select kt.ghi('Xe BH: báo giá chờ duyệt, dòng do bảo hiểm trả, VAT 12%',
+  (select trang_thai from public.ho_so where id=(select v::bigint from ctx where k='hs_b')) = 'bao_gia'
+  and (select bool_and(trang_thai = 'cho_duyet' and nguoi_tra = 'bao_hiem' and ty_le_vat = 0.12) from public.hang_muc
+       where ho_so_id=(select v::bigint from ctx where k='hs_b')));
+select public.duyet_gia((select v::bigint from ctx where k='hs_b'), current_date,
+  (select jsonb_agg(jsonb_build_object('id',id,'dong_y',true,'gia_duyet',1800000)) from public.hang_muc where ho_so_id=(select v::bigint from ctx where k='hs_b')));
+select kt.ghi('Xe BH: duyệt 1.800.000, VAT 12% → BH duyệt 2.016.000',
+  (select bh_duyet from public.tien_ho_so((select v::bigint from ctx where k='hs_b'))) = 2016000,
+  (select bh_duyet::text from public.tien_ho_so((select v::bigint from ctx where k='hs_b'))));
 select kt.dong_vai(null);
 \o
 \echo '======== KẾT QUẢ ========'
