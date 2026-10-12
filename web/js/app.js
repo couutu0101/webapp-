@@ -41,6 +41,12 @@ const TUYEN = [
 ];
 
 const goc = document.getElementById('app');
+// Bản thử (nhánh thu-nghiem trên Vercel): hiện dải vàng để không nhầm với bản thật nhân viên đang dùng
+const BAN_THAT = ['quanly.autohoangson.com', 'quanly-hoang-son.vercel.app'];
+if (!BAN_THAT.includes(location.hostname) && location.hostname !== '127.0.0.1') {
+  document.body.classList.add('ban-thu');
+  document.body.prepend(h('div', { class: 'dai-ban-thu', role: 'note' }, 'BẢN THỬ – chỉ để anh Thuận xem trước, dùng chung dữ liệu với bản thật'));
+}
 let dangDatMatKhau = false;
 
 // ---------- Đăng nhập ----------
