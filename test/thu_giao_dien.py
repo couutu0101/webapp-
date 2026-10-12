@@ -150,7 +150,7 @@ with sync_playwright() as p:
     expect(m.locator('.dau-bao-gia')).to_contain_text('Tasco')
     expect(m.locator('[name=nguoi_tra]')).to_have_count(0)
     expect(m.locator('[name=gia_sau_vat]')).to_have_count(0)
-    dong = [('Gò sơn cửa trước trái', 'Đồng sơn', '3000000'), ('Thay tay nắm cửa', 'Phụ tùng', '2000000'),
+    dong = [('Gò sơn cửa trước trái', 'Đồng', '3000000'), ('Thay tay nắm cửa', 'Phụ tùng', '2000000'),
             ('Vệ sinh khoang máy', 'Detailing', '500000')]
     for i, (ten, nhom, gia) in enumerate(dong):
         if i:
@@ -160,7 +160,8 @@ with sync_playwright() as p:
         r.locator('[name=nhom]').select_option(label=nhom)
         r.locator('[name=gia_bao]').fill(gia)
     expect(m.locator('.tong-bao-gia')).to_contain_text('5.940.000')
-    ghi('Báo giá xe BH: hiện hãng Tasco, không có cột ai trả; VAT 8% → tổng sau VAT ' + m.locator('.tong-bao-gia dd b').inner_text())
+    expect(m.locator('[name=nhom]').first.locator('option')).to_have_text(['Đồng', 'Sơn', 'Phụ tùng', 'Detailing'])
+    ghi('Báo giá xe BH – khối 1: ' + m.locator('.tong-bao-gia').inner_text().replace('\n', ' '))
     expect(m.locator('.khung-giao-viec')).to_contain_text('Nguyễn Trọng Duy')
     gt_long = m.locator('select[name=giao_cho] option', has_text='Trần Tử Long').get_attribute('value')
     m.locator('select[name=giao_cho]').select_option(gt_long)
@@ -377,12 +378,12 @@ with sync_playwright() as p:
     m = modal(duy)
     expect(m.locator('.dau-bao-gia')).to_contain_text('không qua duyệt giá')
     r = m.locator('.dong-nhap').first
+    r.locator('[name=nhom]').select_option(label='Sơn')
     r.locator('[name=ten]').fill('Sơn cản sau')
-    r.locator('[name=gia_sau_vat]').press_sequentially('1080000')
-    expect(r.locator('[name=gia_bao]')).to_have_value('1.000.000')
+    r.locator('[name=gia_bao]').press_sequentially('1000000')
     m.locator('select[name=vat]').select_option(label='10%')
-    expect(r.locator('[name=gia_sau_vat]')).to_have_value('1.100.000')
-    ghi('Khách ngoài BH: nhập sau VAT 1.080.000 → trước VAT tự ra 1.000.000; đổi VAT 10% → sau VAT ' + r.locator('[name=gia_sau_vat]').input_value())
+    expect(m.locator('.tong-bao-gia dd b')).to_have_text('1.100.000')
+    ghi('Khách ngoài BH: đơn giá 1.000.000, VAT 10% → khối 1: ' + m.locator('.tong-bao-gia').inner_text().replace('\n', ' '))
     chup(duy, '03b-bao-gia-khach')
     m.locator('text=Lưu báo giá').click()
     toast_co(duy, 'đã duyệt')

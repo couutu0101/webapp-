@@ -203,9 +203,8 @@ input[type=checkbox], input[type=radio] { width: 20px; height: 20px; min-height:
 .ds-dong-nhap { display: flex; flex-direction: column; gap: var(--k3); margin-bottom: var(--k3); }
 .dong-nhap { display: grid; grid-template-columns: 2fr 1.2fr 1.1fr 1.2fr auto auto; gap: var(--k2); align-items: end; padding: var(--k3);
   border: 1px solid var(--vien); border-radius: var(--bo); background: var(--mat-lom); }
-.dong-nhap.dong-bh { grid-template-columns: 2.2fr 1.1fr 1.4fr auto; }
-.dong-nhap.dong-khach { grid-template-columns: 2fr 1fr 1.3fr 1.3fr auto; }
-@media (max-width: 760px) { .dong-nhap { grid-template-columns: 1fr 1fr; } .dong-nhap > :first-child { grid-column: 1 / -1; } }
+.dong-nhap.dong-bao-gia { grid-template-columns: 1fr 2.4fr 1.3fr auto; }
+@media (max-width: 760px) { .dong-nhap { grid-template-columns: 1fr 1fr; } .dong-nhap:not(.dong-bao-gia) > :first-child { grid-column: 1 / -1; } .dong-nhap.dong-bao-gia > :nth-child(2) { grid-column: 1 / -1; } }
 /* Báo giá: hãng BH / nguồn + VAT ở đầu, dòng tổng ở cuối */
 .dau-bao-gia { margin-bottom: var(--k3); }
 .o-chi-xem { min-height: var(--cham); display: flex; align-items: center; padding: 0 12px; border-radius: var(--bo); background: var(--mat-lom); border: 1px solid var(--vien); font-weight: 600; }
@@ -400,3 +399,14 @@ a.o-dem:not(.mo) b { color: var(--muc); }
 .ds-viec-toi .viec-ten { display: flex; flex-direction: column; min-width: 0; }
 .ds-viec-toi .viec-ten small, .ds-viec-toi .viec-luc { color: var(--muc-phu); }
 @media (max-width: 640px) { .ds-viec-toi a { grid-template-columns: auto 1fr; } .ds-viec-toi .viec-luc { grid-column: 1 / -1; } }
+
+/* Báo giá – khối 1: hãng BH / nguồn, VAT và tổng giá sửa chữa */
+.khoi-bao-gia { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 340px); gap: var(--k4); align-items: start;
+  padding: var(--k3); margin-bottom: var(--k3); border-radius: var(--bo); background: var(--vang-nhat); border: 1px solid #f0dc9a; }
+.khoi-bao-gia .dau-bao-gia { margin-bottom: 0; }
+.khoi-bao-gia .tong-bao-gia { margin: 0; max-width: none; padding-top: 0; border-top: 0; }
+.tong-bao-gia .tong-chinh { padding-top: 6px; border-top: 1px solid #e6cf7d; font-size: 1.05rem; color: var(--muc); }
+.tong-bao-gia dt.tong-chinh { display: flex; flex-direction: column; }
+.tong-bao-gia dt.tong-chinh small { font-size: .78rem; color: var(--muc-phu); }
+@media (max-width: 760px) { .khoi-bao-gia { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { .dong-nhap.dong-bao-gia { grid-template-columns: 1fr 1fr; } }

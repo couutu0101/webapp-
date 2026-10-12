@@ -1,7 +1,7 @@
 // Chi tiết hồ sơ xe: 9 bước trên một trang, mỗi bước chỉ hiện nút cho đúng người
 import {
   h, oChonTep, bienSo, oNgayVN, tien, ngay, ngayGio, homNay, choODatetime, truong, oChu, oTien, oChon, oVung, oNgay, oCheck, docForm, docTien,
-  chay, moModal, toast, nhanTrangThai, nenAnh, bang, BUOC_SO, NHOM, NGUON, TRANG_THAI, xacNhan, dat, veDanhSachHoSo,
+  chay, moModal, toast, nhanTrangThai, nenAnh, bang, BUOC_SO, NHOM, NHOM_CHON, NGUON, TRANG_THAI, xacNhan, dat, veDanhSachHoSo,
 } from '../ui.js';
 import { khungGiaoViec, giaoSauKhiLuu, dongDangCho, nguoiLamTungBuoc, tenGoi, VAI_TRO_BUOC } from './giao-viec.js';
 import * as api from '../api.js';
@@ -158,11 +158,11 @@ function theBaoGia({ hs, hm, ve }) {
   const cotTT = { nhan: 'Trạng thái', lay: (m) => h('span', null, TT_DONG[m.trang_thai], m.ngay_duyet && m.trang_thai !== 'cho_duyet' ? h('small', null, ` ${ngay(m.ngay_duyet)}`) : null,
     m.trang_thai === 'cho_duyet' && duocBaoGia ? h('button', { class: 'nut-chu', type: 'button', onclick: (e) => { e.stopPropagation(); xoaDong(m, ve); } }, 'Xóa') : null) };
   const cot = khach
-    ? [cotLan, cotTen, cotNhom,
-      { nhan: 'Khách trả trước VAT', so: true, lay: (m) => tien(m.gia_bao) }, cotVat,
+    ? [cotLan, cotNhom, cotTen,
+      { nhan: 'Đơn giá (chưa VAT)', so: true, lay: (m) => tien(m.gia_bao) }, cotVat,
       { nhan: 'Khách trả sau VAT', so: true, lay: (m) => tien(sauVatDong(m, m.gia_duyet ?? m.gia_bao)) }, cotTT]
-    : [cotLan, cotTen, cotNhom,
-      { nhan: 'Báo giá trước duyệt', so: true, lay: (m) => tien(m.gia_bao) },
+    : [cotLan, cotNhom, cotTen,
+      { nhan: 'Đơn giá báo (chưa VAT)', so: true, lay: (m) => tien(m.gia_bao) },
       { nhan: 'Giá duyệt (chưa VAT)', so: true, lay: (m) => m.gia_duyet === null ? '' : tien(m.gia_duyet) }, cotVat, cotTT];
   return h('section', { class: 'the' },
     h('div', { class: 'the-dau' }, h('h2', null, khach ? '2. Báo giá (khách ngoài bảo hiểm)' : '2–3. Báo giá và duyệt giá'),
@@ -191,36 +191,33 @@ function moBaoGia(hs, hm, ve, boSung) {
   const danhSach = h('div', { class: 'ds-dong-nhap' });
   const tong = h('dl', { class: 'tong-bao-gia', 'aria-live': 'polite' });
 
+  // Khối 1 – Tổng giá sửa chữa: giá thay thế (phụ tùng), giá đồng sơn (đồng + sơn), giá detailing; tổng đã gồm VAT
   function capNhatTong() {
-    const gia = [...danhSach.children].map((d) => docTien(d.querySelector('[name=gia_bao]').value) || 0);
-    const truoc = gia.reduce((a, b) => a + b, 0);
-    const sau = gia.reduce((a, b) => a + sauVat(b, tyLe()), 0);
+    const dongs = [...danhSach.children].map((d) => ({ nhom: d.querySelector('[name=nhom]').value, gia: docTien(d.querySelector('[name=gia_bao]').value) || 0 }));
+    const cong = (ds) => dongs.filter((d) => ds.includes(d.nhom)).reduce((a, d) => a + d.gia, 0);
+    const sau = dongs.reduce((a, d) => a + sauVat(d.gia, tyLe()), 0);
     dat(tong,
-      h('dt', null, 'Tổng trước VAT'), h('dd', null, tien(truoc) || '0'),
-      h('dt', null, `VAT ${phanTram(tyLe())}`), h('dd', null, tien(sau - truoc) || '0'),
-      h('dt', null, khach ? 'Khách thanh toán sau VAT' : 'Tổng sau VAT'), h('dd', null, h('b', null, tien(sau) || '0')));
+      h('dt', null, 'Giá thay thế'), h('dd', null, tien(cong(['phu_tung'])) || '0'),
+      h('dt', null, 'Giá đồng sơn'), h('dd', null, tien(cong(['dong', 'son'])) || '0'),
+      h('dt', null, 'Giá Detailing'), h('dd', null, tien(cong(['detailing'])) || '0'),
+      h('dt', { class: 'tong-chinh' }, 'Tổng giá sửa chữa', h('small', null, `(đã gồm VAT ${phanTram(tyLe())})`)),
+      h('dd', { class: 'tong-chinh' }, h('b', null, tien(sau) || '0')));
   }
-  // Khách: hai ô trước/sau VAT tự tính qua lại theo VAT đang chọn
-  const tinhSau = (d) => { const t = docTien(d.querySelector('[name=gia_bao]').value); const o = d.querySelector('[name=gia_sau_vat]'); if (o) o.value = t === null ? '' : tien(sauVat(t, tyLe())); };
-  chonVat.addEventListener('change', () => { if (khach) [...danhSach.children].forEach(tinhSau); capNhatTong(); });
+  chonVat.addEventListener('change', capNhatTong);
 
+  // Khối 2 – từng dòng: Nhóm, Nội dung sửa chữa, Đơn giá (chưa VAT)
   const themDong = () => {
-    const oTruoc = oTien('gia_bao', null);
-    const oSau = khach ? oTien('gia_sau_vat', null) : null;
-    const dong = h('div', { class: `dong-nhap ${khach ? 'dong-khach' : 'dong-bh'}` },
-      truong('Nội dung sửa chữa', oChu('ten', '', { placeholder: 'Ví dụ: Gò sơn cửa trước trái' }), null, { batBuoc: true }),
-      truong('Nhóm', oChon('nhom', Object.entries(NHOM).map(([value, label]) => ({ value, label })), 'dong_son', { trong: null })),
-      khach ? truong('Khách thanh toán trước VAT', oTruoc, null, { batBuoc: true }) : truong('Báo giá trước duyệt (chưa VAT)', oTruoc, null, { batBuoc: true }),
-      khach ? truong('Khách thanh toán sau VAT', oSau) : null,
+    const oGia = oTien('gia_bao', null);
+    const chonNhom = oChon('nhom', NHOM_CHON.map((value) => ({ value, label: NHOM[value] })), 'dong', { trong: null });
+    const dong = h('div', { class: 'dong-nhap dong-bao-gia' },
+      truong('Nhóm', chonNhom),
+      truong('Nội dung sửa chữa', oChu('ten', '', { placeholder: 'Ví dụ: Gò cửa trước trái' }), null, { batBuoc: true }),
+      truong('Đơn giá (chưa VAT)', oGia, null, { batBuoc: true }),
       h('button', { class: 'nut-chu', type: 'button', onclick: () => { dong.remove(); capNhatTong(); }, 'aria-label': 'Bỏ dòng này' }, 'Bỏ dòng'));
-    oTruoc.addEventListener('input', () => { if (khach) tinhSau(dong); capNhatTong(); });
-    oSau?.addEventListener('input', () => {
-      const s = docTien(oSau.value);
-      oTruoc.value = s === null ? '' : tien(Math.round(s / (1 + tyLe())));
-      capNhatTong();
-    });
+    oGia.addEventListener('input', capNhatTong);
+    chonNhom.addEventListener('change', capNhatTong);
     danhSach.append(dong);
-    dong.querySelector('input').focus();
+    dong.querySelector('[name=ten]').focus();
     capNhatTong();
   };
   themDong();
@@ -228,10 +225,12 @@ function moBaoGia(hs, hm, ve, boSung) {
   const chiXem = (nhan, giaTri) => h('div', { class: 'truong' }, h('span', { class: 'truong-nhan' }, nhan), h('div', { class: 'o-chi-xem' }, giaTri));
   const noiDung = h('div', null,
     boSung ? h('p', { class: 'thong-bao canh-bao' }, khach ? 'Báo giá bổ sung cho phần phát sinh.' : 'Báo giá bổ sung: phần phát sinh chỉ được làm sau khi duyệt xong.') : null,
-    h('div', { class: 'luoi-o dau-bao-gia' },
-      khach ? chiXem('Nguồn', 'Khách ngoài bảo hiểm – không qua duyệt giá') : chiXem('Hãng bảo hiểm', hs.hang_bh || '—'),
-      truong('VAT', chonVat)),
-    danhSach, nut('+ Thêm dòng', themDong), tong);
+    h('div', { class: 'khoi-bao-gia' },
+      h('div', { class: 'luoi-o dau-bao-gia' },
+        khach ? chiXem('Nguồn', 'Khách ngoài bảo hiểm – không qua duyệt giá') : chiXem('Hãng bảo hiểm', hs.hang_bh || '—'),
+        truong('VAT', chonVat)),
+      tong),
+    danhSach, nut('+ Thêm dòng', themDong));
   // Báo giá gốc: chọn người làm bước tiếp theo (xe BH: nhập kết quả duyệt; khách: lập lệnh sửa chữa)
   const giao = boSung ? null : khach ? khungGiaoViec('Lập lệnh sửa chữa', VAI_TRO_BUOC.lenh) : khungGiaoViec('Nhập kết quả duyệt giá', VAI_TRO_BUOC.duyet_gia);
   if (giao) noiDung.append(giao.el);
@@ -306,7 +305,7 @@ function moLenh(hs, ds, ve) {
   const oHen = h('input', { type: 'datetime-local', name: 'hen_giao', value: choODatetime(hs.hen_giao) });
   const dongs = ds.map((m) => {
     const to = oChon('to', api.dm.to_thuc_hien.map((t) => ({ value: t.id, label: t.ten })),
-      { dong_son: 'DS', phu_tung: 'DS', dmg: 'DMG', detailing: 'DT' }[m.nhom], { trong: null, 'aria-label': `Tổ làm ${m.ten}` });
+      { dong: 'DS', son: 'DS', dong_son: 'DS', phu_tung: 'DS', dmg: 'DMG', detailing: 'DT' }[m.nhom], { trong: null, 'aria-label': `Tổ làm ${m.ten}` });
     const nguoi = oChu('nguoi', '', { placeholder: 'Người làm', 'aria-label': `Người làm ${m.ten}` });
     return { m, to, nguoi, el: h('tr', null, h('td', null, m.ten), h('td', null, to), h('td', null, nguoi)) };
   });

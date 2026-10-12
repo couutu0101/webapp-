@@ -85,7 +85,12 @@ export const TRANG_THAI = {
   dong: 'Đã đóng', huy: 'Đã hủy',
 };
 export const BUOC_SO = { tiep_nhan: 1, bao_gia: 2, da_duyet: 3, dang_sua: 5, cho_kcs: 6, dat_kcs: 7, da_giao: 8, da_gui_hs: 8, dong: 9, huy: 0 };
-export const NHOM = { dong_son: 'Đồng sơn', phu_tung: 'Phụ tùng', dmg: 'Điện – máy – gầm', detailing: 'Detailing' };
+// Nhóm hạng mục báo giá. Chọn mới: Đồng, Sơn, Phụ tùng, Detailing; "Đồng sơn", "Điện – máy – gầm" chỉ còn ở dòng cũ.
+export const NHOM = { dong: 'Đồng', son: 'Sơn', phu_tung: 'Phụ tùng', detailing: 'Detailing', dong_son: 'Đồng sơn', dmg: 'Điện – máy – gầm' };
+export const NHOM_CHON = ['dong', 'son', 'phu_tung', 'detailing'];
+// Gộp nhóm cho báo cáo doanh thu: Đồng + Sơn tính vào "Đồng sơn"
+export const NHOM_BAO_CAO = { dong_son: 'Đồng sơn', phu_tung: 'Phụ tùng', dmg: 'Điện – máy – gầm', detailing: 'Detailing' };
+export const nhomBaoCao = (n) => (n === 'dong' || n === 'son' ? 'dong_son' : n);
 export const NGUON = { bao_hiem: 'Bảo hiểm', khach: 'Khách ngoài bảo hiểm', bao_hiem_khach: 'Bảo hiểm + khách trả thêm' };
 export const VAI_TRO = {
   giam_doc: 'Giám đốc', quan_ly: 'Quản lý chung', ke_toan: 'Kế toán', cvdv: 'CVDV',

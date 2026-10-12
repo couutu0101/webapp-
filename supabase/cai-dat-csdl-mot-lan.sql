@@ -2480,3 +2480,12 @@ revoke all on public.v_viec_ho_so from anon;
 -- Giao sẵn cho các hồ sơ đang mở (hồ sơ chuyển từ Excel thì không)
 update public.ho_so h set nguoi_tiep_theo = app.goi_y_nguoi_tiep_theo(h), giao_viec_luc = now()
 where not h.tu_excel and h.trang_thai <> 'huy' and h.nguoi_tiep_theo is null;
+
+-- =====================================================================
+-- 011 (12/10/2026): Nhóm hạng mục báo giá mới: Đồng, Sơn, Phụ tùng, Detailing
+--   Tách "Đồng sơn" thành "Đồng" và "Sơn". Nhóm cũ (dong_son, dmg) vẫn hợp lệ cho các dòng đã có.
+--   Tương thích ngược: chỉ nới ràng buộc.
+-- =====================================================================
+alter table public.hang_muc drop constraint if exists hang_muc_nhom_check;
+alter table public.hang_muc add constraint hang_muc_nhom_check
+  check (nhom in ('dong','son','phu_tung','detailing','dong_son','dmg'));
