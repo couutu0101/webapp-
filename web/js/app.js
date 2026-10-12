@@ -45,7 +45,7 @@ const goc = document.getElementById('app');
 const BAN_THAT = ['quanly.autohoangson.com', 'quanly-hoang-son.vercel.app'];
 if (!BAN_THAT.includes(location.hostname) && location.hostname !== '127.0.0.1') {
   document.body.classList.add('ban-thu');
-  document.body.prepend(h('div', { class: 'dai-ban-thu', role: 'note' }, 'BẢN THỬ – chỉ để anh Thuận xem trước, dùng chung dữ liệu với bản thật'));
+  document.body.prepend(h('div', { class: 'dai-ban-thu', role: 'note' }, 'BẢN THỬ – nhân viên chưa thấy thay đổi này. Dữ liệu dùng chung với bản thật.'));
 }
 let dangDatMatKhau = false;
 
