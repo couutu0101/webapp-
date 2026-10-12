@@ -1,5 +1,5 @@
 // Bước 1: Tiếp nhận xe – 10 thông tin bắt buộc + ảnh nhận xe
-import { h, oChonTep, truong, oChu, oChon, oVung, oNgay, oCheck, docForm, chay, toast, nenAnh, choODatetime, dat } from '../ui.js';
+import { h, oChonTep, truong, oChu, oChon, oVung, oNgayVN, isoSangVN, docForm, chay, toast, nenAnh, choODatetime, dat } from '../ui.js';
 import * as api from '../api.js';
 
 export default async function trangTiepNhan(el) {
@@ -18,19 +18,15 @@ export default async function trangTiepNhan(el) {
   chonHangXe.addEventListener('change', () => capNhatDongXe());
 
   const chonHangBH = oChon('hang_bh_id', dm.hang_bao_hiem.filter((x) => x.hoat_dong).map((x) => ({ value: x.id, label: x.ten })), null);
-  const chonVanPhong = oChon('van_phong_bh_id', [], null, { trong: '— Không / chưa rõ —' });
   const chonGdv = oChon('gdv_id', [], null);
   const oGdvMoi = oChu('gdv_ten_tam', '', { placeholder: 'Tên giám định viên mới' });
   const khungGdvMoi = truong('Tên GDV mới', oGdvMoi, 'Kế toán sẽ thêm người này vào danh sách trong Cài đặt.', { batBuoc: true });
-  const capNhatBH = (giuVP, giuGdv) => {
+  const capNhatBH = (giuGdv) => {
     const hang = chonHangBH.value;
-    dat(chonVanPhong, h('option', { value: '' }, '— Không / chưa rõ —'),
-      dm.van_phong_bao_hiem.filter((v) => String(v.hang_id) === hang && v.hoat_dong).map((v) => h('option', { value: v.id }, v.ten)));
     const gdv = dm.giam_dinh_vien.filter((g) => g.hoat_dong && (g.la_cho_them || !g.hang_id || String(g.hang_id) === hang))
       .sort((a, b) => (b.la_cho_them - a.la_cho_them) || ((String(b.hang_id) === hang) - (String(a.hang_id) === hang)) || a.ten.localeCompare(b.ten, 'vi'));
     dat(chonGdv, h('option', { value: '' }, '— Chọn —'),
       gdv.map((g) => h('option', { value: g.id }, g.la_cho_them ? g.ten : `${g.ten}${g.hang_id ? ` (${dm.ten('hang_bao_hiem', g.hang_id)})` : ''}`)));
-    if (giuVP) chonVanPhong.value = giuVP;
     if (giuGdv) chonGdv.value = giuGdv;
     hienGdvMoi();
   };
@@ -39,29 +35,42 @@ export default async function trangTiepNhan(el) {
     khungGdvMoi.hidden = !g?.la_cho_them;
   };
   chonHangBH.addEventListener('change', () => capNhatBH());
+  // Hai ngày hết hạn bảo hiểm: luôn hiện; bắt buộc với xe bảo hiểm, khách ngoài bảo hiểm thì không bắt buộc
+  const oHanThanVo = oNgayVN('han_bh_than_vo');
+  const oHan = oNgayVN('han_bao_hiem');
+  const sao = () => h('b', { class: 'bat-buoc', 'aria-hidden': 'true' }, ' *');
+  const saoThanVo = sao(); const saoTnds = sao();
+  const truongNgay = (nhan, o, s, goiY) => h('label', { class: 'truong' },
+    h('span', { class: 'truong-nhan' }, nhan, s), o, h('small', { class: 'goi-y' }, goiY));
   chonGdv.addEventListener('change', hienGdvMoi);
 
   const oBienSo = oChu('bien_so', '', { placeholder: 'Ví dụ 50H-923.61', autocapitalize: 'characters', autocomplete: 'off' });
-  const chuaBien = oCheck('chua_bien', false, 'Xe chưa có biển số');
   const thongBaoXe = h('div', { class: 'thong-bao', hidden: true });
   const oTen = oChu('ten_khach', '', { autocomplete: 'off' });
   const oSdt = oChu('dien_thoai', '', { inputmode: 'tel', placeholder: '09xxxxxxxx', autocomplete: 'off' });
   const oMau = oChu('mau', '', { placeholder: 'Trắng, đỏ…' });
-  const oHan = oNgay('han_bao_hiem');
 
+  const truongHangBH = truong('Hãng bảo hiểm', chonHangBH, null, { batBuoc: true });
+  const truongGdv = truong('Giám định viên', chonGdv, null, { batBuoc: true });
   const khungBH = h('fieldset', { class: 'nhom-o' }, h('legend', null, 'Bảo hiểm'),
-    h('div', { class: 'luoi-o' },
-      truong('Hãng bảo hiểm', chonHangBH, null, { batBuoc: true }),
-      truong('Văn phòng', chonVanPhong),
-      truong('Giám định viên', chonGdv, null, { batBuoc: true }),
-      khungGdvMoi,
-      truong('Ngày hết hạn bảo hiểm', oHan, 'Dùng để nhắc khách gia hạn', { batBuoc: true })));
+    h('div', { class: 'luoi-o hai-cot' },
+      truongHangBH,
+      truongNgay('Ngày hết hạn bảo hiểm thân vỏ', oHanThanVo, saoThanVo, 'Ngày/tháng/năm. Dùng để nhắc khách gia hạn'),
+      truongGdv,
+      truongNgay('Ngày hết hạn bảo hiểm TNDS', oHan, saoTnds, 'Ngày/tháng/năm. Dùng để nhắc khách gia hạn'),
+      khungGdvMoi));
   khungGdvMoi.hidden = true;
 
-  const radioNguon = h('div', { class: 'chon-nut', role: 'radiogroup', 'aria-label': 'Bảo hiểm nào hay khách lẻ' },
-    [['bao_hiem', 'Xe bảo hiểm'], ['khach', 'Khách lẻ'], ['bao_hiem_khach', 'Bảo hiểm + khách làm thêm']].map(([v, nhan], i) =>
+  const radioNguon = h('div', { class: 'chon-nut', role: 'radiogroup', 'aria-label': 'Xe bảo hiểm hay khách ngoài bảo hiểm' },
+    [['bao_hiem', 'Xe bảo hiểm'], ['khach', 'Khách ngoài bảo hiểm']].map(([v, nhan], i) =>
       h('label', null, h('input', { type: 'radio', name: 'nguon_tt', value: v, checked: i === 0 }), h('span', null, nhan))));
-  const hienBH = () => { khungBH.hidden = form.nguon_tt.value === 'khach'; };
+  // Khách ngoài bảo hiểm: ẩn hãng bảo hiểm và giám định viên, vẫn giữ hai ô ngày hết hạn nhưng không bắt buộc
+  const hienBH = () => {
+    const bh = form.nguon_tt.value !== 'khach';
+    truongHangBH.hidden = !bh; truongGdv.hidden = !bh;
+    if (!bh) khungGdvMoi.hidden = true; else hienGdvMoi();
+    saoThanVo.hidden = !bh; saoTnds.hidden = !bh;
+  };
   radioNguon.addEventListener('change', hienBH);
 
   const chonAnh = oChonTep({ name: 'anh', capture: 'environment', multiple: true }, 'Chụp ảnh xe');
@@ -72,9 +81,9 @@ export default async function trangTiepNhan(el) {
   });
 
   const form = h('form', { class: 'the', novalidate: true },
-    h('fieldset', { class: 'nhom-o' }, h('legend', null, 'Xe'),
+    h('fieldset', { class: 'nhom-o' }, h('legend', null, 'Thông tin xe'),
       h('div', { class: 'luoi-o' },
-        truong('Biển số', oBienSo, null, { batBuoc: true }), h('div', { class: 'truong' }, chuaBien),
+        truong('Biển số', oBienSo, null, { batBuoc: true }),
         thongBaoXe,
         truong('Hãng xe', chonHangXe, null, { batBuoc: true }),
         truong('Dòng xe', chonDongXe, null, { batBuoc: true }),
@@ -84,7 +93,7 @@ export default async function trangTiepNhan(el) {
       h('div', { class: 'luoi-o' },
         truong('Tên khách', oTen, null, { batBuoc: true }),
         truong('Số điện thoại', oSdt, 'Không gửi SĐT khách ra ngoài', { batBuoc: true }))),
-    h('fieldset', { class: 'nhom-o' }, h('legend', null, 'Bảo hiểm nào hay khách lẻ'), radioNguon),
+    h('fieldset', { class: 'nhom-o' }, h('legend', null, 'Xe bảo hiểm hay khách ngoài bảo hiểm'), radioNguon),
     khungBH,
     h('fieldset', { class: 'nhom-o' }, h('legend', null, 'Tình trạng và tư vấn'),
       h('div', { class: 'luoi-o' },
@@ -110,9 +119,10 @@ export default async function trangTiepNhan(el) {
       if (x.mau && !oMau.value) oMau.value = x.mau;
       if (!oTen.value) oTen.value = x.ten_khach || '';
       if (!oSdt.value) oSdt.value = x.dien_thoai || '';
-      if (x.han_bao_hiem && !oHan.value) oHan.value = x.han_bao_hiem;
+      if (x.han_bao_hiem && !oHan.value) oHan.value = isoSangVN(x.han_bao_hiem);
+      if (x.han_bh_than_vo && !oHanThanVo.value) oHanThanVo.value = isoSangVN(x.han_bh_than_vo);
       const g = x.ho_so_gan_nhat;
-      if (g && g.nguon_tt !== 'khach' && g.hang_bh_id) { chonHangBH.value = g.hang_bh_id; capNhatBH(g.van_phong_bh_id, g.gdv_id); }
+      if (g && g.nguon_tt !== 'khach' && g.hang_bh_id) { chonHangBH.value = g.hang_bh_id; capNhatBH(g.gdv_id); }
       thongBaoXe.hidden = false;
       thongBaoXe.className = x.ho_so_mo ? 'thong-bao canh-bao' : 'thong-bao';
       dat(thongBaoXe, `Xe cũ, đã vào gara ${x.so_lan_vao} lần. Đã tự điền khách và loại xe – kiểm tra lại.`,
@@ -120,19 +130,23 @@ export default async function trangTiepNhan(el) {
     } catch (e) { /* chỉ là gợi ý, bỏ qua lỗi */ }
   }
   oBienSo.addEventListener('change', traCuu);
-  chuaBien.querySelector('input').addEventListener('change', (e) => { oBienSo.disabled = e.target.checked; if (e.target.checked) oBienSo.value = ''; });
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const d = docForm(form);
-    if (!d.chua_bien && !d.bien_so) return toast('Nhập biển số, hoặc đánh dấu "Xe chưa có biển số".', 'loi');
+    if (!d.bien_so) { oBienSo.focus(); return toast('Nhập biển số xe.', 'loi'); }
+    const bh = d.nguon_tt !== 'khach';
+    for (const [o, v, ten] of [[oHanThanVo, d.han_bh_than_vo, 'thân vỏ'], [oHan, d.han_bao_hiem, 'TNDS']]) {
+      if (v === 'sai') { o.focus(); return toast(`Ngày hết hạn bảo hiểm ${ten} không đúng. Nhập dạng ngày/tháng/năm, ví dụ 01/03/2027.`, 'loi'); }
+      if (bh && !v) { o.focus(); return toast(`Xe bảo hiểm: nhập ngày hết hạn bảo hiểm ${ten}.`, 'loi'); }
+    }
     if (!oAnh.files.length) return toast('Chụp ít nhất 1 ảnh nhận xe.', 'loi');
     const p = {
-      bien_so: d.chua_bien ? null : d.bien_so, ten_khach: d.ten_khach, dien_thoai: d.dien_thoai,
+      bien_so: d.bien_so, ten_khach: d.ten_khach, dien_thoai: d.dien_thoai,
       dong_xe_id: d.dong_xe_id, mau: d.mau, nguon_tt: d.nguon_tt,
       ngay_vao: d.ngay_vao ? new Date(d.ngay_vao).toISOString() : null,
-      hang_bh_id: d.hang_bh_id, van_phong_bh_id: d.van_phong_bh_id, gdv_id: d.gdv_id, gdv_ten_tam: d.gdv_ten_tam,
-      han_bao_hiem: d.han_bao_hiem, tinh_trang_xe: d.tinh_trang_xe, tu_van: d.tu_van,
+      hang_bh_id: d.hang_bh_id, gdv_id: d.gdv_id, gdv_ten_tam: d.gdv_ten_tam,
+      han_bao_hiem: d.han_bao_hiem, han_bh_than_vo: d.han_bh_than_vo, tinh_trang_xe: d.tinh_trang_xe, tu_van: d.tu_van,
       loai: hoSoGoc ? 'bao_hanh' : 'sua_chua', ho_so_goc_id: hoSoGoc ? hoSoGoc.id : null,
     };
     const nut = form.querySelector('button[type=submit]');

@@ -60,6 +60,10 @@ export function createClient() {
       from: () => ({
         async upload(duongDan) { return goi('/api/tai-len', { duong_dan: duongDan }); },
         async createSignedUrl() { return { data: { signedUrl: '/test-anh.svg' }, error: null }; },
+        // Giả lập: ảnh nhỏ (.nho.jpg) có link riêng để kiểm thử chọn đúng ảnh nhỏ
+        async createSignedUrls(ds) {
+          return { data: ds.map((p) => ({ path: p, signedUrl: p.endsWith('.nho.jpg') ? '/test-anh.svg?nho' : '/test-anh.svg', error: null })), error: null };
+        },
       }),
     },
   };

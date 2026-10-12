@@ -54,7 +54,7 @@ export default async function trangHoSo(el) {
         { nhan: 'Biển số', lay: (d) => bienSo(d.bien_so_hien_thi, { maThay: d.ma }) },
         { nhan: 'Xe', lay: (d) => d.xe },
         { nhan: 'Khách', lay: (d) => d.ten_khach },
-        { nhan: 'Nguồn', lay: (d) => d.nguon_tt === 'khach' ? 'Khách lẻ' : (d.hang_bh || NGUON[d.nguon_tt]) },
+        { nhan: 'Nguồn', lay: (d) => d.nguon_tt === 'khach' ? 'Ngoài BH' : (d.hang_bh || NGUON[d.nguon_tt]) },
         { nhan: 'Vào ngày', lay: (d) => ngay(d.ngay_vao) },
         { nhan: 'Bước', lay: (d) => h('span', null, nhanTrangThai(d.trang_thai), d.co_phat_sinh ? h('span', { class: 'nhan tt-canh-bao' }, 'Phát sinh') : null) },
         coTien ? { nhan: 'Còn nợ', so: true, lay: (d) => tien(Number(d.con_no_bh) + Number(d.con_no_khach)) || '0' } : null,

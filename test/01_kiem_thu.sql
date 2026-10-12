@@ -86,8 +86,13 @@ select kt.mong_loi('GDV chờ thêm phải ghi tên', $$select public.tiep_nhan_
 insert into ctx select 'hs1', (public.tiep_nhan_xe(jsonb_build_object(
   'bien_so','50h - 923.61','ten_khach','Anh Liêm','dien_thoai','0567 248 565','dong_xe_id',(select id from public.dong_xe where ten='VF6 Plus'),
   'mau','Trắng','nguon_tt','bao_hiem','hang_bh_id',(select id from public.hang_bao_hiem where ten='Tasco'),
-  'gdv_id',(select id from public.giam_dinh_vien where ten='Hảo'),'han_bao_hiem','2027-03-01',
+  'gdv_id',(select id from public.giam_dinh_vien where ten='Hảo'),'han_bao_hiem','2027-03-01','han_bh_than_vo','2027-05-20',
   'tinh_trang_xe','Móp cửa trước trái','tu_van','Bảo dưỡng 20.000 km')))->>'id';
+select kt.ghi('Lưu hạn BH thân vỏ vào hồ sơ và xe',
+  (select h.han_bh_than_vo = '2027-05-20' and x.han_bh_than_vo = '2027-05-20' and h.han_bao_hiem = '2027-03-01'
+     from public.ho_so h join public.xe x on x.id = h.xe_id where h.id = (select v::bigint from ctx where k='hs1')));
+select kt.ghi('Tra cứu xe trả về hạn BH thân vỏ', (public.tra_cuu_xe('50H92361')->>'han_bh_than_vo') = '2027-05-20');
+select kt.ghi('Bảng xem hồ sơ có hạn BH thân vỏ', (select han_bh_than_vo from public.v_ho_so where id = (select v::bigint from ctx where k='hs1')) = '2027-05-20');
 select kt.ghi('Mã hồ sơ theo biển số',
   (select ma from public.ho_so where id = (select v::bigint from ctx where k='hs1')) = 'TK-' || to_char(now(),'YYMM') || '-50H92361',
   (select ma from public.ho_so where id = (select v::bigint from ctx where k='hs1')));

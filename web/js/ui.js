@@ -86,7 +86,7 @@ export const TRANG_THAI = {
 };
 export const BUOC_SO = { tiep_nhan: 1, bao_gia: 2, da_duyet: 3, dang_sua: 6, cho_kcs: 7, dat_kcs: 8, da_giao: 9, da_gui_hs: 9, dong: 10, huy: 0 };
 export const NHOM = { dong_son: 'Đồng sơn', phu_tung: 'Phụ tùng', dmg: 'Điện – máy – gầm', detailing: 'Detailing' };
-export const NGUON = { bao_hiem: 'Bảo hiểm', khach: 'Khách lẻ', bao_hiem_khach: 'Bảo hiểm + khách trả thêm' };
+export const NGUON = { bao_hiem: 'Bảo hiểm', khach: 'Khách ngoài bảo hiểm', bao_hiem_khach: 'Bảo hiểm + khách trả thêm' };
 export const VAI_TRO = {
   giam_doc: 'Giám đốc', quan_ly: 'Quản lý chung', ke_toan: 'Kế toán', cvdv: 'CVDV',
   kho: 'Kho', truong_nhom: 'Trưởng nhóm', co_dong: 'Cổ đông',
@@ -169,7 +169,8 @@ export function moModal(tieuDe, noiDung, { nutChinh, nhanNut = 'Lưu', nutPhu = 
   nen.append(hop);
   document.body.append(nen);
   const dau = hop.querySelector('input,select,textarea');
-  if (dau) setTimeout(() => dau.focus(), 50);
+  // Chỉ tự đặt con trỏ khi người dùng chưa bấm vào ô nào trong hộp thoại (tránh gõ nhầm sang ô khác)
+  if (dau) setTimeout(() => { if (!hop.contains(document.activeElement)) dau.focus(); }, 50);
   return dong;
 }
 
@@ -241,6 +242,32 @@ export function oTien(name, value, attrs = {}) {
 export function oNgay(name, value, attrs = {}) {
   return h('input', { type: 'date', name, value: value || '', ...attrs });
 }
+// Ô ngày luôn hiện dd/mm/yyyy (ô date của trình duyệt đổi theo ngôn ngữ máy, dễ nhập nhầm tháng/ngày)
+// Gõ liền 8 số (01032027) cũng được: tự chèn dấu /. docForm trả về yyyy-mm-dd.
+export function isoSangVN(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || '');
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : '';
+}
+export function vnSangIso(s) {
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec((s || '').trim());
+  if (!m) return null;
+  const [d, t, n] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const x = new Date(n, t - 1, d);
+  if (x.getFullYear() !== n || x.getMonth() !== t - 1 || x.getDate() !== d) return null;
+  return `${n}-${String(t).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+export function oNgayVN(name, isoValue, attrs = {}) {
+  const el = h('input', { type: 'text', name, inputmode: 'numeric', placeholder: 'dd/mm/yyyy', maxlength: 10, autocomplete: 'off',
+    class: 'o-ngay-vn', ...attrs });
+  el.value = isoSangVN(isoValue);
+  el.addEventListener('input', (e) => {
+    if (e.inputType && e.inputType.startsWith('delete')) return;
+    const so = el.value.replace(/\D/g, '').slice(0, 8);
+    el.value = [so.slice(0, 2), so.slice(2, 4), so.slice(4)].filter(Boolean).join('/');
+  });
+  el.addEventListener('blur', () => { el.setCustomValidity(el.value && !vnSangIso(el.value) ? 'Ngày không đúng (dd/mm/yyyy)' : ''); });
+  return el;
+}
 export function oChon(name, options, value, { trong = '— Chọn —', ...attrs } = {}) {
   const el = h('select', { name, ...attrs },
     trong !== null ? h('option', { value: '' }, trong) : null,
@@ -265,6 +292,7 @@ export function docForm(form) {
     if (el.type === 'radio') { if (el.checked) kq[el.name] = el.value; continue; }
     let v = el.value.trim();
     if (el.classList.contains('o-tien')) kq[el.name] = docTien(v);
+    else if (el.classList.contains('o-ngay-vn')) kq[el.name] = v === '' ? null : (vnSangIso(v) || 'sai');
     else kq[el.name] = v === '' ? null : v;
   }
   return kq;
@@ -284,18 +312,33 @@ export function bang(cot, dong, { trong = 'Chưa có dữ liệu.', onRow } = {}
 }
 
 // Nén ảnh điện thoại trước khi tải lên (cạnh dài tối đa 1600px)
-export async function nenAnh(file) {
-  if (!file.type.startsWith('image/') || file.size < 400_000) return file;
+// Ảnh xe: cạnh dài 1280px (~0,2 MB) – đủ nhìn rõ vết trầy, móp.
+// Giấy tờ (giám định, duyệt giá, HĐ 3 bên, hồ sơ bảo hiểm, khác): 1600px để đọc được chữ.
+const BUOC_GIAY_TO = ['duyet_gia', 'ho_so_bh', 'khac'];
+async function veLai(file, canh, chatLuong) {
+  const bmp = await createImageBitmap(file);
+  const tile = Math.min(1, canh / Math.max(bmp.width, bmp.height));
+  const c = document.createElement('canvas');
+  c.width = Math.round(bmp.width * tile); c.height = Math.round(bmp.height * tile);
+  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+  bmp.close?.();
+  return new Promise((r) => c.toBlob(r, 'image/jpeg', chatLuong));
+}
+export async function nenAnh(file, buoc = 'tiep_nhan') {
+  if (!file.type.startsWith('image/')) return file;
+  const giayTo = BUOC_GIAY_TO.includes(buoc);
   try {
-    const bmp = await createImageBitmap(file);
-    const tile = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
-    const c = document.createElement('canvas');
-    c.width = Math.round(bmp.width * tile); c.height = Math.round(bmp.height * tile);
-    c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
-    const blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.82));
-    return blob ? new File([blob], file.name.replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' }) : file;
+    const blob = await veLai(file, giayTo ? 1600 : 1280, giayTo ? 0.85 : 0.78);
+    if (!blob || blob.size >= file.size) return file;
+    return new File([blob], file.name.replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' });
   } catch { return file; }
 }
+// Ảnh thu nhỏ ~20 KB để hiện ô vuông trong hồ sơ; bấm vào mới tải ảnh lớn
+export async function taoAnhNho(file) {
+  if (!file.type.startsWith('image/')) return null;
+  try { return await veLai(file, 360, 0.7); } catch { return null; }
+}
+export const duongDanAnhNho = (duongDan) => `${duongDan}.nho.jpg`;
 
 export function taiTepCSV(tenTep, cot, dong) {
   const thoat = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;

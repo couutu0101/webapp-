@@ -1,5 +1,6 @@
 // Mọi lệnh gọi cơ sở dữ liệu nằm ở đây. Trang giao diện chỉ gọi các hàm trong file này.
 import { sb } from './supabase.js';
+import { taoAnhNho, duongDanAnhNho } from './ui.js';
 
 function loi(error) {
   const e = new Error(error?.message || 'Lỗi không xác định');
@@ -108,12 +109,27 @@ export async function taiTep(hoSo, buoc, file, loai = 'anh') {
   const duongDan = `${hoSo.chi_nhanh_id}/${hoSo.ma}/${buoc}-${Date.now()}-${ten}`;
   const { error } = await sb.storage.from('ho-so-xe').upload(duongDan, file, { upsert: false });
   if (error) throw loi(error);
+  // Ảnh thu nhỏ: lỗi thì bỏ qua, hồ sơ sẽ dùng ảnh lớn thay thế
+  const nho = await taoAnhNho(file);
+  if (nho) {
+    try { await sb.storage.from('ho-so-xe').upload(duongDanAnhNho(duongDan), nho, { upsert: false, contentType: 'image/jpeg' }); }
+    catch { /* bỏ qua */ }
+  }
   return rpc('them_tep', { p_ho_so: hoSo.id, p_buoc: buoc, p_loai: loai, p_duong_dan: duongDan });
 }
 export async function linkTep(duongDan) {
   const { data, error } = await sb.storage.from('ho-so-xe').createSignedUrl(duongDan, 3600);
   if (error) throw loi(error);
   return data.signedUrl;
+}
+// Lấy link cho nhiều tệp một lần: { duong_dan: { lon, nho } }. Ảnh cũ chưa có bản nhỏ thì nho = lon.
+export async function linkTepNhieu(dsDuongDan) {
+  if (!dsDuongDan.length) return {};
+  const tatCa = dsDuongDan.flatMap((d) => [d, duongDanAnhNho(d)]);
+  const { data, error } = await sb.storage.from('ho-so-xe').createSignedUrls(tatCa, 3600);
+  if (error) throw loi(error);
+  const theoDuong = Object.fromEntries((data || []).filter((x) => x.signedUrl && !x.error).map((x) => [x.path, x.signedUrl]));
+  return Object.fromEntries(dsDuongDan.map((d) => [d, { lon: theoDuong[d], nho: theoDuong[duongDanAnhNho(d)] || theoDuong[d] }]));
 }
 
 // ---------- Dịch vụ nhanh ----------

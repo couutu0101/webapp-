@@ -1,6 +1,6 @@
 // Chi tiết hồ sơ xe: 10 bước trên một trang, mỗi bước chỉ hiện nút cho đúng người
 import {
-  h, oChonTep, bienSo, tien, ngay, ngayGio, homNay, choODatetime, truong, oChu, oTien, oChon, oVung, oNgay, oCheck, docForm, docTien,
+  h, oChonTep, bienSo, oNgayVN, tien, ngay, ngayGio, homNay, choODatetime, truong, oChu, oTien, oChon, oVung, oNgay, oCheck, docForm, docTien,
   chay, moModal, toast, nhanTrangThai, nenAnh, bang, BUOC_SO, NHOM, NGUON, TRANG_THAI, xacNhan, dat,
 } from '../ui.js';
 import * as api from '../api.js';
@@ -67,8 +67,8 @@ function theThongTin({ hs, ve }) {
       dong('Nguồn', NGUON[hs.nguon_tt]),
       hs.nguon_tt !== 'khach' ? [
         dong('Bảo hiểm', [hs.hang_bh, hs.van_phong_bh].filter(Boolean).join(' – ')),
-        dong('Giám định viên', hs.gdv_cho_them ? h('span', null, hs.gdv, ' ', h('span', { class: 'nhan tt-canh-bao' }, 'chờ thêm vào danh sách')) : hs.gdv),
-        dong('Hết hạn bảo hiểm', ngay(hs.han_bao_hiem))] : null,
+        dong('Giám định viên', hs.gdv_cho_them ? h('span', null, hs.gdv, ' ', h('span', { class: 'nhan tt-canh-bao' }, 'chờ thêm vào danh sách')) : hs.gdv)] : null,
+      dong('Hết hạn BH thân vỏ', ngay(hs.han_bh_than_vo)), dong('Hết hạn BH TNDS', ngay(hs.han_bao_hiem)),
       dong('Vào xưởng', ngayGio(hs.ngay_vao)), dong('Hẹn giao', ngayGio(hs.hen_giao)),
       dong('Tình trạng', hs.tinh_trang_xe), dong('Có thể tư vấn', hs.tu_van)));
 }
@@ -85,18 +85,20 @@ function moSuaThongTin(hs, ve) {
     truong('Hẹn giao', h('input', { type: 'datetime-local', name: 'hen_giao', value: choODatetime(hs.hen_giao) })),
     hs.nguon_tt !== 'khach' ? [
       truong('Hãng bảo hiểm', oChon('hang_bh_id', dm.hang_bao_hiem.map((x) => ({ value: x.id, label: x.ten })), hs.hang_bh_id)),
-      truong('Văn phòng', oChon('van_phong_bh_id', dm.van_phong_bao_hiem.map((x) => ({ value: x.id, label: `${dm.ten('hang_bao_hiem', x.hang_id)} – ${x.ten}` })), hs.van_phong_bh_id, { trong: '— Không —' })),
-      truong('Giám định viên', chonGdv), truong('Tên GDV mới (nếu chọn "chờ thêm")', oGdvMoi),
-      truong('Hết hạn bảo hiểm', oNgay('han_bao_hiem', hs.han_bao_hiem))] : null,
+      truong('Giám định viên', chonGdv), truong('Tên GDV mới (nếu chọn "chờ thêm")', oGdvMoi)] : null,
+    truong('Hết hạn bảo hiểm thân vỏ', oNgayVN('han_bh_than_vo', hs.han_bh_than_vo), 'Ngày/tháng/năm'),
+    truong('Hết hạn bảo hiểm TNDS', oNgayVN('han_bao_hiem', hs.han_bao_hiem), 'Ngày/tháng/năm'),
     truong('Tình trạng xe', oVung('tinh_trang_xe', hs.tinh_trang_xe), null, { rong: true }),
     truong('Có thể tư vấn', oVung('tu_van', hs.tu_van), null, { rong: true }));
   moModal('Sửa thông tin', form, {
     rong: true,
     nutChinh: async () => {
       const d = docForm(form);
+      if (d.han_bh_than_vo === 'sai' || d.han_bao_hiem === 'sai') throw new Error('Ngày hết hạn bảo hiểm không đúng. Nhập dạng ngày/tháng/năm, ví dụ 01/03/2027.');
+      if (hs.nguon_tt !== 'khach' && (!d.han_bh_than_vo || !d.han_bao_hiem)) throw new Error('Xe bảo hiểm: nhập đủ ngày hết hạn bảo hiểm thân vỏ và TNDS.');
       const p = { ten_khach: d.ten_khach, dien_thoai: d.dien_thoai, mau: d.mau, tinh_trang_xe: d.tinh_trang_xe, tu_van: d.tu_van,
-        hen_giao: d.hen_giao ? new Date(d.hen_giao).toISOString() : null };
-      if (hs.nguon_tt !== 'khach') Object.assign(p, { hang_bh_id: d.hang_bh_id, van_phong_bh_id: d.van_phong_bh_id, gdv_id: d.gdv_id, gdv_ten_tam: d.gdv_ten_tam, han_bao_hiem: d.han_bao_hiem });
+        hen_giao: d.hen_giao ? new Date(d.hen_giao).toISOString() : null, han_bao_hiem: d.han_bao_hiem, han_bh_than_vo: d.han_bh_than_vo };
+      if (hs.nguon_tt !== 'khach') Object.assign(p, { hang_bh_id: d.hang_bh_id, gdv_id: d.gdv_id, gdv_ten_tam: d.gdv_ten_tam });
       await api.suaThongTin(hs.id, p);
       toast('Đã lưu.'); await ve();
     },
@@ -253,7 +255,7 @@ function moPhatSinh(hs, ve) {
     nhanNut: 'Gửi',
     nutChinh: async () => {
       await api.baoPhatSinh(hs.id, docForm(form).mo_ta);
-      for (const f of form.anh.files) await api.taiTep(hs, 'phat_sinh', await nenAnh(f));
+      for (const f of form.anh.files) await api.taiTep(hs, 'phat_sinh', await nenAnh(f, 'phat_sinh'));
       toast('Đã báo phát sinh.'); await ve();
     },
   });
@@ -405,14 +407,15 @@ function theTien({ hs }) {
 function theTep({ hs, tep, ve }) {
   const luoi = h('div', { class: 'luoi-anh' });
   (async () => {
+    let link = {};
+    try { link = await api.linkTepNhieu(tep.map((t) => t.duong_dan)); } catch { /* lỗi mạng: để trống */ }
     for (const t of tep) {
-      try {
-        const url = await api.linkTep(t.duong_dan);
-        const laAnh = /\.(jpe?g|png|webp|heic)$/i.test(t.duong_dan);
-        luoi.append(h('a', { href: url, target: '_blank', rel: 'noopener', class: 'o-anh', title: BUOC_TEP[t.buoc] || t.buoc },
-          laAnh ? h('img', { src: url, alt: BUOC_TEP[t.buoc] || t.buoc, loading: 'lazy' }) : h('span', { class: 'tep' }, '📄'),
-          h('small', null, BUOC_TEP[t.buoc] || t.buoc)));
-      } catch { /* bỏ qua tệp lỗi */ }
+      const l = link[t.duong_dan];
+      if (!l?.lon) continue;
+      const laAnh = /\.(jpe?g|png|webp|heic)$/i.test(t.duong_dan);
+      luoi.append(h('a', { href: l.lon, target: '_blank', rel: 'noopener', class: 'o-anh', title: BUOC_TEP[t.buoc] || t.buoc },
+        laAnh ? h('img', { src: l.nho, alt: BUOC_TEP[t.buoc] || t.buoc, loading: 'lazy' }) : h('span', { class: 'tep' }, 'PDF'),
+        h('small', null, BUOC_TEP[t.buoc] || t.buoc)));
     }
   })();
   const chonBuoc = oChon('buoc', Object.entries(BUOC_TEP).map(([value, label]) => ({ value, label })),
@@ -422,7 +425,7 @@ function theTep({ hs, tep, ve }) {
   oTep.addEventListener('change', async () => {
     let n = 0;
     for (const f of oTep.files) {
-      try { await api.taiTep(hs, chonBuoc.value, await nenAnh(f), f.type === 'application/pdf' ? 'bien_ban' : 'anh'); n++; }
+      try { await api.taiTep(hs, chonBuoc.value, await nenAnh(f, chonBuoc.value), f.type === 'application/pdf' ? 'bien_ban' : 'anh'); n++; }
       catch (e) { toast(`Không tải được ${f.name}: ${e.message}`, 'loi'); }
     }
     if (n) { toast(`Đã tải ${n} tệp.`); ve(); }

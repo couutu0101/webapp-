@@ -79,7 +79,7 @@ function moPhatSinh(x, taiLai) {
     nutChinh: async () => {
       const { mo_ta } = docForm(form);
       await api.baoPhatSinh(x.ho_so_id, mo_ta);
-      for (const f of form.anh.files) await api.taiTep({ id: x.ho_so_id, ma: x.ma, chi_nhanh_id: api.toi.chi_nhanh_id }, 'phat_sinh', await nenAnh(f));
+      for (const f of form.anh.files) await api.taiTep({ id: x.ho_so_id, ma: x.ma, chi_nhanh_id: api.toi.chi_nhanh_id }, 'phat_sinh', await nenAnh(f, 'phat_sinh'));
       taiLai();
     },
   });
