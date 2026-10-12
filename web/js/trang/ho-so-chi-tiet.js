@@ -4,6 +4,7 @@ import {
   chay, moModal, toast, nhanTrangThai, nenAnh, bang, BUOC_SO, NHOM, NGUON, TRANG_THAI, xacNhan, dat,
 } from '../ui.js';
 import * as api from '../api.js';
+import { ghiTiep, tuGhiNgayKhiBam, nhacHetHan, layLichSu, khoiLichSu } from './lich-su-xe.js';
 
 const BUOC = ['Tiếp nhận', 'Báo giá', 'Duyệt giá', 'Lệnh SC', 'Cấp vật tư', 'Sửa chữa', 'KCS', 'Giao xe', 'Hồ sơ BH', 'Chăm sóc'];
 const TT_DONG = { cho_duyet: 'Chờ duyệt', duyet: 'Đã duyệt', tu_choi: 'Không duyệt', dang_lam: 'Đang làm', xong: 'Xong' };
@@ -70,7 +71,15 @@ function theThongTin({ hs, ve }) {
         dong('Giám định viên', hs.gdv_cho_them ? h('span', null, hs.gdv, ' ', h('span', { class: 'nhan tt-canh-bao' }, 'chờ thêm vào danh sách')) : hs.gdv)] : null,
       dong('Hết hạn BH thân vỏ', ngay(hs.han_bh_than_vo)), dong('Hết hạn BH TNDS', ngay(hs.han_bao_hiem)),
       dong('Vào xưởng', ngayGio(hs.ngay_vao)), dong('Hẹn giao', ngayGio(hs.hen_giao)),
-      dong('Tình trạng', hs.tinh_trang_xe), dong('Có thể tư vấn', hs.tu_van)));
+      dong('Tình trạng', hs.tinh_trang_xe), dong('Có thể tư vấn', hs.tu_van)),
+    khungLichSuXe(hs));
+}
+
+// Các lần vào gara trước của cùng xe: tình trạng, tư vấn, phản hồi
+function khungLichSuXe(hs) {
+  const vung = h('div');
+  layLichSu(hs.xe_id, hs.id).then((ds) => dat(vung, khoiLichSu(ds, { tieuDe: 'Các lần vào gara trước', moSan: false }))).catch(() => {});
+  return vung;
 }
 
 function moSuaThongTin(hs, ve) {
@@ -78,6 +87,9 @@ function moSuaThongTin(hs, ve) {
   const chonGdv = oChon('gdv_id', dm.giam_dinh_vien.filter((g) => g.hoat_dong).map((g) => ({
     value: g.id, label: g.la_cho_them ? g.ten : `${g.ten}${g.hang_id ? ` (${dm.ten('hang_bao_hiem', g.hang_id)})` : ''}` })), hs.gdv_id);
   const oGdvMoi = oChu('gdv_ten_tam', hs.gdv_cho_them ? hs.gdv : '');
+  const oThemTinhTrang = oVung('them_tinh_trang', '', { rows: 2 });
+  const oThemTuVan = oVung('them_tu_van', '', { rows: 2 });
+  tuGhiNgayKhiBam(oThemTinhTrang); tuGhiNgayKhiBam(oThemTuVan);
   const form = h('form', { class: 'luoi-o' },
     truong('Tên khách', oChu('ten_khach', hs.ten_khach)),
     truong('Số điện thoại', oChu('dien_thoai', hs.dien_thoai, { inputmode: 'tel' })),
@@ -88,16 +100,27 @@ function moSuaThongTin(hs, ve) {
       truong('Giám định viên', chonGdv), truong('Tên GDV mới (nếu chọn "chờ thêm")', oGdvMoi)] : null,
     truong('Hết hạn bảo hiểm thân vỏ', oNgayVN('han_bh_than_vo', hs.han_bh_than_vo), 'Ngày/tháng/năm'),
     truong('Hết hạn bảo hiểm TNDS', oNgayVN('han_bao_hiem', hs.han_bao_hiem), 'Ngày/tháng/năm'),
-    truong('Tình trạng xe', oVung('tinh_trang_xe', hs.tinh_trang_xe), null, { rong: true }),
-    truong('Có thể tư vấn', oVung('tu_van', hs.tu_van), null, { rong: true }));
+    // Tình trạng và tư vấn: không sửa nội dung cũ, chỉ ghi thêm (tự có ngày ở đầu) để giữ toàn bộ lịch sử
+    h('div', { class: 'truong rong' }, h('span', { class: 'truong-nhan' }, 'Tình trạng đã ghi'), h('div', { class: 'nhat-ky-ghi' }, hs.tinh_trang_xe || '—')),
+    truong('Ghi thêm tình trạng', oThemTinhTrang, 'Để trống nếu không có gì mới', { rong: true }),
+    h('div', { class: 'truong rong' }, h('span', { class: 'truong-nhan' }, 'Tư vấn đã ghi'), h('div', { class: 'nhat-ky-ghi' }, hs.tu_van || '—')),
+    truong('Ghi thêm tư vấn', oThemTuVan, 'Để trống nếu không có gì mới', { rong: true }));
   moModal('Sửa thông tin', form, {
     rong: true,
     nutChinh: async () => {
       const d = docForm(form);
       if (d.han_bh_than_vo === 'sai' || d.han_bao_hiem === 'sai') throw new Error('Ngày hết hạn bảo hiểm không đúng. Nhập dạng ngày/tháng/năm, ví dụ 01/03/2027.');
       if (hs.nguon_tt !== 'khach' && (!d.han_bh_than_vo || !d.han_bao_hiem)) throw new Error('Xe bảo hiểm: nhập đủ ngày hết hạn bảo hiểm thân vỏ và TNDS.');
-      const p = { ten_khach: d.ten_khach, dien_thoai: d.dien_thoai, mau: d.mau, tinh_trang_xe: d.tinh_trang_xe, tu_van: d.tu_van,
+      // Bảo hiểm hết hạn mà ô tư vấn chưa nhắc thì tự ghi thêm lời nhắc
+      const nhac = nhacHetHan(d.han_bh_than_vo, d.han_bao_hiem).filter((x) => !(hs.tu_van || '').includes(x.split(' – ')[0]));
+      let tuVan = hs.tu_van || '';
+      for (const x of nhac) tuVan = ghiTiep(tuVan, x);
+      tuVan = ghiTiep(tuVan, d.them_tu_van);
+      const tinhTrang = ghiTiep(hs.tinh_trang_xe || '', d.them_tinh_trang);
+      const p = { ten_khach: d.ten_khach, dien_thoai: d.dien_thoai, mau: d.mau,
         hen_giao: d.hen_giao ? new Date(d.hen_giao).toISOString() : null, han_bao_hiem: d.han_bao_hiem, han_bh_than_vo: d.han_bh_than_vo };
+      if (tinhTrang !== (hs.tinh_trang_xe || '')) p.tinh_trang_xe = tinhTrang;
+      if (tuVan !== (hs.tu_van || '')) p.tu_van = tuVan;
       if (hs.nguon_tt !== 'khach') Object.assign(p, { hang_bh_id: d.hang_bh_id, gdv_id: d.gdv_id, gdv_ten_tam: d.gdv_ten_tam });
       await api.suaThongTin(hs.id, p);
       toast('Đã lưu.'); await ve();

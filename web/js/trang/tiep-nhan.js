@@ -1,6 +1,7 @@
 // Bước 1: Tiếp nhận xe – 10 thông tin bắt buộc + ảnh nhận xe
-import { h, oChonTep, truong, oChu, oChon, oVung, oNgayVN, isoSangVN, docForm, chay, toast, nenAnh, choODatetime, dat } from '../ui.js';
+import { h, oChonTep, truong, oChu, oChon, oVung, oNgayVN, isoSangVN, vnSangIso, docForm, chay, toast, nenAnh, choODatetime, dat } from '../ui.js';
 import * as api from '../api.js';
+import { homNayVN, themNgay, tuGhiNgayKhiBam, nhacHetHan, layLichSu, khoiLichSu } from './lich-su-xe.js';
 
 export default async function trangTiepNhan(el) {
   if (!api.coVaiTro('cvdv', 'quan_ly', 'giam_doc')) {
@@ -73,6 +74,23 @@ export default async function trangTiepNhan(el) {
   };
   radioNguon.addEventListener('change', hienBH);
 
+  // Tình trạng và tư vấn: mỗi lần nhập có ngày ở đầu; lịch sử các lần trước hiện ngay trên
+  const oTinhTrang = oVung('tinh_trang_xe', '', { rows: 3, placeholder: 'Ngoại thất, đồ trên xe, hư hỏng thấy được…' });
+  const oTuVan = oVung('tu_van', '', { rows: 3, placeholder: 'Bảo dưỡng, đồ chơi, detailing… (ghi "Không" nếu không có)' });
+  tuGhiNgayKhiBam(oTinhTrang); tuGhiNgayKhiBam(oTuVan);
+  const khungLichSu = h('div', { class: 'rong' });
+  // Bảo hiểm đã hết hạn: tự ghi lời nhắc lên đầu ô tư vấn (cập nhật lại khi đổi ngày, không ghi trùng)
+  let nhacCu = '';
+  const capNhatNhac = () => {
+    const dong = nhacHetHan(vnSangIso(oHanThanVo.value), vnSangIso(oHan.value)).map((x) => `${homNayVN()}: ${x}`);
+    const moi = dong.length ? dong.join('\n') + '\n' : '';
+    let v = oTuVan.value;
+    if (nhacCu && v.startsWith(nhacCu)) v = v.slice(nhacCu.length);
+    oTuVan.value = moi + v;
+    nhacCu = moi;
+  };
+  for (const o of [oHanThanVo, oHan]) { o.addEventListener('change', capNhatNhac); o.addEventListener('blur', capNhatNhac); }
+
   const chonAnh = oChonTep({ name: 'anh', capture: 'environment', multiple: true }, 'Chụp ảnh xe');
   const oAnh = chonAnh.input;
   const xemAnh = h('div', { class: 'xem-anh' });
@@ -97,8 +115,9 @@ export default async function trangTiepNhan(el) {
     khungBH,
     h('fieldset', { class: 'nhom-o' }, h('legend', null, 'Tình trạng và tư vấn'),
       h('div', { class: 'luoi-o' },
-        truong('Tình trạng chung của xe', oVung('tinh_trang_xe', '', { rows: 3, placeholder: 'Ngoại thất, đồ trên xe, hư hỏng thấy được…' }), null, { batBuoc: true, rong: true }),
-        truong('Những gì có thể tư vấn', oVung('tu_van', '', { rows: 2, placeholder: 'Bảo dưỡng, đồ chơi, detailing… (ghi "Không" nếu không có)' }), 'Anh Long dùng để tư vấn khi giao xe', { batBuoc: true, rong: true }))),
+        khungLichSu,
+        truong('Tình trạng chung của xe', oTinhTrang, 'Ngày hôm nay tự thêm vào đầu khi bấm vào ô', { batBuoc: true, rong: true }),
+        truong('Những gì có thể tư vấn', oTuVan, 'Anh Long dùng để tư vấn khi giao xe. Bảo hiểm hết hạn sẽ tự ghi nhắc ở đầu.', { batBuoc: true, rong: true }))),
     h('fieldset', { class: 'nhom-o' }, h('legend', null, 'Ảnh nhận xe'),
       truong('Ảnh xe lúc nhận', chonAnh, 'Bắt buộc có ít nhất 1 ảnh trước khi lập báo giá', { batBuoc: true }), xemAnh),
     h('div', { class: 'hang-nut' },
@@ -110,6 +129,7 @@ export default async function trangTiepNhan(el) {
   async function traCuu() {
     const bs = oBienSo.value.trim();
     thongBaoXe.hidden = true;
+    dat(khungLichSu);
     if (!bs) return;
     try {
       const x = await api.traCuuXe(bs);
@@ -122,10 +142,16 @@ export default async function trangTiepNhan(el) {
       if (x.han_bao_hiem && !oHan.value) oHan.value = isoSangVN(x.han_bao_hiem);
       if (x.han_bh_than_vo && !oHanThanVo.value) oHanThanVo.value = isoSangVN(x.han_bh_than_vo);
       const g = x.ho_so_gan_nhat;
+      if (g) {
+        for (const r of form.querySelectorAll('input[name=nguon_tt]')) r.checked = r.value === (g.nguon_tt === 'khach' ? 'khach' : 'bao_hiem');
+        hienBH();
+      }
       if (g && g.nguon_tt !== 'khach' && g.hang_bh_id) { chonHangBH.value = g.hang_bh_id; capNhatBH(g.gdv_id); }
+      capNhatNhac();
+      layLichSu(x.xe_id).then((ds) => dat(khungLichSu, khoiLichSu(ds))).catch(() => {});
       thongBaoXe.hidden = false;
       thongBaoXe.className = x.ho_so_mo ? 'thong-bao canh-bao' : 'thong-bao';
-      dat(thongBaoXe, `Xe cũ, đã vào gara ${x.so_lan_vao} lần. Đã tự điền khách và loại xe – kiểm tra lại.`,
+      dat(thongBaoXe, `Xe cũ, đã vào gara ${x.so_lan_vao} lần. Đã tự điền thông tin của lần trước – kiểm tra lại. Lịch sử tình trạng, tư vấn, phản hồi ở mục "Tình trạng và tư vấn".`,
         x.ho_so_mo ? h('div', null, 'Đang có hồ sơ chưa đóng: ', x.ho_so_mo.map((m) => h('a', { href: `#/ho-so/${m.id}` }, m.ma, ' '))) : null);
     } catch (e) { /* chỉ là gợi ý, bỏ qua lỗi */ }
   }
@@ -140,6 +166,9 @@ export default async function trangTiepNhan(el) {
       if (v === 'sai') { o.focus(); return toast(`Ngày hết hạn bảo hiểm ${ten} không đúng. Nhập dạng ngày/tháng/năm, ví dụ 01/03/2027.`, 'loi'); }
       if (bh && !v) { o.focus(); return toast(`Xe bảo hiểm: nhập ngày hết hạn bảo hiểm ${ten}.`, 'loi'); }
     }
+    d.tinh_trang_xe = themNgay(d.tinh_trang_xe); d.tu_van = themNgay(d.tu_van);
+    if (!d.tinh_trang_xe) { oTinhTrang.focus(); return toast('Ghi tình trạng chung của xe.', 'loi'); }
+    if (!d.tu_van) { oTuVan.focus(); return toast('Ghi những gì có thể tư vấn (ghi "Không" nếu không có).', 'loi'); }
     if (!oAnh.files.length) return toast('Chụp ít nhất 1 ảnh nhận xe.', 'loi');
     const p = {
       bien_so: d.bien_so, ten_khach: d.ten_khach, dien_thoai: d.dien_thoai,

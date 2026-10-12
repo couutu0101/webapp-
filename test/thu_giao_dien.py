@@ -261,6 +261,29 @@ with sync_playwright() as p:
 
     ve_trang(duy, f'#/ho-so/{id_hs}')
     ghi('Trạng thái cuối của hồ sơ: ' + duy.locator('h1 .nhan').inner_text())
+    import datetime
+    hom_nay = datetime.date.today().strftime('%d/%m/%Y')
+    ghi('Tình trạng lưu kèm ngày ở đầu: ' + str(f'{hom_nay}: Móp cửa' in duy.locator('dl.thong-tin').inner_text()))
+
+    # ---------- Xe quay lại: tự điền + lịch sử + nhắc bảo hiểm hết hạn ----------
+    ve_trang(duy, '#/ho-so/moi')
+    duy.fill('input[name=bien_so]', '50h92361')
+    duy.locator('input[name=bien_so]').blur()
+    expect(duy.locator('input[name=ten_khach]')).to_have_value('Phạm Nguyễn Liêm')
+    expect(duy.locator('details.lich-su')).to_contain_text('Móp cửa trước trái')
+    ghi('Nhập lại biển số: tự điền khách "' + duy.locator('input[name=ten_khach]').input_value() + '", hạn thân vỏ '
+        + duy.locator('input[name=han_bh_than_vo]').input_value() + ', GDV ' + duy.locator('select[name=gdv_id] option:checked').inner_text()
+        + ', lịch sử ' + duy.locator('details.lich-su summary').inner_text())
+    ghi('Chưa hết hạn thì không nhắc: ' + str('hết hạn' not in duy.locator('textarea[name=tu_van]').input_value()))
+    duy.fill('input[name=han_bh_than_vo]', '01/01/2026')
+    duy.locator('input[name=han_bh_than_vo]').blur()
+    expect(duy.locator('textarea[name=tu_van]')).to_have_value(re.compile(r'^' + re.escape(hom_nay) + r': Bảo hiểm thân vỏ đã hết hạn ngày 01/01/2026'))
+    duy.fill('input[name=han_bh_than_vo]', '01/01/2027')
+    duy.locator('input[name=han_bh_than_vo]').blur()
+    ghi('Gia hạn xong thì lời nhắc tự bỏ: ' + str(duy.locator('textarea[name=tu_van]').input_value() == ''))
+    duy.locator('textarea[name=tinh_trang_xe]').click()
+    ghi('Bấm vào ô tình trạng tự có ngày: ' + duy.locator('textarea[name=tinh_trang_xe]').input_value())
+    chup(duy, '17-xe-quay-lai')
 
     # ---------- Đề nghị chi ----------
     ve_trang(duy, '#/de-nghi')
