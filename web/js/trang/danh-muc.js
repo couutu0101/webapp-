@@ -12,7 +12,6 @@ const NHOM_CHI = { gia_von: 'Giá vốn', co_dinh: 'Cố định', van_hanh: 'V�
 
 const DANH_MUC = [
   { bang: 'hang_bao_hiem', ten: 'Hãng bảo hiểm', cot: [{ k: 'ten', nhan: 'Tên', batBuoc: true }, { k: 'hoat_dong', nhan: 'Đang dùng', loai: 'bool' }] },
-  { bang: 'van_phong_bao_hiem', ten: 'Văn phòng bảo hiểm', cot: [{ k: 'hang_id', nhan: 'Hãng', loai: 'chon', nguon: 'hang_bao_hiem', batBuoc: true }, { k: 'ten', nhan: 'Văn phòng', batBuoc: true }, { k: 'hoat_dong', nhan: 'Đang dùng', loai: 'bool' }] },
   { bang: 'giam_dinh_vien', ten: 'Giám định viên', cot: [{ k: 'ten', nhan: 'Tên', batBuoc: true }, { k: 'hang_id', nhan: 'Hãng', loai: 'chon', nguon: 'hang_bao_hiem' }, { k: 'dien_thoai', nhan: 'SĐT' }, { k: 'hoat_dong', nhan: 'Đang dùng', loai: 'bool' }],
     ghiChu: 'Gặp hồ sơ ghi "GDV mới – chờ thêm": thêm người đó ở đây, rồi vào hồ sơ bấm Sửa để chọn lại đúng người.' },
   { bang: 'hang_xe', ten: 'Hãng xe', cot: [{ k: 'ten', nhan: 'Tên', batBuoc: true }] },

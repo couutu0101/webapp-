@@ -284,17 +284,28 @@ with sync_playwright() as p:
     duy.fill('input[name=han_bh_than_vo]', '01/01/2027')
     duy.locator('input[name=han_bh_than_vo]').blur()
     ghi('Gia hạn xong thì lời nhắc tự bỏ: ' + str(duy.locator('textarea[name=tu_van]').input_value() == ''))
-    # Khách ngoài bảo hiểm + dấu tích "Xe không mua bảo hiểm"
-    o_khong = duy.locator('input[name=khong_mua_bh]')
-    o_khong.check()
-    expect(duy.locator('input[name=han_bh_than_vo]')).to_be_disabled()
+    # Xe bảo hiểm: dấu tích "Không có" riêng cho từng loại; khách ngoài bảo hiểm không có dấu tích
+    tv, tn = duy.locator('input[name=khong_than_vo]'), duy.locator('input[name=khong_tnds]')
+    tn.check()
     expect(duy.locator('input[name=han_bao_hiem]')).to_be_disabled()
-    expect(duy.locator('textarea[name=tu_van]')).to_have_value(re.compile(r'Khách không có bảo hiểm thân vỏ và TNDS'))
-    o_khong.uncheck()
-    ghi('Tích "không có BH thân vỏ và TNDS": khóa 2 ô ngày, tự nhắc tư vấn; bỏ tích thì mất nhắc: ' + str('không có bảo hiểm' not in duy.locator('textarea[name=tu_van]').input_value()))
+    expect(duy.locator('input[name=han_bh_than_vo]')).to_be_enabled()
+    expect(duy.locator('textarea[name=tu_van]')).to_have_value(re.compile(r'Khách không có BH TNDS – tư vấn mua bảo hiểm TNDS'))
+    ghi('Tích "Không có BH TNDS": chỉ khóa ô TNDS, ô thân vỏ vẫn mở, tự nhắc tư vấn mua TNDS: '
+        + str('thân vỏ –' not in duy.locator('textarea[name=tu_van]').input_value()))
+    duy.locator('.chon-nut span', has_text='Khách ngoài bảo hiểm').click()
+    ghi('Khách ngoài bảo hiểm: ẩn dấu tích, mở lại ô ngày, bỏ nhắc: '
+        + str(not tv.is_visible() and not tn.is_visible() and duy.locator('input[name=han_bao_hiem]').is_enabled()
+              and 'Khách không có BH' not in duy.locator('textarea[name=tu_van]').input_value()))
+    duy.locator('.chon-nut span', has_text='Xe bảo hiểm').first.click()
     duy.locator('textarea[name=tinh_trang_xe]').click()
     ghi('Bấm vào ô tình trạng tự có ngày: ' + duy.locator('textarea[name=tinh_trang_xe]').input_value())
+    duy.locator('textarea[name=tinh_trang_xe]').press_sequentially('Trầy cản sau')
+    tv.check(); tn.check()
     chup(duy, '17-xe-quay-lai')
+    duy.click('button[type=submit]')
+    duy.wait_for_url(re.compile(r'#/ho-so/\d+$'), timeout=10000)
+    duy.wait_for_selector('h1')
+    ghi('Xe bảo hiểm tích không có cả 2 loại, không ảnh → lưu được hồ sơ ' + duy.locator('.tieu-de-trang .mo-ta').last.inner_text())
 
     # ---------- Đề nghị chi ----------
     ve_trang(duy, '#/de-nghi')

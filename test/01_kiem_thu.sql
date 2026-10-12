@@ -109,6 +109,19 @@ select kt.ghi('Lần hai trong tháng thêm đuôi -2',
 insert into ctx select 'hs3', (public.tiep_nhan_xe(jsonb_build_object(
   'ten_khach','Khách mới','dien_thoai','0909000111','dong_xe_id',(select id from public.dong_xe where ten='VF3'),
   'nguon_tt','khach','tinh_trang_xe','Xe mới chưa biển','tu_van','Dán phim')))->>'id';
+-- Xe bảo hiểm không có BH thân vỏ và TNDS (CVDV tích "Không có") vẫn tiếp nhận được; chạy thử rồi bỏ để không ảnh hưởng bài sau
+do $t$ declare r jsonb; begin
+  begin
+    r := public.tiep_nhan_xe(jsonb_build_object(
+      'bien_so','51K-111.22','ten_khach','Khách thử','dien_thoai','0909000222','dong_xe_id',(select id from public.dong_xe where ten='VF3'),
+      'nguon_tt','bao_hiem','hang_bh_id',(select id from public.hang_bao_hiem where ten='Tasco'),
+      'gdv_id',(select id from public.giam_dinh_vien where ten='Hảo'),
+      'tinh_trang_xe','Trầy cản','tu_van','Tư vấn mua BH'));
+    raise exception 'DA_LUU %', r->>'ma';
+  exception when others then
+    perform kt.ghi('Xe bảo hiểm không có ngày BH thân vỏ/TNDS vẫn tiếp nhận được', sqlerrm like 'DA_LUU%', sqlerrm);
+  end;
+end $t$;
 select kt.ghi('Xe chưa có biển dùng KBS',
   (select ma from public.ho_so where id = (select v::bigint from ctx where k='hs3')) like '%-KBS01',
   (select ma from public.ho_so where id = (select v::bigint from ctx where k='hs3')));
@@ -117,14 +130,14 @@ select kt.ghi('Không tạo trùng khách theo SĐT', (select count(*) from publ
 -- ---------------------------------------------------------------------
 -- Bước 2–3: báo giá, duyệt giá
 -- ---------------------------------------------------------------------
-select kt.mong_loi('Chưa có ảnh nhận xe thì chưa báo giá', format($$select public.luu_bao_gia(%s,
-  '[{"ten":"Gò sơn cửa trước trái","nhom":"dong_son","gia_bao":3000000}]')$$, (select v from ctx where k='hs1')), 'ảnh nhận xe');
-select public.them_tep((select v::bigint from ctx where k='hs1'), 'tiep_nhan', 'anh', 'TK/hs1/nhan-xe-1.jpg');
 select public.luu_bao_gia((select v::bigint from ctx where k='hs1'), '[
   {"ten":"Gò sơn cửa trước trái","nhom":"dong_son","gia_bao":3000000},
   {"ten":"Thay tay nắm cửa","nhom":"phu_tung","gia_bao":2000000},
   {"ten":"Phủ ceramic (khách làm thêm)","nhom":"detailing","nguoi_tra":"khach","gia_bao":500000,"xuat_hd":false}]');
-select kt.ghi('Lập báo giá → trạng thái báo giá', (select trang_thai from public.ho_so where id=(select v::bigint from ctx where k='hs1')) = 'bao_gia');
+select kt.ghi('Chưa có ảnh nhận xe vẫn lập được báo giá → trạng thái báo giá',
+  (select trang_thai from public.ho_so where id=(select v::bigint from ctx where k='hs1')) = 'bao_gia'
+  and not exists (select 1 from public.ho_so_tep where ho_so_id=(select v::bigint from ctx where k='hs1')));
+select public.them_tep((select v::bigint from ctx where k='hs1'), 'tiep_nhan', 'anh', 'TK/hs1/nhan-xe-1.jpg');
 
 select kt.mong_loi('Chưa duyệt thì chưa lập lệnh', format($$select public.lap_lenh_sua_chua(%s, now() + interval '2 day',
   (select jsonb_agg(jsonb_build_object('id',id,'to_id','DS')) from public.hang_muc where ho_so_id=%s))$$,

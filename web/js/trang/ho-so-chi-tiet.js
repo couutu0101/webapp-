@@ -67,7 +67,7 @@ function theThongTin({ hs, ve }) {
       dong('Khách', hs.ten_khach), dong('SĐT', hs.dien_thoai ? h('a', { href: `tel:${hs.dien_thoai}` }, hs.dien_thoai) : null),
       dong('Nguồn', NGUON[hs.nguon_tt]),
       hs.nguon_tt !== 'khach' ? [
-        dong('Bảo hiểm', [hs.hang_bh, hs.van_phong_bh].filter(Boolean).join(' – ')),
+        dong('Bảo hiểm', hs.hang_bh),
         dong('Giám định viên', hs.gdv_cho_them ? h('span', null, hs.gdv, ' ', h('span', { class: 'nhan tt-canh-bao' }, 'chờ thêm vào danh sách')) : hs.gdv)] : null,
       dong('Hết hạn BH thân vỏ', ngay(hs.han_bh_than_vo)), dong('Hết hạn BH TNDS', ngay(hs.han_bao_hiem)),
       dong('Vào xưởng', ngayGio(hs.ngay_vao)), dong('Hẹn giao', ngayGio(hs.hen_giao)),
@@ -148,7 +148,7 @@ function theBaoGia({ hs, hm, ve }) {
       { nhan: 'Hóa đơn', lay: (m) => (m.xuat_hd ? 'Có' : 'Không') },
       { nhan: 'Trạng thái', lay: (m) => h('span', null, TT_DONG[m.trang_thai], m.ngay_duyet && m.trang_thai !== 'cho_duyet' ? h('small', null, ` ${ngay(m.ngay_duyet)}`) : null,
         m.trang_thai === 'cho_duyet' && duocBaoGia ? h('button', { class: 'nut-chu', type: 'button', onclick: (e) => { e.stopPropagation(); xoaDong(m, ve); } }, 'Xóa') : null) },
-    ], hm, { trong: hs.trang_thai === 'tiep_nhan' ? 'Chưa có báo giá. Cần có ảnh nhận xe trước khi lập báo giá.' : 'Chưa có dòng nào.' }),
+    ], hm, { trong: hs.trang_thai === 'tiep_nhan' ? 'Chưa có báo giá.' : 'Chưa có dòng nào.' }),
     hs.trang_thai === 'bao_gia' && hs.nguon_tt !== 'khach'
       ? h('p', { class: 'goi-y' }, 'Xe bảo hiểm: quá 3 ngày chưa duyệt thì báo giám đốc làm việc với bảo hiểm.') : null);
 }

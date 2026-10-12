@@ -61,7 +61,7 @@ export const coVaiTro = (...ds) => !!toi && toi.hoat_dong && ds.some((v) => toi.
 export const laNhanVien = () => coVaiTro('giam_doc', 'quan_ly', 'ke_toan', 'cvdv', 'kho');
 
 export async function taiDanhMuc() {
-  const bangs = ['chi_nhanh', 'hang_bao_hiem', 'van_phong_bao_hiem', 'giam_dinh_vien', 'hang_xe', 'dong_xe',
+  const bangs = ['chi_nhanh', 'hang_bao_hiem', 'giam_dinh_vien', 'hang_xe', 'dong_xe',
     'to_thuc_hien', 'muc_thu_chi', 'nha_cung_cap', 'don_vi_lien_quan', 'cai_dat'];
   if (coVaiTro('giam_doc', 'ke_toan', 'quan_ly')) bangs.push('tai_khoan_quy');
   if (laNhanVien()) bangs.push('nhan_vien');
