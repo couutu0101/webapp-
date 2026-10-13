@@ -336,11 +336,20 @@ export function oTien(name, value, attrs = {}) {
     }
     // dán, kéo thả, bàn phím gõ kiểu ghép (composition): để trình duyệt làm rồi chỉnh lại ở 'input'
   });
-  el.addEventListener('input', () => {
-    if (tuXuLy) { tuXuLy = false; return; }
+  // Bộ gõ kiểu ghép (bàn phím Tiếng Việt của Windows, một số bàn phím điện thoại): đang ghép thì KHÔNG đụng vào ô,
+  // ghép xong mới chỉnh lại – nếu sửa giữa chừng bộ gõ sẽ chèn lại chữ, thành gõ 1 ra 2
+  let dangGhep = false;
+  const chinhLai = () => {
     const dau = el.selectionStart ?? el.value.length;
     const n = chuSo(el.value.slice(0, dau)).length;
     dat_(chuSo(el.value).replace(/^0+(?=\d)/, ''), n, am());
+  };
+  el.addEventListener('compositionstart', () => { dangGhep = true; });
+  el.addEventListener('compositionend', () => { dangGhep = false; chinhLai(); el.dispatchEvent(new Event('input', { bubbles: true })); });
+  el.addEventListener('input', (e) => {
+    if (tuXuLy) { tuXuLy = false; return; }
+    if (dangGhep || e.isComposing) return;
+    chinhLai();
   });
   return el;
 }
