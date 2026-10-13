@@ -22,7 +22,7 @@ const MENU = [
   { duong: 'thu-chi', nhan: 'Thu chi', ic: 'quy', ai: () => api.coVaiTro('giam_doc', 'ke_toan', 'quan_ly') },
   { duong: 'de-nghi', nhan: 'Đề nghị chi', ic: 'phieu', ai: () => api.laNhanVien() || api.coVaiTro('truong_nhom') },
   { duong: 'kho', nhan: 'Kho', ic: 'kho', ai: () => api.laNhanVien() || api.coVaiTro('truong_nhom') },
-  { duong: 'doanh-thu', nhan: 'Doanh thu', ic: 'doanhThu', ai: () => api.coVaiTro('giam_doc', 'ke_toan', 'quan_ly') },
+  { duong: 'doanh-thu', nhan: 'Doanh thu & công nợ', ic: 'doanhThu', ai: () => api.coVaiTro('giam_doc', 'ke_toan', 'quan_ly') },
   { duong: 'danh-muc', nhan: 'Danh mục', ic: 'danhMuc', ai: () => api.coVaiTro('giam_doc', 'ke_toan') },
   { duong: 'nhan-vien', nhan: 'Nhân viên', ic: 'nguoi', ai: () => api.coVaiTro('giam_doc') },
 ];
