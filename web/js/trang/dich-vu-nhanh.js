@@ -12,7 +12,7 @@ export default async function trangDichVu(el) {
   const oBienSo = oChu('bien_so', '', { placeholder: 'Gõ vài số hoặc SĐT khách', autocapitalize: 'characters', autocomplete: 'off' });
   const oTen = oChu('ten_khach', '', { autocomplete: 'off' });
   const oSdt = oChu('dien_thoai', '', { inputmode: 'tel', autocomplete: 'off' });
-  const oKm = oTien('so_km', null, { placeholder: 'Vd 45.230', 'aria-label': 'Số km (ODO)' });
+  const oKm = oTien('so_km', null, { placeholder: 'Vd 45.230', 'aria-label': 'Số km (ODD)' });
   const goiYKm = h('span', null, 'Số trên đồng hồ công tơ mét');
   // Người làm: chỉ tổ Điện – máy – gầm hoặc Detailing (034) – doanh thu tính vào đúng tổ
   const TO_DVN = ['DT', 'DMG'];                     // Detailing trước, chọn sẵn
@@ -74,7 +74,7 @@ export default async function trangDichVu(el) {
     }), 'Gõ vài số (hoặc SĐT khách) để chọn xe cũ', { co: 'vua' }),
     truong('Tên khách', oTen, null, { co: 'lon' }),
     truong('Số điện thoại', oSdt, null, { co: 'vua' }),
-    truong('Số km (ODO)', oKm, goiYKm, { batBuoc: true, co: 'vua' }),
+    truong('Số km (ODD)', oKm, goiYKm, { batBuoc: true, co: 'vua' }),
     khungXe,
     truong('Dịch vụ', oChu('dich_vu', '', { placeholder: 'Rửa xe, vá lốp, thay bóng đèn…', list: 'goi-y-dv' }), null, { batBuoc: true, co: 'lon' }),
     h('datalist', { id: 'goi-y-dv' }, ['Rửa xe', 'Vá lốp', 'Thay bóng đèn', 'Kích bình', 'Bơm lốp', 'Vệ sinh nội thất'].map((x) => h('option', { value: x }))),
@@ -87,9 +87,9 @@ export default async function trangDichVu(el) {
     e.preventDefault();
     await traBienSo();
     const d = docForm(form);
-    if (d.so_km === null) { oKm.focus(); return toast('Ghi số km (ODO) của xe.', 'loi'); }
+    if (d.so_km === null) { oKm.focus(); return toast('Ghi số km (ODD) của xe.', 'loi'); }
     if (!d.to_id) { chonTo.querySelector('input')?.focus(); return toast('Chọn tổ làm: Điện – máy – gầm hoặc Detailing.', 'loi'); }
-    if (d.so_km > 9999999) { oKm.focus(); return toast('Số km (ODO) không đúng.', 'loi'); }
+    if (d.so_km > 9999999) { oKm.focus(); return toast('Số km (ODD) không đúng.', 'loi'); }
     const kmTruoc = xeChon?.km_truoc;
     if (kmTruoc && d.so_km < Number(kmTruoc.so)
       && !(await xacNhan(`Số km ${tien(d.so_km)} nhỏ hơn lần trước (${tien(kmTruoc.so)} km). Vẫn lưu?`, 'Vẫn lưu'))) { oKm.focus(); return; }

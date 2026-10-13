@@ -114,7 +114,7 @@ function theThongTin({ hs, ve }) {
         dong('Bảo hiểm', hs.hang_bh),
         dong('Giám định viên', hs.gdv_cho_them ? h('span', null, hs.gdv, ' ', h('span', { class: 'nhan tt-canh-bao' }, 'chờ thêm vào danh sách')) : hs.gdv)] : null,
       dong('Hết hạn BH thân vỏ', ngay(hs.han_bh_than_vo)), dong('Hết hạn BH TNDS', ngay(hs.han_bao_hiem)),
-      dong('Vào xưởng', ngayGio(hs.ngay_vao)), dong('Số km (ODO)', hs.so_km !== null && hs.so_km !== undefined ? `${tien(hs.so_km)} km` : null),
+      dong('Vào xưởng', ngayGio(hs.ngay_vao)), dong('Số km (ODD)', hs.so_km !== null && hs.so_km !== undefined ? `${tien(hs.so_km)} km` : null),
       dong('Hẹn giao', ngayGio(hs.hen_giao)),
       dong('Yêu cầu khách hàng', hs.tinh_trang_xe), dong('Có thể tư vấn', hs.tu_van)),
     khungLichSuXe(hs));
@@ -139,7 +139,7 @@ function moSuaThongTin(hs, ve) {
     truong('Tên khách', oChu('ten_khach', hs.ten_khach)),
     truong('Số điện thoại', oChu('dien_thoai', hs.dien_thoai, { inputmode: 'tel' })),
     truong('Màu xe', oChu('mau', hs.mau)),
-    truong('Số km (ODO)', oTien('so_km', hs.so_km ?? null), 'Số trên đồng hồ lúc nhận xe'),
+    truong('Số km (ODD)', oTien('so_km', hs.so_km ?? null), 'Số trên đồng hồ lúc nhận xe'),
     truong('Hẹn giao', oNgayGioVN('hen_giao', hs.hen_giao), 'Giờ 24h'),
     hs.nguon_tt !== 'khach' ? [
       truong('Hãng bảo hiểm', oChon('hang_bh_id', dm.hang_bao_hiem.map((x) => ({ value: x.id, label: x.ten })), hs.hang_bh_id)),
@@ -163,7 +163,7 @@ function moSuaThongTin(hs, ve) {
       for (const x of nhac) tuVan = ghiTiep(tuVan, x);
       tuVan = ghiTiep(tuVan, d.them_tu_van);
       const tinhTrang = ghiTiep(hs.tinh_trang_xe || '', d.them_tinh_trang);
-      if (d.so_km !== null && d.so_km > 9999999) throw new Error('Số km (ODO) không đúng.');
+      if (d.so_km !== null && d.so_km > 9999999) throw new Error('Số km (ODD) không đúng.');
       const p = { ten_khach: d.ten_khach, dien_thoai: d.dien_thoai, mau: d.mau, so_km: d.so_km,
         hen_giao: d.hen_giao ? new Date(d.hen_giao).toISOString() : null, han_bao_hiem: d.han_bao_hiem, han_bh_than_vo: d.han_bh_than_vo };
       if (tinhTrang !== (hs.tinh_trang_xe || '')) p.tinh_trang_xe = tinhTrang;

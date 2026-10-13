@@ -61,8 +61,8 @@ export default async function trangTiepNhan(el) {
   const oTen = oChu('ten_khach', '', { autocomplete: 'off' });
   const oSdt = oChu('dien_thoai', '', { inputmode: 'tel', placeholder: '09xxxxxxxx', autocomplete: 'off' });
   const oMau = oChu('mau', '', { placeholder: 'Trắng, đỏ…' });
-  // Số km (ODO) trên đồng hồ lúc nhận xe; xe cũ: hiện số km lần trước để so
-  const oKm = oTien('so_km', null, { placeholder: 'Vd 45.230', 'aria-label': 'Số km (ODO)' });
+  // Số km (ODD) trên đồng hồ lúc nhận xe; xe cũ: hiện số km lần trước để so
+  const oKm = oTien('so_km', null, { placeholder: 'Vd 45.230', 'aria-label': 'Số km (ODD)' });
   const goiYKm = h('span', null, 'Số trên đồng hồ công tơ mét');
   let kmTruoc = null;
 
@@ -148,7 +148,7 @@ export default async function trangTiepNhan(el) {
         truong('Hãng xe', chonHangXe, null, { batBuoc: true }),
         truong('Dòng xe', chonDongXe, null, { batBuoc: true }),
         truong('Màu', oMau),
-        truong('Số km (ODO)', oKm, goiYKm, { co: 'vua' }))),
+        truong('Số km (ODD)', oKm, goiYKm, { batBuoc: true, co: 'vua' }))),
     h('fieldset', { class: 'nhom-o' }, h('legend', null, 'Khách hàng'),
       h('div', { class: 'luoi-o' },
         truong('Tên khách', oTen, null, { batBuoc: true }),
@@ -221,7 +221,8 @@ export default async function trangTiepNhan(el) {
     }
     d.tinh_trang_xe = themNgay(d.tinh_trang_xe); d.tu_van = themNgay(d.tu_van);
     if (!d.tinh_trang_xe) { oTinhTrang.focus(); return toast('Ghi yêu cầu của khách hàng.', 'loi'); }
-    if (d.so_km !== null && d.so_km > 9999999) { oKm.focus(); return toast('Số km (ODO) không đúng.', 'loi'); }
+    if (d.so_km === null) { oKm.focus(); return toast('Ghi số km (ODD) của xe.', 'loi'); }
+    if (d.so_km > 9999999) { oKm.focus(); return toast('Số km (ODD) không đúng.', 'loi'); }
     if (d.so_km !== null && kmTruoc && d.so_km < kmTruoc.so
       && !(await xacNhan(`Số km ${tien(d.so_km)} nhỏ hơn lần trước (${tien(kmTruoc.so)} km). Vẫn lưu?`, 'Vẫn lưu'))) { oKm.focus(); return; }
     if (!d.tu_van) { oTuVan.focus(); return toast('Ghi những gì có thể tư vấn (ghi "Không" nếu không có).', 'loi'); }
@@ -230,7 +231,7 @@ export default async function trangTiepNhan(el) {
       dong_xe_id: d.dong_xe_id, mau: d.mau, nguon_tt: d.nguon_tt,
       ngay_vao: null,   // không nhập: máy chủ ghi đúng lúc lưu hồ sơ (vẫn hiện "Vào xưởng" trong hồ sơ)
       hang_bh_id: d.hang_bh_id, gdv_id: d.gdv_id, gdv_ten_tam: d.gdv_ten_tam,
-      han_bao_hiem: d.han_bao_hiem, han_bh_than_vo: d.han_bh_than_vo, tinh_trang_xe: d.tinh_trang_xe, tu_van: d.tu_van, so_km: d.so_km,
+      han_bao_hiem: d.han_bao_hiem, han_bh_than_vo: d.han_bh_than_vo, tinh_trang_xe: d.tinh_trang_xe, tu_van: d.tu_van, so_km: d.so_km, bat_buoc_km: true,
       loai: hoSoGoc ? 'bao_hanh' : 'sua_chua', ho_so_goc_id: hoSoGoc ? hoSoGoc.id : null,
     };
     const nut = form.querySelector('button[type=submit]');

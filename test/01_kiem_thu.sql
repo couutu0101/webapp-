@@ -92,6 +92,9 @@ select kt.ghi('031 Lưu số km (ODO) khi tiếp nhận', (select so_km from pub
 select kt.mong_loi('031 Số km quá lớn bị chặn', $$select public.tiep_nhan_xe(jsonb_build_object(
   'bien_so','51A-111.11','ten_khach','Khách Thử','dien_thoai','0901111111','dong_xe_id',(select id from public.dong_xe where ten='VF6 Plus'),
   'nguon_tt','khach','tinh_trang_xe','Thay dầu','tu_van','Không','so_km','123456789'))$$, 'Số km');
+select kt.mong_loi('035 Tiếp nhận (giao diện mới) thiếu số km bị chặn', $$select public.tiep_nhan_xe(jsonb_build_object(
+  'bien_so','51A-111.11','ten_khach','Khách Thử','dien_thoai','0901111111','dong_xe_id',(select id from public.dong_xe where ten='VF6 Plus'),
+  'nguon_tt','khach','tinh_trang_xe','Thay dầu','tu_van','Không','bat_buoc_km',true))$$, 'số km (ODD)');
 select kt.mong_loi('031 Thiếu yêu cầu khách hàng bị chặn', $$select public.tiep_nhan_xe(jsonb_build_object(
   'bien_so','51A-111.11','ten_khach','Khách Thử','dien_thoai','0901111111','dong_xe_id',(select id from public.dong_xe where ten='VF6 Plus'),
   'nguon_tt','khach','tinh_trang_xe','','tu_van','Không'))$$, 'yêu cầu của khách hàng');
