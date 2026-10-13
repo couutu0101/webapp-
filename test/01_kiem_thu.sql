@@ -155,6 +155,15 @@ select kt.ghi('Duyệt hết → đã duyệt', (select trang_thai from public.h
 select kt.ghi('Tiền bảo hiểm có VAT 8%', (select bh_duyet from public.tien_ho_so((select v::bigint from ctx where k='hs1'))) = 5076000,
   (select bh_duyet::text from public.tien_ho_so((select v::bigint from ctx where k='hs1'))));
 select kt.ghi('Dòng khách không hóa đơn không cộng VAT', (select khach_duyet from public.tien_ho_so((select v::bigint from ctx where k='hs1'))) = 500000);
+-- 020: chia công nợ ngay khi duyệt: khách chi trả 1.000.000 = 500.000 dòng khách + 500.000 khấu trừ
+select kt.ghi('020 Chia công nợ: trả về BH / khách', (select public.duyet_gia_chia((select v::bigint from ctx where k='hs1'), current_date, '[]', 1000000))
+  = '{"tong": 5576000, "bao_hiem": 4576000, "khach": 1000000, "khau_tru": 500000}'::jsonb,
+  (select public.duyet_gia_chia((select v::bigint from ctx where k='hs1'), current_date, '[]', 1000000)::text));
+select kt.ghi('020 Nợ BH = 4.576.000, nợ khách = 1.000.000', (select con_no_bh = 4576000 and con_no_khach = 1000000 from public.tien_ho_so((select v::bigint from ctx where k='hs1'))));
+select kt.mong_loi('020 Khách trả ít hơn dòng khách bị chặn', format('select public.duyet_gia_chia(%s, current_date, ''[]'', 100000)', (select v from ctx where k='hs1')), 'ít nhất');
+select kt.mong_loi('020 Khách trả vượt tổng bị chặn', format('select public.duyet_gia_chia(%s, current_date, ''[]'', 9000000)', (select v from ctx where k='hs1')), 'vượt tổng');
+select public.duyet_gia_chia((select v::bigint from ctx where k='hs1'), current_date, '[]', 500000);  -- trả lại như cũ cho các bài sau
+select kt.ghi('020 Đặt lại khách trả = dòng khách → khấu trừ 0', (select khau_tru_giam_tru from public.ho_so where id=(select v::bigint from ctx where k='hs1')) = 0);
 
 -- ---------------------------------------------------------------------
 -- Bước 4–6: lệnh sửa chữa, trưởng nhóm, phát sinh

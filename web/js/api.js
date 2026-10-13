@@ -96,6 +96,8 @@ export const lapBaoGia = (id, dong, vat) => rpc('lap_bao_gia', { p_ho_so: id, do
 export const giaoViec = (id, nguoi) => rpc('giao_viec', { p_ho_so: id, p_nguoi: nguoi });
 export const xoaHangMuc = (id) => rpc('xoa_hang_muc', { p_id: id });
 export const duyetGia = (id, ngay, ketQua) => rpc('duyet_gia', { p_ho_so: id, p_ngay: ngay, ket_qua: ketQua });
+// Duyệt giá + chia công nợ BH / khách (020): khachTra = tổng khách chi trả (có VAT), null = giữ như cũ
+export const duyetGiaChia = (id, ngay, ketQua, khachTra) => rpc('duyet_gia_chia', { p_ho_so: id, p_ngay: ngay, ket_qua: ketQua, p_khach_tra: khachTra });
 export const lapLenh = (id, henGiao, phanCong) => rpc('lap_lenh_sua_chua', { p_ho_so: id, p_hen_giao: henGiao, phan_cong: phanCong });
 export const baoXong = (hangMucId) => rpc('bao_xong_hang_muc', { p_id: hangMucId });
 export const baoPhatSinh = (id, moTa) => rpc('bao_phat_sinh', { p_ho_so: id, p_mo_ta: moTa });
