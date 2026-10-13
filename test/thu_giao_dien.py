@@ -578,8 +578,9 @@ with sync_playwright() as p:
     duong_kh = os.path.join(CHUP, 'khach-hang.xlsx')
     tai.value.save_as(duong_kh)
     wb = openpyxl.load_workbook(duong_kh)
-    ghi('File khách hàng: các trang ' + ', '.join(wb.sheetnames) + f" | {wb['Khách – xe'].max_row - 5} xe, {wb['Công nợ'].max_row - 5} hồ sơ còn nợ"
-        + ' | nợ theo hãng: ' + str([r for r in wb['Nợ theo hãng BH'].iter_rows(min_row=5, values_only=True)]))
+    ws = wb['Data khách hàng']
+    ghi('File khách hàng: các trang ' + ', '.join(wb.sheetnames) + f' | Data: {ws.max_row - 5} dòng, cột: '
+        + ', '.join(str(c.value) for c in ws[4][:4]) + ' … ' + ', '.join(str(c.value) for c in ws[4][19:23]))
 
     codong = mo(b, 'codong@gara.vn')
     ghi('Cổ đông menu: ' + (', '.join(codong.locator('.menu-ds a').all_inner_texts()) or '(trống)') + ' | ' + codong.locator('#noi-dung').inner_text()[:60].replace('\n', ' '))

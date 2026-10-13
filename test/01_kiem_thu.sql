@@ -536,6 +536,40 @@ select kt.ghi('Công nợ trong file khớp v_ho_so (xe đã giao còn nợ)',
   = coalesce((select sum(con_no_khach + con_no_bh) from public.v_ho_so where not tu_excel and trang_thai in ('da_giao','da_gui_hs','dong')
               and (round(con_no_khach) <> 0 or round(con_no_bh) <> 0)), 0));
 select kt.ghi('Mỗi lần xuất đều ghi nhật ký (2 lần)', (select count(*) from public.nhat_ky_xuat_file) = 2);
+select kt.ghi('File Data khách hàng: mỗi lần vào xưởng 1 dòng',
+  jsonb_array_length((select v::jsonb from ctx where k='xkh')->'data') >= (select count(*) from public.ho_so where trang_thai <> 'huy'));
+
+-- ---------------- 014: nạp Data khách hàng (xóa hết rồi nạp lại) ----------------
+select kt.dong_vai(null);
+insert into app.nap_tam (phan, dong) values (1, $j$[
+  {"bien_so":"51K-999.01","khach":"Khách nợ cũ","dien_thoai":"0911000001","hang_xe":"Kia","dong_xe":"Morning","mau":"Trắng",
+   "ngay_vao":"2026-09-02","ngay_giao":"2026-09-05","nguon":"khach","tinh_trang":"02/09/2026: Trầy cản","gia_tri":3000000,"con_no_khach":1200000},
+  {"bien_so":"51K99901","khach":"Khách nợ cũ","dien_thoai":"0911000001","ngay_vao":"2026-06-01","nguon":"bao_hiem","hang_bh":"tasco","gdv":"X"},
+  {"bien_so":"51K-999.02","khach":"Khách BH nợ","dien_thoai":"","ngay_vao":"2026-09-10","ngay_giao":"2026-09-15","nguon":"bao_hiem",
+   "hang_bh":"Hãng Lạ","con_no_bh":2500000},
+  {"bien_so":"51K-999.03","khach":"Xe chưa vào lần nào","dien_thoai":"0911000003"}
+]$j$::jsonb);
+select kt.mong_loi('Xóa hết khi đã có phiếu thu gắn hồ sơ thì dừng, báo rõ', 'select app.nap_data_khach(true)', 'phân bổ phiếu thu');
+insert into ctx select 'nap', app.nap_data_khach(false)::text;
+select kt.dong_vai('thuan@gara.vn');
+select kt.ghi('Nạp: 3 xe mới, 3 hồ sơ, 2 hồ sơ còn nợ; hãng lạ báo cảnh báo',
+  ((select v::jsonb from ctx where k='nap')->>'xe_moi')::int = 3 and ((select v::jsonb from ctx where k='nap')->>'ho_so')::int = 3
+  and ((select v::jsonb from ctx where k='nap')->>'ho_so_con_no')::int = 2
+  and (select v from ctx where k='nap') like '%Hãng Lạ%', (select v from ctx where k='nap'));
+select kt.ghi('Nợ cũ khách 1.200.000: hồ sơ Đã giao xe, không tính doanh thu',
+  (select con_no_khach = 1200000 and trang_thai = 'da_giao' and tu_excel from public.v_ho_so where bien_so = '51K99901' and con_no_khach > 0)
+  and not exists (select 1 from public.v_doanh_thu where bien_so = '51K-999.01'));
+select kt.ghi('Hãng BH không phân biệt hoa thường (tasco → Tasco); xe lấy thông tin lần vào mới nhất',
+  (select hang_bh = 'Tasco' from public.v_ho_so where bien_so = '51K99901' and ngay_vao::date = '2026-06-01')
+  and (select mau = 'Trắng' from public.xe where bien_so = '51K99901'));
+select kt.ghi('Nợ cũ BH 2.500.000: Đã gửi hồ sơ BH, hiện trong công nợ',
+  (select con_no_bh = 2500000 and trang_thai = 'da_gui_hs' from public.v_ho_so where bien_so = '51K99902'));
+select kt.dong_vai('tien@gara.vn');
+select public.lap_phieu_thu(jsonb_build_object(
+  'tai_khoan_id',(select id from public.tai_khoan_quy where ten='Tiền mặt'),'muc_id',(select id from public.muc_thu_chi where ten='Khách thanh toán sửa chữa'),
+  'so_tien',1200000,'phan_bo',jsonb_build_array(jsonb_build_object('ho_so_id',(select id from public.ho_so where ma like 'TK-2609-51K99901%'),'so_tien',1200000))));
+select kt.ghi('Thu đủ nợ cũ của khách → hồ sơ tự đóng', (select trang_thai from public.ho_so where ma like 'TK-2609-51K99901%') = 'dong');
+select kt.dong_vai(null);
 select kt.dong_vai('long@gara.vn');
 select kt.ghi('Người khác không xem được nhật ký xuất file', (select count(*) from public.nhat_ky_xuat_file) = 0);
 select kt.dong_vai(null);

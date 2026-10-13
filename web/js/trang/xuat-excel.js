@@ -1,5 +1,5 @@
 // Nút "Xuất Excel" – chỉ giám đốc. Máy chủ kiểm quyền lần nữa và ghi nhật ký mỗi lần xuất.
-import { h, chay, toast, ngayGio, homNay } from '../ui.js';
+import { h, chay, toast, ngayGio, homNay, TRANG_THAI } from '../ui.js';
 import { taiFileExcel } from '../excel.js';
 import * as api from '../api.js';
 
@@ -52,25 +52,43 @@ export async function xuatExcelKho() {
   toast(`Đã xuất file tồn kho: ${hang.length} mã, ${nhom.length} nhóm.`);
 }
 
-// ---------------- Khách hàng: Khách – xe, Công nợ, Nợ theo hãng BH ----------------
+// ---------------- Khách hàng ----------------
+// Trang "Data khách hàng": mỗi lần vào xưởng 1 dòng (thông tin xe – khách lặp lại). Đây là trang để sửa rồi gửi
+// Claude nạp lại (xóa hết rồi nạp). TÊN CỘT CỐ ĐỊNH – bộ nạp đọc theo tên cột.
+const NGUON_TEN = { bao_hiem: 'Bảo hiểm', khach: 'Khách ngoài BH', bao_hiem_khach: 'Bảo hiểm' };
+const DA_GIAO = ['da_giao', 'da_gui_hs', 'dong'];
+export const COT_DATA_KHACH = [
+  { nhan: 'STT', kieu: 'tien', rong: 6 }, { nhan: 'Biển số', rong: 13 }, { nhan: 'Khách hàng', rong: 24 }, { nhan: 'Điện thoại', rong: 13 },
+  { nhan: 'Hãng xe', rong: 12 }, { nhan: 'Dòng xe', rong: 14 }, { nhan: 'Màu', rong: 9 },
+  { nhan: 'Hạn BH thân vỏ', kieu: 'ngay', rong: 12 }, { nhan: 'Hạn BH TNDS', kieu: 'ngay', rong: 12 },
+  { nhan: 'Mã hồ sơ', rong: 21 }, { nhan: 'Ngày vào xưởng', kieu: 'ngay', rong: 12 }, { nhan: 'Ngày giao xe', kieu: 'ngay', rong: 12 },
+  { nhan: 'Trạng thái', rong: 14 }, { nhan: 'Nguồn', rong: 14 }, { nhan: 'Đơn vị bảo hiểm', rong: 15 }, { nhan: 'Giám định viên', rong: 15 },
+  { nhan: 'Tình trạng xe', rong: 40 }, { nhan: 'Tư vấn', rong: 30 }, { nhan: 'Phản hồi khách', rong: 26 },
+  { nhan: 'Giá trị sửa chữa (đ)', kieu: 'tien', rong: 14 }, { nhan: 'Khách còn nợ (đ)', kieu: 'tien', rong: 14 },
+  { nhan: 'BH còn nợ (đ)', kieu: 'tien', rong: 14 }, { nhan: 'Ghi chú', rong: 26 },
+];
+
 export async function xuatExcelKhachHang() {
   const kq = await api.xuatDuLieuKhach();
-  const xe = kq.xe || []; const no = kq.cong_no || [];
+  const data = kq.data || []; const no = kq.cong_no || [];
   const pd = phuDe(api.dm.ten?.('chi_nhanh', api.toi?.chi_nhanh_id), kq.luc);
   const so = (v) => (v === null || v === undefined ? null : Number(v));
+  const coNo = (x, k) => (DA_GIAO.includes(x.trang_thai) && Math.round(Number(x[k])) !== 0 ? Number(x[k]) : null);
+  const soXe = new Set(data.map((x) => x.bien_so_gon)).size;
   const trang = [
     {
-      ten: 'Khách – xe', tieuDe: 'DANH SÁCH KHÁCH HÀNG – XE', phuDe: pd,
-      cot: [{ nhan: 'STT', kieu: 'tien', rong: 6 }, { nhan: 'Biển số', rong: 13 }, { nhan: 'Khách hàng', rong: 26 }, { nhan: 'Điện thoại', rong: 13 },
-        { nhan: 'Xe', rong: 22 }, { nhan: 'Màu', rong: 10 }, { nhan: 'Đơn vị bảo hiểm', rong: 18 }, { nhan: 'Hạn BH thân vỏ', kieu: 'ngay', rong: 13 }, { nhan: 'Hạn BH TNDS', kieu: 'ngay', rong: 13 },
-        { nhan: 'Số lần vào xưởng', kieu: 'tien', rong: 10 }, { nhan: 'Lần vào gần nhất', kieu: 'ngay', rong: 13 },
-        { nhan: 'Khách còn nợ (đ)', kieu: 'tien', rong: 15 }, { nhan: 'Bảo hiểm còn nợ (đ)', kieu: 'tien', rong: 15 }],
-      dong: xe.map((x, i) => [i + 1, x.bien_so, x.khach, x.dien_thoai, x.xe, x.mau, x.hang_bh || '', x.han_than_vo, x.han_tnds, x.so_lan_vao, x.lan_vao_cuoi,
-        so(x.con_no_khach) || null, so(x.con_no_bh) || null]),
-      tong: ['', 'Tổng cộng', `${xe.length} xe`, null, null, null, null, null, null, 'SUM', null, 'SUM', 'SUM'],
+      ten: 'Data khách hàng', tieuDe: 'DATA KHÁCH HÀNG – MỖI LẦN VÀO XƯỞNG MỘT DÒNG',
+      phuDe: `${pd} · Sửa xong gửi lại để nạp: không đổi tên cột, không thêm cột; thêm dòng mới ở cuối`,
+      cot: COT_DATA_KHACH,
+      dong: data.map((x, i) => [i + 1, x.bien_so, x.khach, x.dien_thoai, x.hang_xe, x.dong_xe, x.mau, x.han_than_vo, x.han_tnds,
+        x.ma, x.ngay_vao, x.ngay_giao, x.trang_thai ? `${TRANG_THAI[x.trang_thai] || x.trang_thai}${x.tu_excel ? ' (từ Excel)' : ''}` : '',
+        x.nguon ? NGUON_TEN[x.nguon] || x.nguon : '', x.hang_bh || '', x.gdv || '', x.tinh_trang, x.tu_van, x.phan_hoi,
+        so(x.gia_tri) || null, coNo(x, 'con_no_khach'), coNo(x, 'con_no_bh'), x.ghi_chu]),
+      tong: ['', 'Tổng cộng', `${soXe} xe`, `${data.filter((x) => x.ngay_vao).length} lần vào`, null, null, null, null, null, null, null, null,
+        null, null, null, null, null, null, null, 'SUM', 'SUM', 'SUM', null],
     },
     {
-      ten: 'Công nợ', tieuDe: 'CÔNG NỢ – XE ĐÃ GIAO CÒN NỢ', phuDe: `${pd} · Nợ khách và nợ bảo hiểm tách riêng`,
+      ten: 'Công nợ (chỉ xem)', tieuDe: 'CÔNG NỢ – XE ĐÃ GIAO CÒN NỢ', phuDe: `${pd} · Chỉ để xem – sửa nợ ở trang Data khách hàng`,
       cot: [{ nhan: 'STT', kieu: 'tien', rong: 6 }, { nhan: 'Mã hồ sơ', rong: 20 }, { nhan: 'Ngày vào', kieu: 'ngay', rong: 12 }, { nhan: 'Ngày giao', kieu: 'ngay', rong: 12 },
         { nhan: 'Số ngày nợ', kieu: 'tien', rong: 9 }, { nhan: 'Biển số', rong: 13 }, { nhan: 'Khách hàng', rong: 24 }, { nhan: 'Điện thoại', rong: 13 },
         { nhan: 'Hãng bảo hiểm', rong: 20 },
@@ -91,12 +109,12 @@ export async function xuatExcelKhachHang() {
   }
   const noKhach = no.filter((x) => Math.round(Number(x.con_no_khach)) !== 0);
   trang.push({
-    ten: 'Nợ theo hãng BH', tieuDe: 'TỔNG CÔNG NỢ THEO HÃNG BẢO HIỂM', phuDe: pd,
+    ten: 'Nợ theo hãng BH (chỉ xem)', tieuDe: 'TỔNG CÔNG NỢ THEO HÃNG BẢO HIỂM', phuDe: pd,
     cot: [{ nhan: 'Bên nợ', rong: 30 }, { nhan: 'Số hồ sơ còn nợ', kieu: 'tien', rong: 14 }, { nhan: 'Còn nợ (đ)', kieu: 'tien', rong: 18 }],
     dong: [...[...theoHang].sort((a, b) => b[1].tien - a[1].tien).map(([k, c]) => [k, c.so, c.tien]),
       ['Khách hàng (tự trả)', noKhach.length, noKhach.reduce((s, x) => s + Number(x.con_no_khach), 0)]],
     tong: ['Tổng cộng', 'SUM', 'SUM'],
   });
-  taiFileExcel(`Khach-hang-cong-no_${homNay()}.xlsx`, trang);
-  toast(`Đã xuất file khách hàng: ${xe.length} xe, ${no.length} hồ sơ còn nợ.`);
+  taiFileExcel(`Data-khach-hang_${homNay()}.xlsx`, trang);
+  toast(`Đã xuất Data khách hàng: ${soXe} xe, ${data.length} dòng, ${no.length} hồ sơ còn nợ.`);
 }
