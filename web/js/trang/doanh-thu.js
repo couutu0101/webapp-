@@ -33,7 +33,7 @@ export default async function trangDoanhThu(el) {
         + ' – ghi vào ngày duyệt giá (xe bảo hiểm) hoặc ngày khách đồng ý báo giá (khách lẻ), tính sau VAT. Không gồm xe bảo hành và hồ sơ chuyển từ Excel.';
       await veDoanhThu();
     } else if (the === 'kqkd') {
-      moTa.textContent = 'Lãi lỗ từng tháng: doanh thu (sau VAT, theo ngày duyệt giá) − giá vốn (vật tư xuất kho theo tháng xuất, chi phí nhóm Giá vốn) = lãi gộp − lương (bảng lương tháng) − hoa hồng GDV (theo tháng duyệt giá của xe) − chi phí vận hành, cố định = lãi trước thuế. Giám đốc chốt tháng để khóa sổ; cổ đông chỉ xem tháng đã chốt.';
+      moTa.textContent = 'Lãi lỗ từng tháng: doanh thu (sau VAT, theo ngày duyệt giá) − giá vốn (vật tư xuất kho theo tháng xuất, chi phí nhóm Giá vốn) = lãi gộp − lương (bảng lương tháng) − hoa hồng GDV (theo tháng duyệt giá của xe) − chi phí vận hành, cố định = lãi trước thuế. Giám đốc chốt tháng để khóa sổ; tháng chưa chốt còn thay đổi (Báo cáo cổ đông chỉ tính tháng đã chốt).';
       await veKqkd();
     } else {
       moTa.textContent = 'Công nợ phải thu tính đến hôm nay theo giá đã duyệt: cả xe đã giao lẫn xe còn trong xưởng, khách hoặc hãng bảo hiểm chưa trả đủ (gồm nợ cũ chuyển từ Excel). Nợ nhà cung cấp lấy từ Kho → Công nợ NCC.';
@@ -293,7 +293,7 @@ export default async function trangDoanhThu(el) {
           h('li', { class: so(d.de_nghi_cho_chi) ? 'thieu' : 'xong' }, so(d.de_nghi_cho_chi) ? ['✗ ', h('a', { href: '#/de-nghi' }, `${d.de_nghi_cho_chi} đề nghị chi của kỳ chưa chi`)] : '✓ Không còn đề nghị chi chờ của kỳ')),
         h('div', { class: 'hang-nut' },
           gd && d.trang_thai === 'cho_chot' ? h('button', { class: 'nut nho chinh', type: 'button', 'data-chot': String(d.thang), onclick: async () => {
-            if (!(await xacNhan(`Chốt tháng ${nhanThang(d)} (kỳ 01/${nhanThang(d)} – ${ngay(d.ngay_cuoi)})? Sau khi chốt không ghi hay sửa được phiếu, hồ sơ, chi phí của tháng này; cổ đông sẽ xem được số tổng.`, 'Chốt tháng'))) return;
+            if (!(await xacNhan(`Chốt tháng ${nhanThang(d)} (kỳ 01/${nhanThang(d)} – ${ngay(d.ngay_cuoi)})? Sau khi chốt không ghi hay sửa được phiếu, hồ sơ, chi phí của tháng này; tháng này vào Báo cáo cổ đông.`, 'Chốt tháng'))) return;
             await chay((boQua) => api.chotThang(d.thang, boQua), { thanhCong: `Đã chốt tháng ${nhanThang(d)}.` }).then(ve, () => {});
           } }, 'Chốt tháng') : null,
           d.trang_thai === 'dang_mo' ? h('small', { class: 'mo' }, `Chốt được từ ngày ${ngay(new Date(new Date(d.ngay_cuoi).getTime() + 864e5).toISOString())}; tiền điện, lương của tháng nhập sau ngày đó vẫn tính vào tháng này (chọn "Chi phí của tháng" khi lập đề nghị chi).`) : null,
@@ -309,7 +309,7 @@ export default async function trangDoanhThu(el) {
         ds.length ? bang(cot, DONG) : h('p', { class: 'trong' }, 'Chưa có số liệu.')),
       h('section', { class: 'the' },
         h('h2', null, 'Khóa sổ tháng'),
-        h('p', { class: 'goi-y' }, 'Kỳ báo cáo khóa ở ngày cuối tháng. Các khoản nhập sau (tiền điện, lương…) chọn đúng tháng là vẫn tính vào tháng đó. Chốt xong thì không ghi, sửa gì vào tháng đó nữa; cổ đông chỉ xem tháng đã chốt.'),
+        h('p', { class: 'goi-y' }, 'Kỳ báo cáo khóa ở ngày cuối tháng. Các khoản nhập sau (tiền điện, lương…) chọn đúng tháng là vẫn tính vào tháng đó. Chốt xong thì không ghi, sửa gì vào tháng đó nữa.'),
         h('div', { class: 'ds-thang-kqkd' }, [...ds].reverse().map(dongThang))));
 
     function moLuong(d) {
