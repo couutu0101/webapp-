@@ -2,7 +2,7 @@
 // Theo đặc tả 11/10/2026. Tồn theo đơn vị xuất; giá vốn nhập trước xuất trước, đã gồm VAT.
 import {
   h, tien, ngay, ngayGio, homNay, truong, oChu, oTien, oChon, oNgay, oVung, oCheck, oChonTep, docTien, chay, bang,
-  moModal, toast, dat, xacNhan, bienSo, nenAnh, taiTepCSV, nhoPhien, cuoiThang,
+  moModal, toast, dat, xacNhan, bienSo, nenAnh, taiTepCSV, nhoPhien, cuoiThang, oGoiY, VAI_TRO,
 } from '../ui.js';
 import * as api from '../api.js';
 import { nutXuatExcel, xuatExcelKho } from './xuat-excel.js';
@@ -31,10 +31,45 @@ export async function taiHang() {
   return dsHang;
 }
 const hangTheoId = (id) => dsHang.find((x) => String(x.id) === String(id));
+// Ô chọn mã hàng: chọn nhóm hàng + gõ mã hoặc tên (không dấu cũng được) → gợi ý; bấm chọn một mã.
+// Trả về một khối có .value (id mã hàng) và phát sự kiện 'change' như ô chọn thường.
+const boDau = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd').toLowerCase();
 function oChonHang(name = 'hang_id', value = null, { chiConHang = false } = {}) {
-  const ds = dsHang.filter((x) => x.hoat_dong && (!chiConHang || Number(x.ton) > 0));
-  return oChon(name, ds.map((x) => ({ value: x.id, label: `${x.ma} – ${x.ten} (tồn ${sl(x.ton)} ${x.dvt})` })), value, { trong: '— Chọn mã hàng —' });
+  const dsGoc = () => dsHang.filter((x) => x.hoat_dong && (!chiConHang || Number(x.ton) > 0));
+  const chonNhom = oChon(`${name}_nhom`, NHOM_HANG.map((x) => ({ value: x, label: x })), '', { trong: 'Mọi nhóm', 'aria-label': 'Nhóm hàng' });
+  const oTim = h('input', { type: 'search', name: `${name}_tim`, placeholder: 'Gõ mã hoặc tên hàng…', 'aria-label': 'Tìm mã hoặc tên hàng' });
+  let id = '';
+  const khoi = h('div', { class: 'tim-hang' }, chonNhom, oGoiY(oTim, {
+    choMs: 80,
+    tim: async (q) => {
+      const tu = boDau(q).split(/\s+/).filter(Boolean);
+      return dsGoc().filter((x) => (!chonNhom.value || x.nhom === chonNhom.value) && tu.every((w) => boDau(`${x.ma} ${x.ten}`).includes(w))).slice(0, 40);
+    },
+    ve: (x) => h('span', { class: 'goi-y-hang' }, h('b', null, x.ma), h('span', null, x.ten), h('small', null, `${x.nhom} · tồn ${sl(x.ton)} ${x.dvt}`)),
+    chon: (x) => datId(x.id),
+  }));
+  function datId(v, phat = true) {
+    id = v ? String(v) : '';
+    const x = hangTheoId(id);
+    oTim.value = x ? `${x.ma} – ${x.ten}` : '';
+    if (x) chonNhom.value = x.nhom;
+    if (phat) khoi.dispatchEvent(new Event('change'));
+  }
+  oTim.addEventListener('input', () => { if (id) { id = ''; khoi.dispatchEvent(new Event('change')); } });
+  oTim.addEventListener('focus', () => { if (!id) oTim.dispatchEvent(new Event('input')); });
+  chonNhom.addEventListener('change', (e) => {
+    e.stopPropagation();
+    const x = hangTheoId(id);
+    if (x && chonNhom.value && x.nhom !== chonNhom.value) datId('');
+    if (!id) { oTim.focus(); oTim.dispatchEvent(new Event('input')); }
+  });
+  Object.defineProperty(khoi, 'value', { get: () => id, set: (v) => datId(v, false) });
+  khoi.chuaChon = () => !id && oTim.value.trim() !== '';
+  if (value) datId(value, false);
+  return khoi;
 }
+// Có dòng gõ tên hàng nhưng chưa bấm chọn từ gợi ý
+const conChuaChon = (dong) => [...dong.ds.querySelectorAll('.tim-hang')].some((k) => k.chuaChon?.());
 const dvtNhap = (x) => x?.dvt_nhap || x?.dvt || '';
 const quyDoi = (x) => (x && x.dvt_nhap && Number(x.he_so) !== 1 ? `1 ${x.dvt_nhap} = ${sl(x.he_so)} ${x.dvt}` : '');
 
@@ -354,17 +389,25 @@ export async function moLapDeXuat(hoSo, veLai) {
   const dong = khungDong(() => {
     const chon = oChonHang(); const oSl = oSoLuong('so_luong'); const goiY = h('small', { class: 'goi-y' });
     chon.addEventListener('change', () => { const x = hangTheoId(chon.value); goiY.textContent = x ? `Đơn vị: ${x.dvt} · Tồn ${sl(x.ton)}` : ''; });
-    return { o: [h('div', { class: 'truong rong-hon' }, h('span', { class: 'truong-nhan' }, 'Mã hàng'), chon, goiY), truong('Số lượng', oSl)],
+    return { o: [h('div', { class: 'truong rong-hon' }, h('span', { class: 'truong-nhan' }, 'Nhóm hàng · mã hoặc tên hàng'), chon, goiY), truong('Số lượng', oSl)],
       doc: () => (chon.value ? { hang_id: Number(chon.value), so_luong: docSo(oSl.value) } : null) };
   }, '+ Thêm mã');
   dong.them();
   const oGhiChu = oChu('ghi_chu', '', { placeholder: 'Ví dụ: sơn cửa trước trái' });
+  // Người đề xuất = người đang đăng nhập (thường là CVDV hoặc trưởng nhóm)
+  const toi = api.toi;
+  const vaiToi = toi.vai_tro.includes('truong_nhom') ? `Trưởng nhóm${toi.to_id ? ` tổ ${toi.to_id}` : ''}`
+    : toi.vai_tro.includes('cvdv') ? 'CVDV' : toi.vai_tro.filter((v) => VAI_TRO[v] && v !== 'co_dong').map((v) => VAI_TRO[v]).join(', ');
   moModal('Đề xuất vật tư', h('div', null,
-    h('div', { class: 'luoi-o' }, truong('Xe (đã có lệnh sửa chữa)', chonXe, null, { batBuoc: true }), chonTo ? truong('Tổ', chonTo) : null, truong('Ghi chú', oGhiChu)),
-    h('h3', null, 'Vật tư cần lấy'), dong.el), {
+    h('div', { class: 'luoi-o' }, truong('Xe (đã có lệnh sửa chữa)', chonXe, null, { batBuoc: true }), chonTo ? truong('Tổ', chonTo) : null,
+      h('div', { class: 'truong' }, h('span', { class: 'truong-nhan' }, 'Người đề xuất'),
+        h('div', { class: 'o-chi-xem', 'data-nguoi-de-xuat': '' }, `${toi.ho_ten}${vaiToi ? ` – ${vaiToi}` : ''}`)),
+      truong('Ghi chú', oGhiChu)),
+    h('h3', null, 'Vật tư phụ tùng cần lấy'), dong.el), {
     rong: true, nhanNut: 'Gửi đề xuất',
     nutChinh: async () => {
       if (!chonXe.value) { toast('Chọn xe.', 'loi'); return false; }
+      if (conChuaChon(dong)) { toast('Có dòng chưa chọn mã hàng – bấm chọn một mã trong danh sách gợi ý.', 'loi'); return false; }
       const ds = dong.doc();
       if (!ds.length) { toast('Chọn ít nhất một mã hàng.', 'loi'); return false; }
       if (ds.some((d) => !(d.so_luong > 0))) { toast('Nhập số lượng cho từng dòng.', 'loi'); return false; }
@@ -488,7 +531,7 @@ function dongCoGia(capNhat) {
     for (const o of [chon, oSl, oGia, chonVat]) { o.addEventListener('input', ve); o.addEventListener('change', ve); }
     setTimeout(ve);
     return {
-      o: [h('div', { class: 'truong rong-hon' }, h('span', { class: 'truong-nhan' }, 'Mã hàng'), chon, goiY),
+      o: [h('div', { class: 'truong rong-hon' }, h('span', { class: 'truong-nhan' }, 'Nhóm hàng · mã hoặc tên hàng'), chon, goiY),
         truong('Số lượng', oSl), h('div', { class: 'truong' }, h('span', { class: 'truong-nhan' }, 'Đơn giá (chưa VAT)'), oGia, thanh), truong('VAT', chonVat)],
       doc: () => (chon.value ? { hang_id: Number(chon.value), so_luong: docSo(oSl.value), don_gia: docTien(oGia.value), ty_le_vat: Number(chonVat.value), ...(macDinh.de_xuat_dong_id ? { de_xuat_dong_id: macDinh.de_xuat_dong_id } : {}) } : null),
       khiBo: capNhat,
@@ -541,6 +584,7 @@ export async function moPhieuNhap({ deNghi = null } = {}, veLai) {
   moModal('Phiếu nhập kho', noiDung, {
     rong: true, nhanNut: 'Lưu phiếu nhập',
     nutChinh: async () => {
+      if (conChuaChon(dong)) { toast('Có dòng chưa chọn mã hàng – bấm chọn một mã trong danh sách gợi ý.', 'loi'); return false; }
       const ds = dong.doc();
       if (!chonNcc.value) { toast('Chọn nhà cung cấp.', 'loi'); return false; }
       if (!ds.length) { toast('Chọn ít nhất một mã hàng.', 'loi'); return false; }
@@ -622,6 +666,7 @@ async function moLapDeNghiMua(_, veLai) {
     truong('Báo giá nhà cung cấp', chonBg, 'Có thể bổ sung sau, trước khi duyệt')), {
     rong: true, nhanNut: 'Gửi đề nghị mua',
     nutChinh: async () => {
+      if (conChuaChon(dong)) { toast('Có dòng chưa chọn mã hàng – bấm chọn một mã trong danh sách gợi ý.', 'loi'); return false; }
       const ds = dong.doc();
       if (!chonNcc.value) { toast('Chọn nhà cung cấp.', 'loi'); return false; }
       if (!ds.length || ds.some((d) => !(d.so_luong > 0) || d.don_gia === null)) { toast('Nhập mã hàng, số lượng, đơn giá cho từng dòng.', 'loi'); return false; }
@@ -712,7 +757,7 @@ async function moXuatDungChung(veLai) {
   const dong = khungDong(() => {
     const chon = oChonHang('hang_id', null, { chiConHang: true }); const oSl = oSoLuong('so_luong'); const goiY = h('small', { class: 'goi-y' });
     chon.addEventListener('change', () => { const x = hangTheoId(chon.value); goiY.textContent = x ? `Đơn vị: ${x.dvt} · Tồn ${sl(x.ton)}` : ''; });
-    return { o: [h('div', { class: 'truong rong-hon' }, h('span', { class: 'truong-nhan' }, 'Mã hàng'), chon, goiY), truong('Số lượng', oSl)],
+    return { o: [h('div', { class: 'truong rong-hon' }, h('span', { class: 'truong-nhan' }, 'Nhóm hàng · mã hoặc tên hàng'), chon, goiY), truong('Số lượng', oSl)],
       doc: () => (chon.value ? { hang_id: Number(chon.value), so_luong: docSo(oSl.value) } : null) };
   }, '+ Thêm mã');
   dong.them();
@@ -722,6 +767,7 @@ async function moXuatDungChung(veLai) {
     truong('Dùng vào việc', oGhiChu, null, { batBuoc: true }), dong.el), {
     rong: true, nhanNut: 'Xuất kho',
     nutChinh: async () => {
+      if (conChuaChon(dong)) { toast('Có dòng chưa chọn mã hàng – bấm chọn một mã trong danh sách gợi ý.', 'loi'); return false; }
       const ds = dong.doc();
       if (!ds.length || ds.some((d) => !(d.so_luong > 0))) { toast('Chọn mã hàng và số lượng.', 'loi'); return false; }
       const kq = await api.xuatDungChung({ ghi_chu: oGhiChu.value, dong: ds });

@@ -105,6 +105,7 @@ create table if not exists app.nap_tam (
   dong    jsonb not null,
   luc     timestamptz not null default now()
 );
+alter table app.nap_tam enable row level security;
 revoke all on app.nap_tam from public, anon, authenticated;
 
 -- Dòng (jsonb): bien_so, khach, dien_thoai, hang_xe, dong_xe, mau, han_than_vo, han_tnds,

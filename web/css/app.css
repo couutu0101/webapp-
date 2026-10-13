@@ -425,3 +425,11 @@ a.o-dem:not(.mo) b { color: var(--muc); }
 .khoi-phu-tung { margin-top: var(--k4); padding-top: var(--k3); border-top: 1px solid var(--vien); }
 .khoi-phu-tung h3 { margin: 0; font-size: 1rem; }
 .tieu-de-xe .nhan.tt-canh-bao { margin-left: 6px; }
+
+/* Ô chọn mã hàng: nhóm hàng + tìm theo mã/tên */
+.tim-hang { display: grid; grid-template-columns: minmax(110px, 32%) 1fr; gap: 8px; align-items: start; }
+.tim-hang .o-goi-y input { width: 100%; }
+.goi-y-hang { display: flex; flex-direction: column; line-height: 1.3; min-width: 0; }
+.goi-y-hang b { font-family: var(--chu-so, inherit); letter-spacing: .02em; }
+.goi-y-hang small { color: var(--muc-phu); }
+@media (max-width: 560px) { .tim-hang { grid-template-columns: 1fr; } }

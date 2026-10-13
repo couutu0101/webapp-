@@ -210,9 +210,12 @@ with sync_playwright() as p:
     ghi('Lập lệnh sửa chữa → Đang sửa')
 
     # ---------- KHO: mã hàng → nhập → đề xuất → xuất / chuyển mua → duyệt → nhập hàng → xuất → khớp hóa đơn ----------
-    def chon_hang(khung, ma):
-        o = khung.locator('select[name=hang_id]')
-        o.select_option(o.locator('option', has_text=ma).first.get_attribute('value'))
+    def chon_hang(khung, ma, go=None, nhom=None):
+        if nhom: khung.locator('select[name=hang_id_nhom]').select_option(nhom)
+        o = khung.locator('input[name=hang_id_tim]')
+        o.click(); o.fill(go or ma)
+        khung.locator('.goi-y-ds li', has_text=ma).first.click()
+        expect(o).to_have_value(re.compile('^' + re.escape(ma)))
     ve_trang(duy, '#/kho?the=ton')
     for ma, ten, nhom, dvt, dvt_nhap, he_so, tt in [('SON-TRANG', 'Sơn trắng 2K', 'Sơn', 'Lít', 'Can 4L', '4', '2'), ('PT-GUONG', 'Gương chiếu hậu VF6', 'Phụ tùng', 'Cái', '', '1', '0')]:
         duy.get_by_role('button', name='+ Mã hàng').click()
@@ -244,12 +247,17 @@ with sync_playwright() as p:
     hn.wait_for_selector('.the-xe')
     hn.locator('.the-xe', has_text='50H-923.61').get_by_role('button', name='Đề xuất vật tư').click()
     m = modal(hn)
-    chon_hang(m.locator('.dong-kho').first, 'SON-TRANG'); m.locator('.dong-kho [name=so_luong]').first.fill('3')
+    nguoi_dx = m.locator('[data-nguoi-de-xuat]').inner_text()
+    chon_hang(m.locator('.dong-kho').first, 'SON-TRANG', go='son trang', nhom='Sơn'); m.locator('.dong-kho [name=so_luong]').first.fill('3')
     m.get_by_role('button', name='+ Thêm mã').click()
-    chon_hang(m.locator('.dong-kho').nth(1), 'PT-GUONG'); m.locator('.dong-kho [name=so_luong]').nth(1).fill('1')
+    # gõ tên không dấu vẫn tìm ra
+    m.locator('.dong-kho').nth(1).locator('input[name=hang_id_tim]').fill('guong')
+    goi_y = m.locator('.dong-kho').nth(1).locator('.goi-y-ds li').all_inner_texts()
+    chon_hang(m.locator('.dong-kho').nth(1), 'PT-GUONG', go='guong'); m.locator('.dong-kho [name=so_luong]').nth(1).fill('1')
+    chup(hn, '21a-lap-de-xuat')
     m.get_by_role('button', name='Gửi đề xuất').click()
     toast_co(hn, 'Đã gửi đề xuất')
-    ghi('Trưởng nhóm Hận đề xuất 3 lít sơn + 1 gương ngay trên bảng việc tổ')
+    ghi(f'Trưởng nhóm Hận đề xuất 3 lít sơn + 1 gương (người đề xuất: {nguoi_dx}; gõ "guong" gợi ý: {goi_y[0].replace(chr(10), " ") if goi_y else "(trống)"})')
     hn.close()
 
     ve_trang(duy, '#/kho?the=de_xuat')
