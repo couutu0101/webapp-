@@ -62,7 +62,7 @@ export default async function trangHoSo(el) {
       const chips = chipsViec(d, viecCua[d.id]);
       return h('span', { class: 'viec-tiep' }, h('span', null, v.ten), h('span', { class: 'viec-tiep-ai' }, chips.length ? chips : h('small', null, 'Chưa giao')));
     };
-    const coTien = api.coVaiTro('giam_doc', 'ke_toan', 'quan_ly');
+    const coTien = api.duocXem('giam_doc', 'ke_toan', 'quan_ly');
     dat(ketQua, 
       ttRieng ? h('p', { class: 'mo-ta' }, 'Đang lọc theo bước được chọn ở trang Việc hôm nay. ',
         h('button', { class: 'nut-chu', type: 'button', onclick: () => { ttRieng = null; loc = 'dang'; nhoPhien.ghi('hs_tab', loc); nhoPhien.ghi('hs_ds', '#/ho-so'); capNhatTab(); tai(); } }, 'Bỏ lọc')) : null,

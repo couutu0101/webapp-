@@ -46,7 +46,7 @@ export default async function trangDichVu(el) {
   }
 
   dat(el, h('div', { class: 'tieu-de-trang' }, h('h1', null, 'Dịch vụ nhanh'),
-    h('p', { class: 'mo-ta' }, 'Ghi ngay mỗi lượt làm, theo biển số nếu có. Kế toán thu tiền ở mục Thu chi.')), form,
+    h('p', { class: 'mo-ta' }, 'Ghi ngay mỗi lượt làm, theo biển số nếu có. Kế toán thu tiền ở mục Thu chi.')), api.laCoDong() ? null : form,
   h('section', { class: 'the' }, h('h2', null, '31 ngày gần nhất'), ds));
   await tai();
 }

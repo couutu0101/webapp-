@@ -7,7 +7,10 @@ function loi(error) {
   e.code = error?.code;
   return e;
 }
+// Cổ đông chỉ xem (030): chặn mọi lệnh ghi ngay ở trình duyệt; máy chủ cũng không cho cổ đông ghi
+const RPC_CHI_DOC = new Set(['bang_viec_to', 'bao_cao_co_dong', 'ket_qua_kinh_doanh', 'tra_cuu_xe', 'da_doi_mat_khau']);
 export async function rpc(ten, thamSo = {}) {
+  if (laCoDong() && !RPC_CHI_DOC.has(ten)) throw new Error('Tài khoản cổ đông chỉ được xem số liệu, không sửa được.');
   const { data, error } = await sb.rpc(ten, thamSo);
   if (error) throw loi(error);
   return data;
@@ -66,12 +69,16 @@ export async function taiToi(userId) {
 }
 export const coVaiTro = (...ds) => !!toi && toi.hoat_dong && ds.some((v) => toi.vai_tro.includes(v));
 export const laNhanVien = () => coVaiTro('giam_doc', 'quan_ly', 'ke_toan', 'cvdv', 'kho');
+// Cổ đông: xem được mọi số liệu như giám đốc, không có thao tác nào (nút thao tác vẫn kiểm bằng coVaiTro)
+export const laCoDong = () => coVaiTro('co_dong');
+export const duocXem = (...ds) => coVaiTro(...ds) || laCoDong();          // chỉ dùng cho phần XEM: menu, thẻ, cột tiền
+export const xemNhuNhanVien = () => laNhanVien() || laCoDong();
 
 export async function taiDanhMuc() {
   const bangs = ['chi_nhanh', 'hang_bao_hiem', 'giam_dinh_vien', 'hang_xe', 'dong_xe',
     'to_thuc_hien', 'muc_thu_chi', 'nha_cung_cap', 'don_vi_lien_quan', 'cai_dat'];
-  if (coVaiTro('giam_doc', 'ke_toan', 'quan_ly')) bangs.push('tai_khoan_quy');
-  if (laNhanVien()) bangs.push('nhan_vien');
+  if (duocXem('giam_doc', 'ke_toan', 'quan_ly')) bangs.push('tai_khoan_quy');
+  if (xemNhuNhanVien()) bangs.push('nhan_vien');
   const kq = await Promise.all(bangs.map((b) => doc(b, (q) => q.order('id', { ascending: true })).catch(() => [])));
   bangs.forEach((b, i) => { dm[b] = kq[i]; });
   dm.ten = (bang, id) => (dm[bang] || []).find((x) => String(x.id) === String(id))?.ten ?? '';

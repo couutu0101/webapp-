@@ -907,6 +907,29 @@ with sync_playwright() as p:
     codong = mo(b, 'codong@gara.vn')
     codong.wait_for_selector('text=Báo cáo cổ đông')
     ghi('Cổ đông menu: ' + (', '.join(codong.locator('.menu-ds a').all_inner_texts()) or '(trống)') + ' | ' + codong.locator('#noi-dung').inner_text()[:60].replace('\n', ' '))
+    # 030: cổ đông xem được mọi số liệu, không có nút thao tác, lệnh ghi bị chặn
+    menu_cd = codong.locator('.menu-ds a').all_inner_texts()
+    assert all(x in menu_cd for x in ('Hồ sơ xe', 'Thu chi', 'Đề nghị chi', 'Kho', 'Doanh thu & công nợ')), menu_cd
+    assert not any(x in menu_cd for x in ('Việc hôm nay', 'Danh mục', 'Nhân viên')), menu_cd
+    ve_trang(codong, '#/ho-so')
+    codong.wait_for_selector('tbody tr')
+    expect(codong.locator('text=+ Tiếp nhận xe')).to_have_count(0)
+    codong.locator('tbody tr').first.click()
+    codong.wait_for_selector('.the-tien-do')
+    codong.wait_for_timeout(800)
+    so_nut_hs = codong.locator('#noi-dung button:visible').count()
+    ve_trang(codong, '#/kho?the=thiet_bi')
+    codong.wait_for_selector('.tb-nhom [role=tab]')
+    expect(codong.locator('.tb-nhom [role=tab]')).to_have_count(6)
+    expect(codong.locator('text=+ Thiết bị, đồ nghề')).to_have_count(0)
+    ve_trang(codong, '#/doanh-thu')
+    codong.locator('[role=tab]', has_text='Kết quả kinh doanh').click()
+    codong.wait_for_selector('text=LÃI TRƯỚC THUẾ')
+    expect(codong.locator('[data-chot]')).to_have_count(0)
+    chan = codong.evaluate("""async () => { const api = await import('./js/api.js'); try { await api.rpc('lap_de_nghi_chi', { p: { so_tien: 1000, noi_dung: 'thử' } }); return 'GHI ĐƯỢC'; } catch (e) { return e.message; } }""")
+    assert 'chỉ được xem' in chan, chan
+    chup(codong, '28-co-dong-ket-qua-kinh-doanh')
+    ghi(f'Cổ đông xem hồ sơ (nút thao tác: {so_nut_hs}), Kho → Thiết bị đồ nghề 6 thẻ, Kết quả kinh doanh mọi tháng; lệnh ghi: {chan}')
 
     # Điện thoại: chi tiết hồ sơ
     dt = mo(b, 'duy@gara.vn', rong=390)

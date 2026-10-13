@@ -111,8 +111,8 @@ export default async function trangDoanhThu(el) {
     const soNgay = (d) => (d ? Math.max(0, Math.floor((homNayMs - new Date(d).getTime()) / 864e5)) : null);
     const [hs, ncc, noiBoTatCa] = await Promise.all([
       api.doc('v_ho_so', (q) => q.neq('trang_thai', 'huy').or('con_no_khach.gt.0,con_no_bh.gt.0').order('giao_luc', { ascending: true, nullsFirst: false }).order('ngay_vao')),
-      api.coVaiTro('giam_doc', 'ke_toan', 'quan_ly') ? api.doc('v_cong_no_ncc').catch(() => []) : [],
-      api.coVaiTro('giam_doc', 'ke_toan', 'quan_ly') ? api.doc('v_cong_no_noi_bo', (q) => q.order('ten')).catch(() => []) : [],
+      api.duocXem('giam_doc', 'ke_toan', 'quan_ly') ? api.doc('v_cong_no_ncc').catch(() => []) : [],
+      api.duocXem('giam_doc', 'ke_toan', 'quan_ly') ? api.doc('v_cong_no_noi_bo', (q) => q.order('ten')).catch(() => []) : [],
     ]);
     // Nội bộ & cá nhân (027): còn lại dương = họ nợ công ty, âm = công ty nợ họ (giám đốc, cổ đông cho công ty mượn)
     const noiBo = noiBoTatCa.map((r) => ({ ...r, con: Number(r.con_lai) })).filter((r) => r.con !== 0 || Number(r.da_chi) || Number(r.da_thu) || r.hoat_dong !== false);
@@ -282,7 +282,7 @@ export default async function trangDoanhThu(el) {
     // ----- Khóa sổ từng tháng -----
     const dongThang = (d) => {
       const thieu = d.thieu_dinh_ky || [];
-      const nutLap = (ten) => h('a', { class: 'nut nho', href: `#/de-nghi?lap=1&muc=${encodeURIComponent(ten)}&ky=${String(d.thang).slice(0, 10)}` }, `+ ${ten}`);
+      const nutLap = (ten) => (api.laCoDong() ? h('span', null, ten) : h('a', { class: 'nut nho', href: `#/de-nghi?lap=1&muc=${encodeURIComponent(ten)}&ky=${String(d.thang).slice(0, 10)}` }, `+ ${ten}`));
       return h('div', { class: `dong-thang ${d.trang_thai}` },
         h('div', { class: 'dong-thang-dau' }, h('b', null, `Tháng ${nhanThang(d)}`), h('small', null, ` kỳ 01/${nhanThang(d)} – ${ngay(d.ngay_cuoi)}`), theTT(d),
           d.da_chot ? h('small', null, ` · chốt lúc ${ngayGio(d.chot_luc)}`) : null),

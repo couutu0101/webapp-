@@ -110,16 +110,16 @@ function khungDong(taoDong, nhanThem = '+ Thêm dòng') {
 
 export default async function trangKho(el) {
   await taiHang();
-  const vanPhong = api.laNhanVien();
+  const vanPhong = api.xemNhuNhanVien();
   const THE = [
     ['ton', 'Tồn kho', true],
     ['de_xuat', 'Đề xuất & xuất', true],
     ['nhap', 'Nhập kho', vanPhong],
     ['mua', 'Mua hàng', vanPhong],
-    ['kiem_ke', 'Kiểm kê', api.coVaiTro('kho', 'quan_ly', 'giam_doc')],
-    ['cong_no', 'Công nợ NCC', api.coVaiTro('kho', 'quan_ly', 'giam_doc', 'ke_toan')],
-    ['nxt', 'Nhập – xuất – tồn', api.coVaiTro('kho', 'quan_ly', 'giam_doc', 'ke_toan')],
-    ['thiet_bi', 'Thiết bị đồ nghề', api.coVaiTro('giam_doc', 'quan_ly', 'ke_toan', 'kho', 'truong_nhom')],
+    ['kiem_ke', 'Kiểm kê', api.duocXem('kho', 'quan_ly', 'giam_doc')],
+    ['cong_no', 'Công nợ NCC', api.duocXem('kho', 'quan_ly', 'giam_doc', 'ke_toan')],
+    ['nxt', 'Nhập – xuất – tồn', api.duocXem('kho', 'quan_ly', 'giam_doc', 'ke_toan')],
+    ['thiet_bi', 'Thiết bị đồ nghề', api.duocXem('giam_doc', 'quan_ly', 'ke_toan', 'kho', 'truong_nhom')],
   ].filter((t) => t[2]);
   const thamSo = new URLSearchParams(location.hash.split('?')[1] || '');
   let the = thamSo.get('the') || nhoPhien.doc('kho_the') || 'ton';
@@ -161,7 +161,7 @@ export default async function trangKho(el) {
     const veBang = () => {
       const g = tuKhoa.toLowerCase();
       const ds = dsHang.filter((x) => (!g || `${x.ma} ${x.ten}`.toLowerCase().includes(g)) && (!nhom || x.nhom === nhom) && (!chiThieu || x.duoi_toi_thieu));
-      const coGia = api.laNhanVien();
+      const coGia = api.xemNhuNhanVien();
       const tongGT = ds.reduce((s, x) => s + Number(x.gia_tri || 0), 0);
       dat(kq,
         h('p', { class: 'mo-ta' }, `${ds.length} mã`, coGia ? ` · Giá trị tồn ${tien(tongGT)} đ` : '',
@@ -276,7 +276,7 @@ export default async function trangKho(el) {
 
   // ---------------- Kiểm kê ----------------
   async function veKiemKe() {
-    nut.append(h('button', { class: 'nut chinh', type: 'button', onclick: () => moTaoKiemKe(ve) }, '+ Đợt kiểm kê'));
+    if (api.coVaiTro('kho', 'quan_ly', 'giam_doc')) nut.append(h('button', { class: 'nut chinh', type: 'button', onclick: () => moTaoKiemKe(ve) }, '+ Đợt kiểm kê'));
     const ds = await api.doc('kiem_ke', (q) => q.order('id', { ascending: false }).limit(60));
     dat(vung, h('section', { class: 'the' },
       h('p', { class: 'mo-ta' }, 'Sơn và nhám kiểm mỗi thứ Bảy, toàn kho cuối tháng. Nhập số đếm thực tế (không hiện số sổ sách để đếm khách quan); chốt thì phần mềm so với sổ sách và tự điều chỉnh tồn. Chênh trên 5% giá trị phải ghi biên bản.'),
@@ -404,14 +404,14 @@ async function moTheKho(x, veLai) {
   const LOAI = { nhap: 'Nhập', kiem_ke_thua: 'Kiểm kê thừa', xuat_cho_xe: 'Xuất cho xe', xuat_dung_chung: 'Xuất dùng chung', kiem_ke_thieu: 'Kiểm kê thiếu' };
   const noiDung = h('div', null,
     h('p', { class: 'mo-ta' }, `${x.ten} · Nhóm ${x.nhom} · Tồn ${sl(x.ton)} ${x.dvt}`, quyDoi(x) ? ` · ${quyDoi(x)}` : '',
-      api.laNhanVien() ? ` · Giá trị ${tien(x.gia_tri)} đ` : ''),
+      api.xemNhuNhanVien() ? ` · Giá trị ${tien(x.gia_tri)} đ` : ''),
     api.coVaiTro('kho', 'quan_ly', 'giam_doc') ? h('div', { class: 'hang-nut' }, h('button', { class: 'nut', type: 'button', onclick: (e) => { e.target.closest('.modal-nen')?.remove(); moHang(x, veLai); } }, 'Sửa mã hàng')) : null,
     bang([
       { nhan: 'Ngày', lay: (p) => ngay(p.ngay) },
       { nhan: 'Loại', lay: (p) => LOAI[p.loai] || p.loai },
       { nhan: 'Chứng từ', lay: (p) => p.chung_tu },
       { nhan: 'Số lượng', so: true, lay: (p) => h('span', { class: Number(p.so_luong) < 0 ? 'chu-loi' : 'chu-tot' }, `${Number(p.so_luong) > 0 ? '+' : ''}${sl(p.so_luong)}`) },
-      api.laNhanVien() ? { nhan: 'Giá trị', so: true, lay: (p) => tien(p.gia_tri) } : null,
+      api.xemNhuNhanVien() ? { nhan: 'Giá trị', so: true, lay: (p) => tien(p.gia_tri) } : null,
     ].filter(Boolean), ps, { trong: 'Chưa có nhập xuất.' }));
   moModal(`Thẻ kho ${x.ma}`, noiDung, { rong: true });
 }
@@ -488,7 +488,7 @@ export async function moDeXuat(id, veLai) {
     phieu.length ? h('div', null, h('h3', null, 'Phiếu xuất'), bang([
       { nhan: 'Phiếu', lay: (p) => h('b', null, p.ma) },
       { nhan: 'Ngày', lay: (p) => ngay(p.ngay) },
-      api.laNhanVien() ? { nhan: 'Giá vốn', so: true, lay: (p) => tien(p.gia_von) } : null,
+      api.xemNhuNhanVien() ? { nhan: 'Giá vốn', so: true, lay: (p) => tien(p.gia_von) } : null,
       { nhan: '', lay: (p) => (p.trang_thai === 'huy' ? h('small', null, `Đã hủy: ${p.ly_do_huy || ''}`)
         : laKho() ? h('button', { class: 'nut-chu', type: 'button', onclick: () => huyXuat(p) }, 'Hủy phiếu xuất') : '') },
     ].filter(Boolean), phieu)) : null);
@@ -887,6 +887,7 @@ async function moKiemKe(id, veLai) {
   const [[r], dongs] = await Promise.all([api.doc('kiem_ke', (q) => q.eq('id', id)), api.doc('kiem_ke_dong', (q) => q.eq('kiem_ke_id', id).order('id'))]);
   if (!r) return;
   const dangDem = r.trang_thai === 'dang_dem';
+  const choDem = dangDem && !api.laCoDong();          // cổ đông chỉ xem số đã đếm, không nhập
   const o = new Map();
   const noiDung = h('div', null,
     h('p', { class: 'mo-ta' }, `${ngay(r.ngay)} · ${PHAM_VI[r.pham_vi]} · ${dongs.length} mã`, r.bien_ban ? ` · Biên bản: ${r.bien_ban}` : ''),
@@ -895,7 +896,7 @@ async function moKiemKe(id, veLai) {
       { nhan: 'ĐVT', lay: (d) => hangTheoId(d.hang_id)?.dvt || '' },
       dangDem ? null : { nhan: 'Sổ sách', so: true, lay: (d) => sl(d.ton_so_sach) },
       { nhan: 'Thực tế', so: true, lay: (d) => {
-        if (!dangDem) return sl(d.ton_thuc_te);
+        if (!choDem) return d.ton_thuc_te === null || d.ton_thuc_te === undefined ? '' : sl(d.ton_thuc_te);
         const oS = oSoLuong('ton_thuc_te', d.ton_thuc_te ?? '', { 'aria-label': `Số đếm ${hangTheoId(d.hang_id)?.ma}` });
         o.set(d.id, oS); return oS;
       } },
@@ -905,7 +906,7 @@ async function moKiemKe(id, veLai) {
     r.trang_thai === 'da_chot' ? h('p', { class: 'tong-phieu' }, 'Giá trị kiểm ', h('b', null, `${tien(r.gia_tri_so_sach)} đ`), ' · chênh lệch ', h('b', null, `${tien(r.gia_tri_chenh)} đ`)) : null);
   const docDem = () => [...o.entries()].map(([dongId, oS]) => ({ dong_id: dongId, ton_thuc_te: docSo(oS.value) }));
   let dongModal = () => noiDung.closest('.modal-nen')?.remove();
-  if (dangDem) {
+  if (choDem) {
     const oBienBan = oVung('bien_ban', '', { placeholder: 'Bắt buộc nếu chênh trên 5% giá trị: nguyên nhân, người chứng kiến…' });
     noiDung.append(truong('Biên bản (khi chốt)', oBienBan, null, { rong: true }),
       h('div', { class: 'hang-nut' },
@@ -948,5 +949,5 @@ export async function khoiPhuTungXe(hs, veLai) {
       { nhan: 'Người lập', lay: (r) => r.nguoi_lap_ten || '' },
       { nhan: 'Trạng thái', lay: (r) => h('span', null, TT_DE_XUAT[r.trang_thai], r.so_dong_cho_mua ? h('span', { class: 'nhan tt-canh-bao' }, 'Chờ mua') : null) },
     ], dx, { onRow: (r) => moDeXuat(r.id, veLai) }) : h('p', { class: 'trong' }, 'Chưa có phiếu đề xuất vật tư.'),
-    px.length && api.laNhanVien() ? h('p', { class: 'mo-ta' }, `Đã xuất ${px.length} phiếu · giá vốn phụ tùng, vật tư ${tien(giaVon)} đ`) : null);
+    px.length && api.xemNhuNhanVien() ? h('p', { class: 'mo-ta' }, `Đã xuất ${px.length} phiếu · giá vốn phụ tùng, vật tư ${tien(giaVon)} đ`) : null);
 }

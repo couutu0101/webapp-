@@ -567,7 +567,7 @@ function theTien({ hs, giaVon }) {
     Number(hs.con_no_khach) < 0 ? d('Khách trả dư – cần trả lại', -Number(hs.con_no_khach), true) : d('Khách còn nợ', hs.con_no_khach, true),
     Number(hs.con_no_khach) < 0 ? h('p', { class: 'goi-y' }, 'Trả lại khách: lập Đề nghị chi, mục "Trả lại cọc cho khách", chọn xe này.') : null,
     // Giá vốn phụ tùng, vật tư đã xuất cho xe và lãi gộp (doanh thu sau VAT − giá vốn)
-    q('giam_doc', 'quan_ly', 'ke_toan') && (giaVon || Number(hs.bh_duyet) || Number(hs.khach_duyet)) ? [h('hr'),
+    api.duocXem('giam_doc', 'quan_ly', 'ke_toan') && (giaVon || Number(hs.bh_duyet) || Number(hs.khach_duyet)) ? [h('hr'),
       d('Phụ tùng, vật tư đã xuất (giá vốn)', giaVon),
       d('Lãi gộp', Number(hs.bh_duyet) + Number(hs.khach_duyet) - Number(hs.giam_gia || 0) - giaVon, true)] : null,
     q('ke_toan', 'giam_doc') && !['dong', 'huy'].includes(hs.trang_thai)
@@ -602,7 +602,7 @@ function theTep({ hs, tep, ve }) {
     if (n) { toast(`Đã tải ${n} tệp.`); ve(); }
   });
   return h('section', { class: 'the' }, h('h2', null, `Ảnh & giấy tờ (${tep.length})`),
-    !['dong', 'huy'].includes(hs.trang_thai) || q('ke_toan', 'giam_doc')
+    !api.laCoDong() && (!['dong', 'huy'].includes(hs.trang_thai) || q('ke_toan', 'giam_doc'))
       ? h('div', { class: 'tai-tep' }, chonBuoc, h('label', { class: 'nut' }, 'Chụp / chọn tệp', oTep)) : null,
     tep.length ? luoi : h('p', { class: 'trong' }, 'Chưa có ảnh.'));
 }

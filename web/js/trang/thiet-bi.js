@@ -39,7 +39,7 @@ const chipNv = (id, tenLuu = null) => { const nv = tenNv(id); return nv ? chipNg
 const quanLy = () => api.coVaiTro('giam_doc', 'quan_ly', 'kho');           // thêm, sửa, giao, chuyển nhóm, thanh lý
 const xuLySuCo = () => api.coVaiTro('giam_doc', 'quan_ly');
 const kiemKe = () => api.coVaiTro('giam_doc', 'quan_ly', 'ke_toan');
-const xemGiaTri = () => api.coVaiTro('giam_doc', 'quan_ly', 'ke_toan', 'kho');
+const xemGiaTri = () => api.duocXem('giam_doc', 'quan_ly', 'ke_toan', 'kho');
 const phuTrach = (n) => api.coVaiTro('giam_doc', 'quan_ly')
   || (n.to_id ? api.coVaiTro('truong_nhom') && api.toi.to_id === n.to_id : (n.vai_phu_trach || []).some((v) => api.coVaiTro(v)));
 const ghiBaoDuongDuoc = (n) => phuTrach(n) || api.coVaiTro('kho');

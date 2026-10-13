@@ -16,13 +16,15 @@ import trangDanhMuc from './trang/danh-muc.js';
 import trangNhanVien from './trang/nhan-vien.js';
 
 const MENU = [
+  { duong: 'co-dong', nhan: 'Báo cáo cổ đông', ic: 'doanhThu', ai: () => api.laCoDong() },
   { duong: 'viec', nhan: 'Việc hôm nay', ic: 'viec', ai: () => api.laNhanVien() || api.coVaiTro('truong_nhom') },
-  { duong: 'ho-so', nhan: 'Hồ sơ xe', ic: 'xe', ai: () => api.laNhanVien() },
-  { duong: 'dich-vu', nhan: 'Dịch vụ nhanh', ic: 'nhanh', ai: () => api.laNhanVien() || api.coVaiTro('truong_nhom') },
-  { duong: 'thu-chi', nhan: 'Thu chi', ic: 'quy', ai: () => api.coVaiTro('giam_doc', 'ke_toan', 'quan_ly') },
-  { duong: 'de-nghi', nhan: 'Đề nghị chi', ic: 'phieu', ai: () => api.laNhanVien() || api.coVaiTro('truong_nhom') },
-  { duong: 'kho', nhan: 'Kho', ic: 'kho', ai: () => api.laNhanVien() || api.coVaiTro('truong_nhom') },
-  { duong: 'doanh-thu', nhan: 'Doanh thu & công nợ', ic: 'doanhThu', ai: () => api.coVaiTro('giam_doc', 'ke_toan', 'quan_ly') },
+  // Cổ đông (030) xem được các trang số liệu, không có nút thao tác
+  { duong: 'ho-so', nhan: 'Hồ sơ xe', ic: 'xe', ai: () => api.xemNhuNhanVien() },
+  { duong: 'dich-vu', nhan: 'Dịch vụ nhanh', ic: 'nhanh', ai: () => api.xemNhuNhanVien() || api.coVaiTro('truong_nhom') },
+  { duong: 'thu-chi', nhan: 'Thu chi', ic: 'quy', ai: () => api.duocXem('giam_doc', 'ke_toan', 'quan_ly') },
+  { duong: 'de-nghi', nhan: 'Đề nghị chi', ic: 'phieu', ai: () => api.xemNhuNhanVien() || api.coVaiTro('truong_nhom') },
+  { duong: 'kho', nhan: 'Kho', ic: 'kho', ai: () => api.xemNhuNhanVien() || api.coVaiTro('truong_nhom') },
+  { duong: 'doanh-thu', nhan: 'Doanh thu & công nợ', ic: 'doanhThu', ai: () => api.duocXem('giam_doc', 'ke_toan', 'quan_ly') },
   { duong: 'danh-muc', nhan: 'Danh mục', ic: 'danhMuc', ai: () => api.coVaiTro('giam_doc', 'ke_toan') },
   { duong: 'nhan-vien', nhan: 'Nhân viên', ic: 'nguoi', ai: () => api.coVaiTro('giam_doc') },
 ];
@@ -102,7 +104,7 @@ function manDatMatKhau({ lanDau = false } = {}) {
       await api.datMatKhau(mk);
       await api.daDoiMatKhau().catch(() => {});
       dangDatMatKhau = false;
-      history.replaceState(null, '', location.pathname + '#/viec');
+      history.replaceState(null, '', location.pathname + '#/');
       toast('Đã lưu mật khẩu.');
       await vaoUngDung();
     } catch (err) { baoLoi(err); }
@@ -117,7 +119,7 @@ function dungKhung() {
   const menu = MENU.filter((m) => m.ai());
   const chiNhanh = (api.dm.ten('chi_nhanh', toi.chi_nhanh_id) || '').replace(/^.*[–-]\s*/, '');
   const nav = h('nav', { class: 'menu', id: 'menu', 'aria-label': 'Menu chính' },
-    h('a', { class: 'thuong-hieu', href: '#/viec', 'aria-label': `${TEN_GARA} – về Việc hôm nay` },
+    h('a', { class: 'thuong-hieu', href: '#/', 'aria-label': `${TEN_GARA} – về trang đầu` },
       h('img', { class: 'logo-ngang', src: 'img/logo-ngang.svg', alt: 'Auto Hoàng Sơn', width: 5662, height: 1323 }),
       chiNhanh ? h('small', null, /^CN\b/i.test(chiNhanh) ? chiNhanh.replace(/^CN\s*/i, 'Chi nhánh ') : chiNhanh) : null),
     h('div', { class: 'menu-ds' }, menu.map((m) => h('a', { href: `#/${m.duong}`, 'data-duong': m.duong }, icon(m.ic), h('span', null, m.nhan)))),
@@ -128,7 +130,7 @@ function dungKhung() {
   const dau = h('header', { class: 'dau' },
     h('button', { class: 'nut-menu', type: 'button', 'aria-label': 'Mở menu', 'aria-controls': 'menu',
       onclick: () => document.body.classList.toggle('mo-menu') }, icon('menu')),
-    h('a', { class: 'ten-gara', href: '#/viec', 'aria-label': `${TEN_GARA} – về Việc hôm nay` },
+    h('a', { class: 'ten-gara', href: '#/', 'aria-label': `${TEN_GARA} – về trang đầu` },
       h('img', { class: 'logo-ngang', src: 'img/logo-ngang.svg', alt: 'Auto Hoàng Sơn', width: 5662, height: 1323 })),
     h('span', { class: 'chi-nhanh' }, chiNhanh));
   const noiDung = h('main', { class: 'noi-dung', id: 'noi-dung', tabindex: '-1' });
@@ -145,7 +147,7 @@ async function dieuHuong() {
   if (!khung || dangDatMatKhau) return;
   const duong = (location.hash.replace(/^#\/?/, '') || '').split('?')[0];
   if (!duong) {
-    location.hash = api.coVaiTro('co_dong') && !api.laNhanVien() ? '#/co-dong' : '#/viec';
+    location.replace(api.laCoDong() && !api.laNhanVien() ? '#/co-dong' : '#/viec');
     return;
   }
   for (const a of khung.nav.querySelectorAll('.menu-ds a')) {

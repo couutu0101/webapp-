@@ -23,7 +23,7 @@ export default async function trangDeNghi(el) {
 
   dat(el, 
     h('div', { class: 'tieu-de-trang' }, h('h1', null, 'Đề nghị chi'),
-      h('button', { class: 'nut chinh', type: 'button', onclick: () => moLap() }, '+ Lập đề nghị chi')),
+      api.laCoDong() ? null : h('button', { class: 'nut chinh', type: 'button', onclick: () => moLap() }, '+ Lập đề nghị chi')),
     h('p', { class: 'mo-ta' }, `Mọi khoản chi đều qua đề nghị. Quản lý chung duyệt đến ${tien(hanMuc)} đ, trên mức này giám đốc duyệt. Không ai tự duyệt đề nghị của mình. Kế toán chỉ chi khi đã duyệt.`),
     h('section', { class: 'the' }, tabs, ds));
 
@@ -145,7 +145,7 @@ export default async function trangDeNghi(el) {
   await tai();
   // Mở sẵn form từ trang khác: #/de-nghi?lap=1&muc=Điện&ky=2026-10-01 (Kết quả kinh doanh), &tien=…&nd=…&nhan=… (bảo dưỡng tài sản thuê ngoài)
   const thamSo = new URLSearchParams(location.hash.split('?')[1] || '');
-  if (thamSo.get('lap')) {
+  if (thamSo.get('lap') && !api.laCoDong()) {
     history.replaceState(null, '', '#/de-nghi');
     await moLap({ mucTen: thamSo.get('muc'), kyMacDinh: thamSo.get('ky'), soTien: thamSo.get('tien') ? Number(thamSo.get('tien')) : null, noiDung: thamSo.get('nd') || '', nguoiNhan: thamSo.get('nhan') || '' });
   }

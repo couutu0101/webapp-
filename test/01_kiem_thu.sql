@@ -323,10 +323,21 @@ select public.lap_phieu_thu(jsonb_build_object('tai_khoan_id',(select id from pu
 select kt.ghi('Dịch vụ nhanh đã thu', (select da_thu from public.v_dich_vu_nhanh where id=(select v::bigint from ctx where k='dvn')) = 80000);
 select kt.ghi('Doanh thu hôm nay có dịch vụ nhanh', exists (select 1 from public.v_doanh_thu where nguon='dich_vu_nhanh' and so_tien=80000));
 
+select kt.dong_vai(null);
+insert into ctx select 'so_hs', (select count(*) from public.ho_so where chi_nhanh_id = 'TK')::text;
+insert into ctx select 'so_phieu', (select count(*) from public.phieu_thu_chi where chi_nhanh_id = 'TK')::text;
 select kt.dong_vai('codong@gara.vn');
-select kt.ghi('Cổ đông không thấy hồ sơ', (select count(*) from public.v_ho_so) = 0);
-select kt.ghi('Cổ đông không thấy sổ quỹ', (select count(*) from public.v_phieu_thu_chi) = 0);
+select kt.ghi('030 Cổ đông xem được mọi hồ sơ, tiền hồ sơ (v_ho_so)', (select count(*) from public.ho_so) = (select v::int from ctx where k='so_hs')
+  and (select count(*) from public.v_ho_so) > 0 and (select count(*) from public.v_ho_so where phai_thu_khach is not null) > 0);
+select kt.ghi('030 Cổ đông xem được phiếu thu chi, sổ quỹ', (select count(*) from public.v_phieu_thu_chi) = (select v::int from ctx where k='so_phieu')
+  and (select v::int from ctx where k='so_phieu') > 0 and (select count(*) from public.v_so_du_quy) > 0);
+select kt.ghi('030 Cổ đông xem được dịch vụ nhanh, khách hàng, xe', (select count(*) from public.v_dich_vu_nhanh) > 0
+  and (select count(*) from public.khach_hang) > 0 and (select count(*) from public.xe) > 0);
 select kt.mong_loi('Cổ đông không tiếp nhận xe được', $$select public.tiep_nhan_xe('{}')$$, 'không có quyền');
+select kt.mong_loi('030 Cổ đông không lập đề nghị chi được', $$select public.lap_de_nghi_chi('{"so_tien":1000,"noi_dung":"thử"}')$$, 'không có quyền');
+select kt.mong_loi('030 Cổ đông không ghi dịch vụ nhanh được', $$select public.ghi_dich_vu_nhanh('{"dich_vu":"Rửa xe","so_tien":50000}')$$, 'không có quyền');
+select kt.mong_loi('030 Cổ đông không sửa danh mục được (thêm hãng xe)', $$insert into public.hang_xe (ten) values ('Thử cổ đông')$$, 'row-level security');
+select kt.mong_loi('030 Cổ đông không giao việc được', format('select public.giao_viec(%s, %L::uuid)', (select min(id) from public.ho_so), (select id from public.nhan_vien where email='duy@gara.vn')), 'không có quyền');
 
 select kt.dong_vai('duy@gara.vn');
 select public.huy_ho_so((select v::bigint from ctx where k='hs3'), 'Khách không sửa');
@@ -546,8 +557,14 @@ select kt.ghi('Chốt kiểm kê: tồn sơn còn 0,5 lít', (select ton from pu
 select public.huy_phieu_xuat((select v::bigint from ctx where k='px_chung'), 'Xuất nhầm');
 select kt.ghi('Hủy phiếu xuất dùng chung: hàng về lại kho (1,5 lít)', (select ton from public.v_ton_kho where id=(select v::bigint from ctx where k='hang_son')) = 1.5);
 select kt.ghi('Thẻ kho cộng đúng tồn', (select sum(so_luong) from public.v_the_kho where hang_id=(select v::bigint from ctx where k='hang_son')) = 1.5);
+select kt.dong_vai(null);
+insert into ctx select 'so_hang', (select count(*) from public.hang_kho where chi_nhanh_id = 'TK')::text;
+insert into ctx select 'so_pn', (select count(*) from public.phieu_nhap where chi_nhanh_id = 'TK')::text;
 select kt.dong_vai('codong@gara.vn');
-select kt.ghi('Cổ đông không thấy kho', (select count(*) from public.v_ton_kho) = 0 and (select count(*) from public.phieu_nhap) = 0);
+select kt.ghi('030 Cổ đông xem được kho: tồn, phiếu nhập, thẻ kho, công nợ NCC', (select count(*) from public.v_ton_kho) = (select v::int from ctx where k='so_hang')
+  and (select count(*) from public.phieu_nhap) = (select v::int from ctx where k='so_pn') and (select v::int from ctx where k='so_pn') > 0
+  and (select count(*) from public.v_the_kho) > 0 and (select count(*) from public.v_de_xuat) > 0);
+select kt.mong_loi('030 Cổ đông không xuất dùng chung được', format($f$select public.xuat_dung_chung('{"dung_vao":"thử","dong":[{"hang_id":%s,"so_luong":1}]}')$f$, (select v from ctx where k='hang_son')), 'quyền');
 
 -- ---------------- 013: xuất Excel – chỉ giám đốc ----------------
 select kt.dong_vai('long@gara.vn');
@@ -890,8 +907,18 @@ select public.thanh_ly_tai_san((select v::bigint from ctx where k='ts_tuyp'), 'M
 select kt.ghi('028 Chuyển nhóm → chờ nhóm mới xác nhận; thanh lý → không còn tính', (select nhom_id = 'DMG' and cho_nhan from public.tai_san where id = (select v::bigint from ctx where k='ts_bua'))
   and (select so_tai_san from public.v_nhom_tai_san where nhom_id = 'DS') = 1);
 select kt.dong_vai(null);
+select kt.dong_vai(null);
+insert into ctx select 'so_ts', (select count(*) from public.tai_san where chi_nhanh_id = 'TK')::text;
 select kt.dong_vai('codong@gara.vn');
-select kt.ghi('028 Cổ đông không thấy tài sản', (select count(*) from public.v_tai_san) = 0);
+select kt.ghi('030 Cổ đông xem được thiết bị đồ nghề mọi nhóm, sự cố, kiểm tra', (select count(*) from public.v_tai_san) = (select v::int from ctx where k='so_ts')
+  and (select count(*) from public.v_nhom_tai_san) = 5 and (select count(*) from public.su_co_tai_san) > 0 and (select count(*) from public.kiem_tra_tai_san) > 0);
+select kt.mong_loi('030 Cổ đông không thêm thiết bị được', $$select public.luu_tai_san('{"ten":"Máy thử","loai":"may_moc","nhom_id":"VP"}')$$, 'quyền');
+select kt.ghi('030 Cổ đông xem được kết quả kinh doanh mọi tháng (cả tháng chưa chốt), công nợ, nợ nội bộ, lương',
+  exists (select 1 from public.ket_qua_kinh_doanh(null) where thang = date_trunc('month', current_date)::date) and (select count(*) from public.v_cong_no_noi_bo) > 0
+  and (select count(*) from public.bang_luong_thang) > 0 and (select count(*) from public.nhan_vien) > 1);
+select kt.mong_loi('030 Cổ đông không chốt tháng được', $$select public.chot_thang(date_trunc('month', current_date - interval '1 month')::date, true, null)$$, 'quyền');
+select kt.mong_loi('030 Cổ đông không lập phiếu thu được', $$select public.lap_phieu_thu('{"so_tien":1000}')$$, 'quyền');
+select kt.ghi('030 Cổ đông không xem nhật ký xuất file', (select count(*) from public.nhat_ky_xuat_file) = 0);
 select kt.dong_vai(null);
 \o
 \echo '======== KẾT QUẢ ========'
