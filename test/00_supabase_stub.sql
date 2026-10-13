@@ -13,6 +13,19 @@ create table if not exists auth.users (
   raw_user_meta_data jsonb default '{}'::jsonb,
   created_at timestamptz default now()
 );
+-- Các cột / bảng auth giống Supabase thật (cho hàm tạo tài khoản nhân viên – 017)
+create schema if not exists extensions;
+create extension if not exists pgcrypto with schema extensions;
+alter table auth.users add column if not exists instance_id uuid, add column if not exists aud text, add column if not exists role text,
+  add column if not exists encrypted_password text, add column if not exists email_confirmed_at timestamptz,
+  add column if not exists raw_app_meta_data jsonb, add column if not exists updated_at timestamptz,
+  add column if not exists confirmation_token text, add column if not exists recovery_token text,
+  add column if not exists email_change_token_new text, add column if not exists email_change text;
+create table if not exists auth.identities (
+  id uuid primary key default gen_random_uuid(), user_id uuid not null references auth.users(id) on delete cascade,
+  provider_id text not null, provider text not null, identity_data jsonb not null,
+  last_sign_in_at timestamptz, created_at timestamptz, updated_at timestamptz, unique (provider_id, provider));
+create table if not exists auth.sessions (id uuid primary key default gen_random_uuid(), user_id uuid references auth.users(id) on delete cascade);
 create or replace function auth.uid() returns uuid language sql stable as $$
   select nullif(current_setting('request.jwt.claims', true)::json->>'sub','')::uuid
 $$;

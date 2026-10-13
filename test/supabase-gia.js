@@ -41,8 +41,8 @@ class Truy {
 export function createClient() {
   return {
     auth: {
-      async signInWithPassword({ email }) {
-        const r = await goi('/api/dang-nhap', { email });
+      async signInWithPassword({ email, password }) {
+        const r = await goi('/api/dang-nhap', { email, mat_khau: password });
         if (r.error) return { data: null, error: r.error };
         user = r.data; localStorage.setItem('gia_user', JSON.stringify(user));
         setTimeout(() => phat('SIGNED_IN'), 0);
@@ -52,7 +52,10 @@ export function createClient() {
       async getSession() { return { data: { session: user ? { user } : null } }; },
       onAuthStateChange(cb) { nghe.push(cb); return { data: { subscription: { unsubscribe() {} } } }; },
       async resetPasswordForEmail() { return { error: null }; },
-      async updateUser() { return { error: null }; },
+      async updateUser({ password } = {}) {
+        if (password) { const r = await goi('/api/doi-mat-khau', { mat_khau: password }); if (r.error) return { error: r.error }; }
+        return { error: null };
+      },
     },
     from: (bang) => new Truy(bang),
     rpc: (ham, ts) => goi('/api/rpc', { ham, ts }),

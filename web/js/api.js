@@ -31,11 +31,18 @@ export async function sua(bang, id, giaTri, khoa = 'id') {
 }
 
 // ---------- Đăng nhập ----------
+// Nhân viên đăng nhập bằng tên đăng nhập (vd duy.cvdv) → địa chỉ nội bộ; giám đốc vẫn gõ email
+export const DUOI_NOI_BO = '@nv.autohoangson.com';
+export const emailDangNhap = (s) => { const t = String(s || '').trim().toLowerCase(); return t.includes('@') ? t : `${t}${DUOI_NOI_BO}`; };
 export const dangNhap = async (email, matKhau) => {
-  const { data, error } = await sb.auth.signInWithPassword({ email, password: matKhau });
-  if (error) throw new Error(error.message === 'Invalid login credentials' ? 'Sai email hoặc mật khẩu.' : error.message);
+  const { data, error } = await sb.auth.signInWithPassword({ email: emailDangNhap(email), password: matKhau });
+  if (error) throw new Error(error.message === 'Invalid login credentials' ? 'Sai tên đăng nhập hoặc mật khẩu.' : error.message);
   return data;
 };
+// Giám đốc: tạo tài khoản nhân viên, đặt lại mật khẩu
+export const taoTaiKhoan = (p) => rpc('tao_tai_khoan_nhan_vien', { p });
+export const datLaiMatKhau = (id, matKhau) => rpc('dat_lai_mat_khau', { p_id: id, p_mat_khau: matKhau });
+export const daDoiMatKhau = () => rpc('da_doi_mat_khau');
 export const dangXuat = () => sb.auth.signOut();
 export const layPhien = async () => (await sb.auth.getSession()).data.session;
 export const khiDoiPhien = (cb) => sb.auth.onAuthStateChange(cb);

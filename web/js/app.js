@@ -58,14 +58,15 @@ function manDangNhap() {
     h('div', { class: 'logo' }, 'HS'),
     h('h1', null, TEN_GARA),
     h('p', { class: 'mo-ta' }, 'Phần mềm quản lý gara'),
-    truong('Email', h('input', { type: 'email', name: 'email', autocomplete: 'username', required: true })),
+    truong('Tên đăng nhập hoặc email', h('input', { type: 'text', name: 'email', autocomplete: 'username', autocapitalize: 'none', spellcheck: 'false', required: true }),
+      'Nhân viên gõ tên đăng nhập (vd duy.cvdv); giám đốc gõ email.'),
     truong('Mật khẩu', h('input', { type: 'password', name: 'mat_khau', autocomplete: 'current-password', required: true })),
     h('button', { class: 'nut chinh rong', type: 'submit' }, 'Đăng nhập'),
     h('button', { class: 'nut-chu', type: 'button', onclick: quenMatKhau }, 'Quên mật khẩu?'));
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const { email, mat_khau } = docForm(form);
-    if (!email || !mat_khau) return toast('Nhập email và mật khẩu.', 'loi');
+    if (!email || !mat_khau) return toast('Nhập tên đăng nhập và mật khẩu.', 'loi');
     const nut = form.querySelector('button[type=submit]');
     nut.disabled = true; nut.textContent = 'Đang đăng nhập…';
     try { await api.dangNhap(email, mat_khau); }
@@ -74,20 +75,24 @@ function manDangNhap() {
   async function quenMatKhau() {
     const email = form.email.value.trim();
     if (!email) return toast('Nhập email trước, rồi bấm "Quên mật khẩu?".', 'loi');
+    if (!email.includes('@')) return toast('Nhân viên quên mật khẩu: báo giám đốc đặt lại mật khẩu trong mục Nhân viên.', 'loi');
     try { await api.guiQuenMatKhau(email); toast('Đã gửi email đặt lại mật khẩu. Mở email và bấm vào đường dẫn.'); }
     catch (err) { baoLoi(err); }
   }
   dat(goc, h('main', { class: 'man-hinh' }, form));
 }
 
-function manDatMatKhau() {
+function manDatMatKhau({ lanDau = false } = {}) {
   dangDatMatKhau = true;
   const form = h('form', { class: 'the dang-nhap', novalidate: true },
-    h('h1', null, 'Đặt mật khẩu'),
-    h('p', { class: 'mo-ta' }, 'Đặt mật khẩu mới để dùng cho các lần đăng nhập sau.'),
+    h('h1', null, lanDau ? 'Đổi mật khẩu lần đầu' : 'Đặt mật khẩu'),
+    h('p', { class: 'mo-ta' }, lanDau
+      ? 'Mật khẩu hiện tại do giám đốc đặt. Đặt mật khẩu riêng của anh/chị để tiếp tục – chỉ mình anh/chị biết.'
+      : 'Đặt mật khẩu mới để dùng cho các lần đăng nhập sau.'),
     truong('Mật khẩu mới (ít nhất 8 ký tự)', h('input', { type: 'password', name: 'mk', autocomplete: 'new-password', minlength: 8 })),
     truong('Nhập lại mật khẩu', h('input', { type: 'password', name: 'mk2', autocomplete: 'new-password' })),
-    h('button', { class: 'nut chinh rong', type: 'submit' }, 'Lưu mật khẩu'));
+    h('button', { class: 'nut chinh rong', type: 'submit' }, 'Lưu mật khẩu'),
+    lanDau ? h('button', { class: 'nut-chu', type: 'button', onclick: () => { dangDatMatKhau = false; api.dangXuat(); } }, 'Đăng xuất') : null);
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const { mk, mk2 } = docForm(form);
@@ -95,6 +100,7 @@ function manDatMatKhau() {
     if (mk !== mk2) return toast('Hai lần nhập không khớp.', 'loi');
     try {
       await api.datMatKhau(mk);
+      await api.daDoiMatKhau().catch(() => {});
       dangDatMatKhau = false;
       history.replaceState(null, '', location.pathname + '#/viec');
       toast('Đã lưu mật khẩu.');
@@ -177,6 +183,8 @@ async function vaoUngDung() {
       h('button', { class: 'nut', type: 'button', onclick: () => api.dangXuat() }, 'Đăng xuất'))));
     return;
   }
+  // Tài khoản giám đốc vừa tạo / vừa đặt lại mật khẩu: bắt đổi mật khẩu riêng trước khi dùng
+  if (toi.phai_doi_mat_khau) { khung = null; manDatMatKhau({ lanDau: true }); return; }
   await api.taiDanhMuc();
   dungKhung();
   await dieuHuong();

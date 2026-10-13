@@ -566,6 +566,35 @@ select kt.ghi('Mỗi lần xuất đều ghi nhật ký (2 lần)', (select coun
 select kt.ghi('File Data khách hàng: mỗi lần vào xưởng 1 dòng',
   jsonb_array_length((select v::jsonb from ctx where k='xkh')->'data') >= (select count(*) from public.ho_so where trang_thai <> 'huy'));
 
+-- ---------------- 017: giám đốc tạo tài khoản nhân viên, đặt lại mật khẩu ----------------
+select kt.dong_vai('long@gara.vn');
+select kt.mong_loi('Quản lý chung không tạo được tài khoản', $$select public.tao_tai_khoan_nhan_vien('{"ho_ten":"A","ten_dang_nhap":"a.kho","mat_khau":"123456","vai_tro":["kho"]}')$$, 'quyền');
+select kt.dong_vai('thuan@gara.vn');
+select kt.mong_loi('Tên đăng nhập có dấu bị chặn', $$select public.tao_tai_khoan_nhan_vien('{"ho_ten":"Bảo","ten_dang_nhap":"bảo.kho","mat_khau":"123456","vai_tro":["kho"]}')$$, 'không dấu');
+select kt.mong_loi('Mật khẩu ngắn bị chặn', $$select public.tao_tai_khoan_nhan_vien('{"ho_ten":"Bảo","ten_dang_nhap":"bao.kho","mat_khau":"123","vai_tro":["kho"]}')$$, '6 ký tự');
+insert into ctx select 'tk_bao', public.tao_tai_khoan_nhan_vien('{"ho_ten":"Trần Văn Bảo","ten_dang_nhap":"Bao.Kho","mat_khau":"hs1234","vai_tro":["kho"],"chi_nhanh_id":"TK"}')::text;
+select kt.dong_vai(null);
+select kt.ghi('Tạo tài khoản: có đăng nhập nội bộ, mật khẩu mã hóa, đã cấp quyền, bắt đổi mật khẩu lần đầu',
+  (select u.email = 'bao.kho@nv.autohoangson.com' and u.encrypted_password = extensions.crypt('hs1234', u.encrypted_password)
+     and nv.ten_dang_nhap = 'bao.kho' and nv.vai_tro = '{kho}' and nv.phai_doi_mat_khau and nv.chi_nhanh_id = 'TK'
+   from auth.users u join public.nhan_vien nv on nv.id = u.id where u.id = (select v::uuid from ctx where k='tk_bao'))
+  and exists (select 1 from auth.identities where user_id = (select v::uuid from ctx where k='tk_bao') and provider = 'email'));
+select kt.dong_vai('thuan@gara.vn');
+select kt.mong_loi('Không trùng tên đăng nhập', $$select public.tao_tai_khoan_nhan_vien('{"ho_ten":"Bảo 2","ten_dang_nhap":"bao.kho","mat_khau":"123456","vai_tro":["kho"]}')$$, 'đã có người dùng');
+select kt.dong_vai('bao.kho@nv.autohoangson.com');
+select public.da_doi_mat_khau();
+select kt.ghi('Nhân viên đổi mật khẩu xong thì hết bị bắt đổi', not (select phai_doi_mat_khau from public.nhan_vien where id = (select v::uuid from ctx where k='tk_bao')));
+select kt.mong_loi('Nhân viên không đặt lại mật khẩu người khác', format($$select public.dat_lai_mat_khau('%s', 'abcdef')$$, (select v from ctx where k='tk_bao')), 'quyền');
+select kt.dong_vai('thuan@gara.vn');
+select public.dat_lai_mat_khau((select v::uuid from ctx where k='tk_bao'), 'moi999');
+select kt.dong_vai(null);
+select kt.ghi('Giám đốc đặt lại mật khẩu: mật khẩu mới dùng được, lại bắt đổi lần đầu',
+  (select u.encrypted_password = extensions.crypt('moi999', u.encrypted_password) and nv.phai_doi_mat_khau
+   from auth.users u join public.nhan_vien nv on nv.id = u.id where u.id = (select v::uuid from ctx where k='tk_bao')));
+select kt.dong_vai('thuan@gara.vn');
+select public.luu_nhan_vien((select v::uuid from ctx where k='tk_bao'), '{"ho_ten":"Trần Văn Bảo","chi_nhanh_id":"TK","vai_tro":["kho","cvdv"],"hoat_dong":true}');
+select kt.ghi('Giám đốc đổi quyền tài khoản mới tạo', (select vai_tro from public.nhan_vien where id = (select v::uuid from ctx where k='tk_bao')) = '{kho,cvdv}');
+
 -- ---------------- 014: nạp Data khách hàng (xóa hết rồi nạp lại) ----------------
 select kt.dong_vai(null);
 insert into app.nap_tam (phan, dong) values (1, $j$[

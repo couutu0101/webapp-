@@ -142,8 +142,14 @@ class XuLy(SimpleHTTPRequestHandler):
         TL.user = q.get('user')
         try:
             if self.path == '/api/dang-nhap':
-                d, e = chay_sql(f"(select to_jsonb(u) from (select id, email from auth.users where email = {lit(q['email'])}) u)", None, True)
+                # Tài khoản có mật khẩu thật (tạo trong phần mềm) thì kiểm mật khẩu; tài khoản thử cũ thì bỏ qua
+                d, e = chay_sql(f"(select to_jsonb(u) from (select id, email from auth.users where email = {lit(q['email'])}"
+                                f" and (encrypted_password is null or encrypted_password = extensions.crypt({lit(q.get('mat_khau') or '')}, encrypted_password))) u)", None, True)
                 return self.tra(d, e if e else (None if d else {'message': 'Invalid login credentials'}))
+            if self.path == '/api/doi-mat-khau':
+                d, e = chay_sql(f"update auth.users set encrypted_password = extensions.crypt({lit(q.get('mat_khau') or '')}, extensions.gen_salt('bf'))"
+                                f" where id = {lit(q.get('user'))}::uuid returning 1 as j", None, True, ghi=True)
+                return self.tra({'ok': True}, e)
             if self.path == '/api/doc':
                 d, e = chay_sql('(' + doc(q) + ')', TL.user)
                 return self.tra(d or [], e)
