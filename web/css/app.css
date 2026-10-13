@@ -452,3 +452,9 @@ a.o-dem:not(.mo) b { color: var(--muc); }
 .con-no { display: inline-flex; flex-direction: column; align-items: flex-end; line-height: 1.3; white-space: nowrap; }
 .con-no small { color: var(--muc-phu); }
 .chu-cam { color: var(--cam); }
+
+/* Ô ngày giờ 24h */
+.o-ngay-gio-khung { display: grid; grid-template-columns: minmax(0, 1fr) 62px auto 62px; gap: 4px; align-items: center; }
+.o-ngay-gio-khung .hai-cham { font-weight: 700; }
+.o-ngay-gio-khung select { width: 62px; min-width: 0; padding-left: 8px; padding-right: 2px; }
+.o-ngay-gio-khung input[type=text] { min-width: 0; padding-left: 7px; padding-right: 4px; letter-spacing: -.01em; }

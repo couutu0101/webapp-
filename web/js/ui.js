@@ -337,6 +337,25 @@ export function oNgayVN(name, isoValue, attrs = {}) {
   el.addEventListener('blur', () => { el.setCustomValidity(el.value && !vnSangIso(el.value) ? 'Ngày không đúng (dd/mm/yyyy)' : ''); });
   return el;
 }
+// Ô ngày giờ 24h: ngày dd/mm/yyyy + chọn giờ (00–23) + phút. Giá trị đọc ra (el.value, docForm) dạng yyyy-mm-ddThh:mm, trống nếu chưa chọn ngày.
+export function oNgayGioVN(name, value, { batBuoc = false } = {}) {
+  const t = value ? new Date(value) : null;
+  const an = h('input', { type: 'hidden', name, class: 'o-ngay-gio', value: t ? choODatetime(t) : '' });
+  const oNgay_ = oNgayVN('', t ? `${t.getFullYear()}-${hai(t.getMonth() + 1)}-${hai(t.getDate())}` : '', { 'aria-label': 'Ngày', 'data-phan': 'ngay' });
+  oNgay_.removeAttribute('name');
+  const gio = h('select', { 'aria-label': 'Giờ', 'data-phan': 'gio' }, Array.from({ length: 24 }, (_, i) => h('option', { value: hai(i), selected: t && t.getHours() === i }, hai(i))));
+  const dsPhut = [...new Set([...Array.from({ length: 12 }, (_, i) => i * 5), ...(t ? [t.getMinutes()] : [])])].sort((a, b) => a - b);
+  const phut = h('select', { 'aria-label': 'Phút', 'data-phan': 'phut' }, dsPhut.map((m) => h('option', { value: hai(m), selected: t ? t.getMinutes() === m : m === 0 }, hai(m))));
+  const capNhat = () => {
+    const iso = vnSangIso(oNgay_.value);
+    an.value = iso ? `${iso}T${gio.value}:${phut.value}` : '';
+    an.dispatchEvent(new Event('change', { bubbles: true }));
+  };
+  for (const o of [oNgay_, gio, phut]) o.addEventListener('change', capNhat);
+  oNgay_.addEventListener('input', capNhat);
+  if (batBuoc) oNgay_.required = true;
+  return h('span', { class: 'o-ngay-gio-khung' }, an, oNgay_, gio, h('span', { class: 'hai-cham' }, ':'), phut);
+}
 export function oChon(name, options, value, { trong = '— Chọn —', ...attrs } = {}) {
   const el = h('select', { name, ...attrs },
     trong !== null ? h('option', { value: '' }, trong) : null,

@@ -1,6 +1,6 @@
 // Chi tiết hồ sơ xe: 9 bước trên một trang, mỗi bước chỉ hiện nút cho đúng người
 import {
-  h, oChonTep, bienSo, oNgayVN, tien, ngay, ngayGio, homNay, choODatetime, truong, oChu, oTien, oChon, oVung, oNgay, oCheck, docForm, docTien,
+  h, oChonTep, bienSo, oNgayVN, oNgayGioVN, tien, ngay, ngayGio, homNay, choODatetime, truong, oChu, oTien, oChon, oVung, oNgay, oCheck, docForm, docTien,
   chay, moModal, toast, nhanTrangThai, nenAnh, bang, BUOC_SO, NHOM, NHOM_CHON, NGUON, TRANG_THAI, xacNhan, dat, veDanhSachHoSo,
 } from '../ui.js';
 import { khoiPhuTungXe } from './kho.js';
@@ -110,7 +110,7 @@ function moSuaThongTin(hs, ve) {
     truong('Tên khách', oChu('ten_khach', hs.ten_khach)),
     truong('Số điện thoại', oChu('dien_thoai', hs.dien_thoai, { inputmode: 'tel' })),
     truong('Màu xe', oChu('mau', hs.mau)),
-    truong('Hẹn giao', h('input', { type: 'datetime-local', name: 'hen_giao', value: choODatetime(hs.hen_giao) })),
+    truong('Hẹn giao', oNgayGioVN('hen_giao', hs.hen_giao), 'Giờ 24h'),
     hs.nguon_tt !== 'khach' ? [
       truong('Hãng bảo hiểm', oChon('hang_bh_id', dm.hang_bao_hiem.map((x) => ({ value: x.id, label: x.ten })), hs.hang_bh_id)),
       truong('Giám định viên', chonGdv), truong('Tên GDV mới (nếu chọn "chờ thêm")', oGdvMoi)] : null,
@@ -350,7 +350,8 @@ function theSuaChua({ hs, hm, ps, ve }) {
 }
 
 function moLenh(hs, ds, ve) {
-  const oHen = h('input', { type: 'datetime-local', name: 'hen_giao', value: choODatetime(hs.hen_giao) });
+  const oHenKhung = oNgayGioVN('hen_giao', hs.hen_giao, { batBuoc: !hs.hen_giao });
+  const oHen = oHenKhung.querySelector('input[name=hen_giao]');
   const dongs = ds.map((m) => {
     const to = oChon('to', api.dm.to_thuc_hien.map((t) => ({ value: t.id, label: t.ten })),
       { dong: 'DS', son: 'DS', dong_son: 'DS', phu_tung: 'DS', dmg: 'DMG', detailing: 'DT' }[m.nhom], { trong: null, 'aria-label': `Tổ làm ${m.ten}` });
@@ -363,7 +364,7 @@ function moLenh(hs, ds, ve) {
     return { m, to, nguoi, el: h('tr', null, h('td', null, m.ten), h('td', null, to), h('td', null, nguoi)) };
   });
   moModal('Lệnh sửa chữa', h('div', null,
-    truong('Giờ hẹn giao xe', oHen, null, { batBuoc: !hs.hen_giao }),
+    truong('Giờ hẹn giao xe', oHenKhung, 'Ngày dd/mm/yyyy · giờ 24h', { batBuoc: !hs.hen_giao }),
     h('div', { class: 'bang-cuon' }, h('table', { class: 'bang' },
       h('thead', null, h('tr', null, h('th', null, 'Hạng mục'), h('th', null, 'Tổ'), h('th', null, 'Người làm'))),
       h('tbody', null, dongs.map((d) => d.el))))), {

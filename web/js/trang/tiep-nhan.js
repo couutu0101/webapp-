@@ -1,5 +1,5 @@
 // Bước 1: Tiếp nhận xe – 10 thông tin bắt buộc + ảnh nhận xe
-import { h, oGoiY, bienSo, vietBienSo, oChonTep, oCheck, truong, oChu, oChon, oVung, oNgayVN, isoSangVN, vnSangIso, docForm, chay, toast, nenAnh, choODatetime, dat, veDanhSachHoSo } from '../ui.js';
+import { h, oGoiY, bienSo, vietBienSo, oChonTep, oCheck, truong, oChu, oChon, oVung, oNgayVN, oNgayGioVN, isoSangVN, vnSangIso, docForm, chay, toast, nenAnh, dat, veDanhSachHoSo } from '../ui.js';
 import * as api from '../api.js';
 import { khungGiaoViec, giaoSauKhiLuu, VAI_TRO_BUOC } from './giao-viec.js';
 import { homNayVN, themNgay, tuGhiNgayKhiBam, nhacHetHan, layLichSu, khoiLichSu } from './lich-su-xe.js';
@@ -144,7 +144,7 @@ export default async function trangTiepNhan(el) {
         truong('Hãng xe', chonHangXe, null, { batBuoc: true }),
         truong('Dòng xe', chonDongXe, null, { batBuoc: true }),
         truong('Màu', oMau),
-        truong('Ngày giờ vào', h('input', { type: 'datetime-local', name: 'ngay_vao', value: choODatetime(new Date()) }), null, { batBuoc: true }))),
+        truong('Ngày giờ vào', oNgayGioVN('ngay_vao', new Date(), { batBuoc: true }), 'Giờ 24h', { batBuoc: true }))),
     h('fieldset', { class: 'nhom-o' }, h('legend', null, 'Khách hàng'),
       h('div', { class: 'luoi-o' },
         truong('Tên khách', oTen, null, { batBuoc: true }),

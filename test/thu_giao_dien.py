@@ -228,7 +228,11 @@ with sync_playwright() as p:
 
     duy.locator('button', has_text='Lập lệnh sửa chữa').click()
     m = modal(duy)
-    m.locator('input[name=hen_giao]').fill('2026-10-14T17:00')
+    m.locator('.o-ngay-gio-khung [data-phan=ngay]').fill('14/10/2026')
+    m.locator('.o-ngay-gio-khung [data-phan=gio]').select_option('17')
+    m.locator('.o-ngay-gio-khung [data-phan=phut]').select_option('00')
+    expect(m.locator('input[name=hen_giao]')).to_have_value('2026-10-14T17:00')
+    ghi('Giờ hẹn giao chọn kiểu 24h: ' + m.locator('.o-ngay-gio-khung [data-phan=gio] option').last.inner_text() + ' là giờ lớn nhất')
     expect(m.locator('[name=nguoi]').first).to_have_value('Đặng Thanh Hận')
     m.locator('[name=to]').first.select_option('DT')
     expect(m.locator('[name=nguoi]').first).not_to_have_value('Đặng Thanh Hận')
