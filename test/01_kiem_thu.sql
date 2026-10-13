@@ -788,10 +788,10 @@ insert into ctx select 'ts_may', public.luu_tai_san('{"ten":"Máy nén khí 50L"
 insert into ctx select 'ts_tuyp', public.luu_tai_san('{"ten":"Bộ tuýp 1/2 24 chi tiết","loai":"dung_cu","nhom_id":"DS","so_luong":2,"don_vi":"Bộ","gia_mua":850000}')::text;
 insert into ctx select 'ts_bua', public.luu_tai_san('{"ten":"Búa gò","loai":"dung_cu","nhom_id":"DS","so_luong":3,"gia_mua":120000}')::text;
 insert into ctx select 'ts_may_ds', public.luu_tai_san('{"ten":"Máy đánh bóng","loai":"may_moc","nhom_id":"DS","gia_mua":4500000}')::text;
-select kt.ghi('028 Mã tự sinh theo nhóm: TS-CHUNG-001, TS-DS-001, TS-DS-002',
-  (select ma from public.tai_san where id = (select v::bigint from ctx where k='ts_may')) = 'TS-CHUNG-001'
-  and (select ma from public.tai_san where id = (select v::bigint from ctx where k='ts_tuyp')) = 'TS-DS-001'
-  and (select ma from public.tai_san where id = (select v::bigint from ctx where k='ts_bua')) = 'TS-DS-002');
+select kt.ghi('028/029 Mã tự sinh theo nhóm: TB-CHUNG-001, TB-DS-001, TB-DS-002',
+  (select ma from public.tai_san where id = (select v::bigint from ctx where k='ts_may')) = 'TB-CHUNG-001'
+  and (select ma from public.tai_san where id = (select v::bigint from ctx where k='ts_tuyp')) = 'TB-DS-001'
+  and (select ma from public.tai_san where id = (select v::bigint from ctx where k='ts_bua')) = 'TB-DS-002');
 select kt.mong_loi('028 Dụng cụ số lượng 0 bị chặn',
   $$select public.luu_tai_san('{"ten":"Kìm","loai":"dung_cu","nhom_id":"DS","so_luong":0}')$$, 'từ 1');
 select kt.dong_vai(null);
@@ -801,7 +801,8 @@ select kt.dong_vai(null);
 select kt.dong_vai('han@gara.vn');   -- trưởng nhóm tổ DS
 select kt.ghi('028 Trưởng nhóm DS chỉ thấy tài sản tổ mình (3 món), không thấy Dùng chung', (select count(*) from public.v_tai_san) = 3
   and (select count(*) from public.v_nhom_tai_san) = 1 and (select nhom_id from public.v_nhom_tai_san) = 'DS');
-select kt.ghi('028 Trưởng nhóm có việc: xác nhận nhận 3 món', exists (select 1 from public.v_viec_tai_san where loai = 'xac_nhan' and nhom_id = 'DS' and so = 3));
+select kt.ghi('028 Trưởng nhóm có việc: xác nhận nhận 3 món (029: tên việc "Xác nhận đã nhận đồ nghề – Đồng sơn")',
+  exists (select 1 from public.v_viec_tai_san where loai = 'xac_nhan' and nhom_id = 'DS' and so = 3 and tieu_de = 'Xác nhận đã nhận đồ nghề – Đồng sơn'));
 select kt.mong_loi('028 Trưởng nhóm DS không xác nhận tài sản nhóm khác', format('select public.xac_nhan_nhan_tai_san(''[%s]''::jsonb)', (select v from ctx where k='ts_may')), '');
 select kt.ghi('028 Trưởng nhóm DS xác nhận nhận 2 món', public.xac_nhan_nhan_tai_san(jsonb_build_array((select v::bigint from ctx where k='ts_tuyp'), (select v::bigint from ctx where k='ts_bua'))) = 2);
 select kt.mong_loi('028 Kiểm tra tuần phải đủ mọi tài sản của nhóm',

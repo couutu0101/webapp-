@@ -147,19 +147,19 @@ async function layViecCuaToi() {
   return ds;
 }
 
-// Việc về tài sản (028): kiểm tra tuần, kiểm kê tháng, xác nhận nhận, bảo dưỡng tới hạn, thiếu / hỏng chờ xử lý – theo vai trò
+// Việc về thiết bị đồ nghề (028): kiểm tra tuần, kiểm kê tháng, xác nhận nhận, bảo dưỡng tới hạn, thiếu / hỏng chờ xử lý – theo vai trò
 async function viecTaiSanCuaToi() {
   if (!api.coVaiTro('giam_doc', 'quan_ly', 'ke_toan', 'kho', 'truong_nhom')) return [];
   const ds = await api.doc('v_viec_tai_san', (q) => q.eq('chi_nhanh_id', api.toi.chi_nhanh_id)).catch(() => []);
   const truongNhom = api.coVaiTro('truong_nhom');
   return ds.filter((x) => (x.vai || []).some((v) => api.coVaiTro(v)) && (!x.to_id || !truongNhom || api.laNhanVien() || x.to_id === api.toi.to_id))
     .map((x) => ({
-      dau: h('b', { class: 'dau-tai-san' }, x.loai === 'bao_duong' ? x.chi_tiet : 'Tài sản'),
+      dau: h('b', { class: 'dau-tai-san' }, x.loai === 'bao_duong' ? x.chi_tiet : 'Đồ nghề'),
       ten: x.tieu_de,
       phu: x.loai === 'bao_duong' ? `Nhóm ${x.nhom_ten}` : x.chi_tiet,
       han: x.han ? new Date(`${String(x.han).slice(0, 10)}T23:59:59`) : null,
       luc: null,
-      moChiTiet: () => { nhoPhien.ghi('ts_the', x.nhom_id); location.hash = '#/tai-san'; },
+      moChiTiet: () => { nhoPhien.ghi('ts_the', x.nhom_id); nhoPhien.ghi('kho_the', 'thiet_bi'); location.hash = '#/kho'; },
     }));
 }
 

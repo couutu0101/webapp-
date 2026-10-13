@@ -632,6 +632,9 @@ td .dam, th .dam { font-weight: 700; } td .mo { color: var(--muc-phu); }
 .nhan.ts-mat, .nhan.ts-thanh_ly { background: #e9ebea; color: #5d6266; }
 .nhan.ts-cho-nhan { background: var(--vang-nhat); color: #6b4a00; }
 .o-han-ts { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 3px; }
+/* Thiết bị đồ nghề: thẻ trong trang Kho – lời giới thiệu ngắn, hàng thẻ nhóm nhỏ dưới hàng thẻ Kho */
+.tb-gioi-thieu { margin: calc(-1 * var(--k2)) 0 var(--k3); }
+.tabs.tb-nhom { margin-bottom: var(--k4); }
 .luoi-dem.ts-dem { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .ts-dem .o-dem b { font-size: 1.9rem; }
 /* Điện thoại / máy tính bảng: ô "Tài sản đang dùng" một hàng, 4 ô còn lại 2 × 2 – không để ô trống */

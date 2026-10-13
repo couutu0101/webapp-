@@ -2,7 +2,7 @@
 // Theo đặc tả 11/10/2026. Tồn theo đơn vị xuất; giá vốn nhập trước xuất trước, đã gồm VAT.
 import {
   h, tien, ngay, ngayGio, homNay, truong, oChu, oTien, oChon, oNgay, oVung, oCheck, oChonTep, docTien, chay, bang,
-  moModal, toast, dat, xacNhan, bienSo, nenAnh, taiTepCSV, nhoPhien, cuoiThang, oGoiY, VAI_TRO, chipNguoi, vaiChinh, vienHan,
+  moModal, toast, dat, xacNhan, bienSo, nenAnh, taiTepCSV, nhoPhien, cuoiThang, oGoiY, VAI_TRO, chipNguoi, vaiChinh, vienHan, cuonTheChon,
 } from '../ui.js';
 import * as api from '../api.js';
 import { nutXuatExcel, xuatExcelKho } from './xuat-excel.js';
@@ -119,6 +119,7 @@ export default async function trangKho(el) {
     ['kiem_ke', 'Kiểm kê', api.coVaiTro('kho', 'quan_ly', 'giam_doc')],
     ['cong_no', 'Công nợ NCC', api.coVaiTro('kho', 'quan_ly', 'giam_doc', 'ke_toan')],
     ['nxt', 'Nhập – xuất – tồn', api.coVaiTro('kho', 'quan_ly', 'giam_doc', 'ke_toan')],
+    ['thiet_bi', 'Thiết bị đồ nghề', api.coVaiTro('giam_doc', 'quan_ly', 'ke_toan', 'kho', 'truong_nhom')],
   ].filter((t) => t[2]);
   const thamSo = new URLSearchParams(location.hash.split('?')[1] || '');
   let the = thamSo.get('the') || nhoPhien.doc('kho_the') || 'ton';
@@ -126,18 +127,25 @@ export default async function trangKho(el) {
   const vung = h('div');
   const tabs = h('div', { class: 'tabs', role: 'tablist' }, THE.map(([ma, nhan]) => h('button', {
     type: 'button', role: 'tab', 'data-ma': ma, 'aria-selected': String(ma === the),
-    onclick: () => { the = ma; nhoPhien.ghi('kho_the', ma); for (const b of tabs.children) b.setAttribute('aria-selected', String(b.dataset.ma === the)); ve(); },
+    onclick: () => { the = ma; nhoPhien.ghi('kho_the', ma); for (const b of tabs.children) b.setAttribute('aria-selected', String(b.dataset.ma === the)); cuonTheChon(tabs); ve(); },
   }, nhan)));
   const nut = h('div', { class: 'hang-nut' });
   dat(el, h('div', { class: 'tieu-de-trang' }, h('h1', null, 'Kho'), nut), h('div', { class: 'thanh-loc' }, tabs), vung);
+  cuonTheChon(tabs);
 
   async function ve() {
     dat(nut); dat(vung, h('div', { class: 'dang-tai' }, 'Đang tải…'));
     await taiHang();
-    const VE = { ton: veTon, de_xuat: veDeXuat, nhap: veNhap, mua: veMua, kiem_ke: veKiemKe, cong_no: veCongNo, nxt: veNxt };
+    const VE = { ton: veTon, de_xuat: veDeXuat, nhap: veNhap, mua: veMua, kiem_ke: veKiemKe, cong_no: veCongNo, nxt: veNxt, thiet_bi: veThietBi };
     await VE[the]();
   }
   const ctx = { ve, vung, nut };
+
+  // ---------------- Thiết bị đồ nghề giao cho các nhóm (thiet-bi.js) ----------------
+  async function veThietBi() {
+    const m = await import('./thiet-bi.js');
+    await m.default(vung, nut);
+  }
 
   // ---------------- Tồn kho ----------------
   async function veTon() {

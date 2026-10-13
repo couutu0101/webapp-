@@ -520,6 +520,16 @@ export function trangThaiTai(el, dangTai = true) {
   dat(el, h('div', { class: 'dang-tai', role: 'status' }, dangTai ? 'Đang tải…' : ''));
 }
 
+// Hàng thẻ dài hơn màn hình (điện thoại): cuộn ngang cho thẻ đang chọn nằm giữa, không bị che
+export function cuonTheChon(tabs) {
+  requestAnimationFrame(() => {
+    const b = tabs?.querySelector('[aria-selected="true"]');
+    if (!b || tabs.scrollWidth <= tabs.clientWidth) return;
+    const lech = b.getBoundingClientRect().left - tabs.getBoundingClientRect().left + tabs.scrollLeft;
+    tabs.scrollLeft = Math.max(0, lech - (tabs.clientWidth - b.offsetWidth) / 2);
+  });
+}
+
 export function bang(cot, dong, { trong = 'Chưa có dữ liệu.', onRow, idDong, gon = false } = {}) {
   if (!dong.length) return h('p', { class: 'trong' }, trong);
   return h('div', { class: 'bang-cuon' },

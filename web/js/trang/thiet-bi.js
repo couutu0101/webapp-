@@ -1,4 +1,4 @@
-// Tài sản – dụng cụ, máy móc, trang thiết bị giao cho các nhóm (028_tai_san.sql)
+// Thiết bị đồ nghề – một thẻ trong trang Kho: máy móc, đồ nghề giao cho các nhóm (028_tai_san.sql, 029)
 //  - Mỗi nhóm một thẻ: 3 tổ + Dùng chung xưởng + Văn phòng. Trưởng nhóm chỉ thấy nhóm của tổ mình.
 //  - Giám đốc, quản lý chung, kho: thêm, sửa, giao, chuyển nhóm, thanh lý. Người phụ trách nhóm xác nhận đã nhận.
 //  - Kiểm tra chống mất mỗi tuần (người phụ trách nhóm), kiểm kê mỗi tháng (quản lý chung / kế toán + người cùng kiểm, có biên bản).
@@ -6,14 +6,14 @@
 //  - Bảo dưỡng theo thời gian: mỗi máy một hoặc nhiều việc, chu kỳ; ghi lần làm, thuê ngoài thì lập đề nghị chi.
 import {
   h, tien, ngay, ngayGio, homNay, truong, oChu, oTien, oChon, oNgay, oVung, oCheck, oChonTep, docForm, chay, bang, moModal, toast, dat,
-  nhoPhien, chipNguoi, vaiChinh, nenAnh,
+  nhoPhien, chipNguoi, vaiChinh, nenAnh, cuonTheChon,
 } from '../ui.js';
 import * as api from '../api.js';
 import { taiFileExcel } from '../excel.js';
 import { nutXuatExcel } from './xuat-excel.js';
 
 const TINH_TRANG = { tot: 'Tốt', hong: 'Hỏng', dang_sua: 'Đang sửa', mat: 'Đã mất', thanh_ly: 'Đã thanh lý' };
-const LOAI = { may_moc: 'Máy móc – thiết bị', dung_cu: 'Dụng cụ' };
+const LOAI = { may_moc: 'Thiết bị – máy móc', dung_cu: 'Đồ nghề – dụng cụ' };
 const KET_QUA = { tim_thay: 'Đã tìm thấy', ghi_mat: 'Ghi mất', dua_sua: 'Đưa đi sửa', da_sua: 'Đã sửa xong', thanh_ly: 'Thanh lý' };
 const CHU_KY = [[7, 'Mỗi tuần'], [14, '2 tuần một lần'], [30, 'Mỗi tháng'], [60, '2 tháng một lần'], [90, '3 tháng một lần'], [180, '6 tháng một lần'], [365, 'Mỗi năm']];
 const tenChuKy = (n) => (CHU_KY.find(([d]) => d === Number(n)) || [0, `Mỗi ${n} ngày`])[1];
@@ -51,18 +51,20 @@ function nguoiPhuTrach(n) {
   return ds;
 }
 
-export default async function trangTaiSan(el) {
+// Vẽ thẻ "Thiết bị đồ nghề" của trang Kho: el = vùng nội dung của thẻ, nut = hàng nút trên tiêu đề trang Kho
+export default async function veThietBi(el, nut = null) {
   const cn = api.toi.chi_nhanh_id;
   let nhom = []; let suCo = [];
   let the = nhoPhien.doc('ts_the');
   let hienCu = false;
-  const vungTabs = h('div', { class: 'tabs', role: 'tablist', 'aria-label': 'Nhóm tài sản' });
+  const vungTabs = h('div', { class: 'tabs nho tb-nhom', role: 'tablist', 'aria-label': 'Nhóm' });
   const vung = h('div');
-  const nutThem = quanLy() ? h('button', { class: 'nut chinh', type: 'button', onclick: () => moLuuTaiSan(null, the !== 'tong' ? the : null) }, '+ Tài sản') : null;
-  dat(el, h('div', { class: 'tieu-de-trang' },
-    h('div', null, h('h1', null, 'Tài sản – dụng cụ'),
-      h('p', { class: 'mo-ta' }, 'Máy móc, dụng cụ, thiết bị giao cho từng nhóm: kiểm tra mỗi tuần, kiểm kê mỗi tháng, lịch bảo dưỡng.')),
-    h('div', { class: 'hang-nut' }, nutXuatExcel('Xuất Excel', xuatExcel), nutThem)), vungTabs, vung);
+  if (nut) {
+    if (quanLy()) nut.append(h('button', { class: 'nut chinh', type: 'button', onclick: () => moLuuTaiSan(null, the !== 'tong' ? the : null) }, '+ Thiết bị, đồ nghề'));
+    const nutExcel = nutXuatExcel('Xuất Excel', xuatExcel);
+    if (nutExcel) nut.append(nutExcel);
+  }
+  dat(el, h('p', { class: 'mo-ta tb-gioi-thieu' }, 'Máy móc, đồ nghề giao cho từng nhóm: kiểm tra mỗi tuần, kiểm kê mỗi tháng, lịch bảo dưỡng máy.'), vungTabs, vung);
 
   async function taiLai() {
     [nhom, suCo] = await Promise.all([
@@ -76,7 +78,8 @@ export default async function trangTaiSan(el) {
     dat(vungTabs, cacThe.map((t) => h('button', { type: 'button', role: 'tab', 'aria-selected': String(t.ma === the), 'data-the': t.ma,
       onclick: () => { the = t.ma; nhoPhien.ghi('ts_the', the); taiLai(); } },
       t.nhan, t.so !== undefined ? h('small', { class: 'so-the' }, ` ${t.so}`) : null, t.canh ? h('i', { class: 'cham-canh', 'aria-label': 'có việc quá hạn hoặc chờ xử lý' }) : null)));
-    if (!the) { dat(vung, h('p', { class: 'trong' }, 'Chưa có nhóm tài sản nào anh/chị được xem.')); return; }
+    cuonTheChon(vungTabs);
+    if (!the) { dat(vung, h('p', { class: 'trong' }, 'Chưa có nhóm nào anh/chị được xem.')); return; }
     if (the === 'tong') await veTong();
     else await veNhom(nhom.find((n) => n.nhom_id === the));
   }
@@ -93,10 +96,10 @@ export default async function trangTaiSan(el) {
     const tongGiaTri = nhom.reduce((s, n) => s + Number(n.gia_tri || 0), 0);
     dat(vung,
       h('section', { class: 'the' }, h('h2', null, 'Các nhóm'),
-        // Ô bằng 0 / chưa có tài sản gắn lớp so-0: máy tính hiện mờ, điện thoại ẩn cho thẻ gọn
+        // Ô bằng 0 / nhóm chưa có món nào gắn lớp so-0: máy tính hiện mờ, điện thoại ẩn cho thẻ gọn
         h('div', { class: 'bang-nhom-ts' }, bang([
           { nhan: 'Nhóm', lay: (n) => h('span', { class: 'ten-nhom-ts' }, h('b', null, n.ten), h('small', null, phuTrachText(n))) },
-          { nhan: 'Tài sản', so: true, lay: (n) => (Number(n.so_tai_san) ? n.so_tai_san : h('span', { class: 'mo' }, '0')) },
+          { nhan: 'Số món', so: true, lay: (n) => (Number(n.so_tai_san) ? n.so_tai_san : h('span', { class: 'mo' }, '0')) },
           xemGiaTri() ? { nhan: 'Giá trị', so: true, lay: (n) => (Number(n.gia_tri) ? tien(n.gia_tri) : so0('0')) } : null,
           { nhan: 'Kiểm tra tuần', lay: (n) => (Number(n.so_tai_san) ? oHan(n.kiem_tra_cuoi, n.han_kiem_tra) : so0('—')) },
           { nhan: 'Kiểm kê tháng', lay: (n) => (Number(n.so_tai_san) ? oHan(n.kiem_ke_cuoi, n.han_kiem_ke) : so0('—')) },
@@ -104,20 +107,20 @@ export default async function trangTaiSan(el) {
           { nhan: 'Thiếu / hỏng', so: true, lay: (n) => (Number(n.so_su_co) ? h('b', { class: 'chu-loi' }, n.so_su_co) : so0('0')) },
           { nhan: 'Chờ nhận', so: true, lay: (n) => (Number(n.so_cho_nhan) ? h('b', null, n.so_cho_nhan) : so0('0')) },
         ].filter(Boolean), nhom, { onRow: (n) => { the = n.nhom_id; nhoPhien.ghi('ts_the', the); taiLai(); } })),
-        xemGiaTri() ? h('p', { class: 'mo-ta' }, `Tổng giá trị tài sản đang dùng: ${tien(tongGiaTri)} đ (giá mua, chỉ để quản lý – chi phí mua đã tính vào tháng mua).`) : null),
+        xemGiaTri() ? h('p', { class: 'mo-ta' }, `Tổng giá trị thiết bị, đồ nghề đang dùng: ${tien(tongGiaTri)} đ (giá mua, chỉ để quản lý – chi phí mua đã tính vào tháng mua).`) : null),
       h('section', { class: 'the' }, h('h2', null, `Thiếu / hỏng chờ xử lý (${choXuLy.length})`),
         bang([
           { nhan: 'Phát hiện', lay: (s) => h('span', null, ngay(s.phat_hien_luc), h('br'), chipNv(s.phat_hien_boi)) },
-          { nhan: 'Tài sản', lay: (s) => oTenTaiSan(taiSanCua[s.tai_san_id]) },
+          { nhan: 'Thiết bị, đồ nghề', lay: (s) => oTenTaiSan(taiSanCua[s.tai_san_id]) },
           { nhan: 'Sự cố', lay: (s) => h('span', null, h('span', { class: `nhan ${s.loai === 'mat' ? 'ts-mat-cho' : 'ts-hong'}` }, s.loai === 'mat' ? `Thiếu ${s.so_luong}` : `Hỏng ${s.so_luong}`), h('br'), h('small', null, s.mo_ta || '')) },
           xuLySuCo() ? { nhan: '', lay: (s) => h('button', { class: 'nut nho chinh', type: 'button', onclick: (e) => { e.stopPropagation(); moXuLySuCo(s, taiSanCua[s.tai_san_id]); } }, 'Xử lý') } : null,
-        ].filter(Boolean), choXuLy, { trong: 'Không có tài sản nào thiếu hoặc hỏng đang chờ xử lý.' })),
+        ].filter(Boolean), choXuLy, { trong: 'Không có món nào thiếu hoặc hỏng đang chờ xử lý.' })),
       boiThuong.length ? h('section', { class: 'the' }, h('h2', null, 'Bồi thường'),
         h('p', { class: 'goi-y' }, 'Giám đốc ghi người chịu và số tiền khi xử lý sự cố. Kế toán trừ lương / thu xong thì đánh dấu "Đã trừ".'),
         bang([
           { nhan: 'Ngày', lay: (s) => ngay(s.xu_ly_luc || s.phat_hien_luc) },
           { nhan: 'Người chịu', lay: (s) => (s.nguoi_chiu ? chipNv(s.nguoi_chiu) || s.nguoi_chiu_ten : s.nguoi_chiu_ten) },
-          { nhan: 'Tài sản', lay: (s) => oTenTaiSan(taiSanCua[s.tai_san_id]) },
+          { nhan: 'Thiết bị, đồ nghề', lay: (s) => oTenTaiSan(taiSanCua[s.tai_san_id]) },
           { nhan: 'Số tiền', so: true, lay: (s) => h('b', null, tien(s.boi_thuong)) },
           { nhan: 'Trạng thái', lay: (s) => (api.coVaiTro('giam_doc', 'ke_toan')
             ? h('label', { class: 'o-check' }, h('input', { type: 'checkbox', checked: s.da_tru, 'data-boi-thuong': s.id,
@@ -127,7 +130,7 @@ export default async function trangTaiSan(el) {
       h('section', { class: 'the' }, h('h2', null, 'Bảo dưỡng trong 30 ngày tới'),
         bang([
           { nhan: 'Hạn', lay: (t) => hanVien(t.han_bao_duong) },
-          { nhan: 'Tài sản', lay: (t) => oTenTaiSan(t) },
+          { nhan: 'Máy', lay: (t) => oTenTaiSan(t) },
           { nhan: 'Nhóm', lay: (t) => t.nhom_ten },
           { nhan: 'Tình trạng', lay: (t) => nhanTinhTrang(t.tinh_trang) },
         ], baoDuong.filter((t) => t.dang_dung), { trong: 'Không có máy nào tới hạn bảo dưỡng trong 30 ngày.',
@@ -142,40 +145,40 @@ export default async function trangTaiSan(el) {
     ]);
     const dangDung = ds.filter((t) => t.dang_dung);
     const choNhan = dangDung.filter((t) => t.cho_nhan);
-    const oTim = h('input', { type: 'search', placeholder: 'Tìm tên, mã, serial…', 'aria-label': 'Tìm tài sản' });
-    const oCu = oCheck('hien_cu', hienCu, 'Hiện cả tài sản đã mất / thanh lý');
+    const oTim = h('input', { type: 'search', placeholder: 'Tìm tên, mã, serial…', 'aria-label': 'Tìm thiết bị, đồ nghề' });
+    const oCu = oCheck('hien_cu', hienCu, 'Hiện cả món đã mất / thanh lý');
     const ketQua = h('div');
     const veBang = () => {
       const tu = oTim.value.trim().toLowerCase();
       const loc = ds.filter((t) => (hienCu || t.dang_dung) && (!tu || [t.ten, t.ma, t.so_serial, t.hang_model, t.vi_tri].some((x) => (x || '').toLowerCase().includes(tu))));
       dat(ketQua, bang([
         { nhan: 'Mã', lay: (t) => h('b', { class: 'ma-ts' }, t.ma) },
-        { nhan: 'Tài sản', lay: (t) => h('span', { class: 'ten-ts' }, h('span', null, t.ten,
+        { nhan: 'Tên', lay: (t) => h('span', { class: 'ten-ts' }, h('span', null, t.ten,
           t.cho_nhan && t.dang_dung ? h('span', { class: 'nhan ts-cho-nhan' }, 'Chờ nhận') : null,
           Number(t.su_co_mo) ? h('span', { class: 'nhan ts-hong' }, `${t.su_co_mo} sự cố`) : null),
           h('small', null, [t.hang_model, t.so_serial ? `Serial ${t.so_serial}` : null, t.vi_tri].filter(Boolean).join(' · '))) },
-        { nhan: 'Loại', lay: (t) => h('span', { class: 'loai-ts' }, t.loai === 'may_moc' ? 'Máy' : 'Dụng cụ') },
+        { nhan: 'Loại', lay: (t) => h('span', { class: 'loai-ts' }, t.loai === 'may_moc' ? 'Thiết bị' : 'Đồ nghề') },
         { nhan: 'Số lượng', so: true, lay: (t) => `${t.so_luong} ${t.don_vi}` },
         { nhan: 'Tình trạng', lay: (t) => nhanTinhTrang(t.tinh_trang) },
         { nhan: 'Bảo dưỡng', lay: (t) => (t.han_bao_duong && t.dang_dung ? hanVien(t.han_bao_duong, 'nho') : h('span', { class: 'mo' }, '—')) },
         { nhan: 'Kiểm gần nhất', lay: (t) => (t.kiem_tra_cuoi ? ngay(t.kiem_tra_cuoi) : h('span', { class: 'mo' }, 'Chưa')) },
         xemGiaTri() ? { nhan: 'Giá trị', so: true, lay: (t) => tien(t.gia_tri) || '0' } : null,
-      ].filter(Boolean), loc, { onRow: (t) => moChiTiet(t, n), idDong: (t) => t.id, trong: ds.length ? 'Không có tài sản khớp.' : 'Nhóm chưa có tài sản nào.' }),
-      h('p', { class: 'mo-ta' }, `${loc.length} tài sản${xemGiaTri() ? ` · giá trị ${tien(loc.filter((t) => t.dang_dung).reduce((s, t) => s + Number(t.gia_tri || 0), 0))} đ` : ''}`));
+      ].filter(Boolean), loc, { onRow: (t) => moChiTiet(t, n), idDong: (t) => t.id, trong: ds.length ? 'Không có món nào khớp.' : 'Nhóm chưa có thiết bị, đồ nghề nào.' }),
+      h('p', { class: 'mo-ta' }, `${loc.length} món${xemGiaTri() ? ` · giá trị ${tien(loc.filter((t) => t.dang_dung).reduce((s, t) => s + Number(t.gia_tri || 0), 0))} đ` : ''}`));
     };
     oTim.addEventListener('input', veBang);
     oCu.querySelector('input').addEventListener('change', (e) => { hienCu = e.target.checked; veBang(); });
 
     dat(vung,
       h('section', { class: 'luoi-dem tien ts-dem', 'aria-label': `Tình hình nhóm ${n.ten}` },
-        h('div', { class: 'o-dem' }, h('b', null, n.so_tai_san), h('span', null, 'Tài sản đang dùng'),
+        h('div', { class: 'o-dem' }, h('b', null, n.so_tai_san), h('span', null, 'Món đang dùng'),
           xemGiaTri() ? h('span', { class: 'o-dem-phu' }, `Giá trị ${tien(n.gia_tri) || 0} đ`) : null),
         oDemHan('Kiểm tra tuần', n.kiem_tra_cuoi, n.so_tai_san > 0 ? n.han_kiem_tra : null, 'data-kiem-tra'),
         oDemHan('Kiểm kê tháng', n.kiem_ke_cuoi, n.so_tai_san > 0 ? n.han_kiem_ke : null, 'data-kiem-ke'),
         h('div', { class: `o-dem ${Number(n.so_bao_duong_toi_han) ? 'canh-bao-cam' : 'mo'}` }, h('b', null, n.so_bao_duong_toi_han), h('span', null, 'Bảo dưỡng tới hạn')),
         h('div', { class: `o-dem ${Number(n.so_su_co) ? 'canh-bao' : 'mo'}` }, h('b', null, n.so_su_co), h('span', null, 'Thiếu / hỏng chờ xử lý'))),
       choNhan.length && phuTrach(n) ? h('div', { class: 'thong-bao canh-bao ts-cho-nhan-bao' },
-        h('span', null, h('b', null, `${choNhan.length} tài sản mới giao`), ' cho nhóm, anh/chị kiểm lại rồi bấm xác nhận đã nhận.'),
+        h('span', null, h('b', null, `${choNhan.length} món mới giao`), ' cho nhóm, anh/chị kiểm lại rồi bấm xác nhận đã nhận.'),
         h('button', { class: 'nut nho chinh', type: 'button', onclick: () => moXacNhanNhan(n, choNhan) }, 'Xác nhận đã nhận')) : null,
       h('section', { class: 'the' },
         h('div', { class: 'the-dau' }, h('div', null, h('h2', null, n.ten), h('p', { class: 'mo-ta ts-phu-trach' }, 'Phụ trách: ', phuTrachChips(n))),
@@ -196,7 +199,7 @@ export default async function trangTaiSan(el) {
     veBang();
   }
 
-  // ---------------- Chi tiết một tài sản ----------------
+  // ---------------- Chi tiết một món ----------------
   async function moChiTiet(t0, n) {
     const [[t], lich, bd, sc, ls] = await Promise.all([
       api.doc('v_tai_san', (q) => q.eq('id', t0.id)),
@@ -205,7 +208,7 @@ export default async function trangTaiSan(el) {
       api.doc('su_co_tai_san', (q) => q.eq('tai_san_id', t0.id).order('phat_hien_luc', { ascending: false })),
       api.doc('tai_san_lich_su', (q) => q.eq('tai_san_id', t0.id).order('luc', { ascending: false }).limit(60)),
     ]);
-    if (!t) return toast('Không tìm thấy tài sản.', 'loi');
+    if (!t) return toast('Không tìm thấy món này.', 'loi');
     n = n || nhom.find((x) => x.nhom_id === t.nhom_id) || { nhom_id: t.nhom_id, ten: t.nhom_ten, to_id: t.to_id, vai_phu_trach: [] };
     const conDung = t.dang_dung;
     let dong = null;
@@ -280,7 +283,7 @@ export default async function trangTaiSan(el) {
     const khoiLich = h('div', { class: 'rong luoi-o ts-lich-moi' },
       truong('Việc bảo dưỡng định kỳ (nếu có)', oChu('ten_viec', '', { placeholder: 'Thay dầu, xả nước bình…' }), 'Để trống nếu không cần', { co: 'lon' }),
       truong('Chu kỳ', chonCk, null, { co: 'vua' }));
-    const chonAnh = t ? null : oChonTep({ name: 'anh', capture: 'environment' }, 'Chụp ảnh tài sản');
+    const chonAnh = t ? null : oChonTep({ name: 'anh', capture: 'environment' }, 'Chụp ảnh');
     const capNhatLoai = () => {
       const may = chonLoai.value === 'may_moc';
       truongSl.hidden = may; truongDv.hidden = may;
@@ -288,8 +291,8 @@ export default async function trangTaiSan(el) {
     };
     chonLoai.addEventListener('change', capNhatLoai);
     const form = h('form', { class: 'luoi-o', novalidate: true },
-      truong('Tên tài sản', oChu('ten', t?.ten || '', { placeholder: 'Máy nén khí 50L, Bộ tuýp 1/2…' }), null, { batBuoc: true, co: 'lon' }),
-      truong('Loại', chonLoai, t ? 'Không đổi loại được' : 'Máy móc: quản lý từng cái, có bảo dưỡng. Dụng cụ: theo bộ / số lượng.', { batBuoc: true, co: 'vua' }),
+      truong('Tên thiết bị, đồ nghề', oChu('ten', t?.ten || '', { placeholder: 'Máy nén khí 50L, Bộ tuýp 1/2…' }), null, { batBuoc: true, co: 'lon' }),
+      truong('Loại', chonLoai, t ? 'Không đổi loại được' : 'Thiết bị (máy): quản lý từng cái, có bảo dưỡng. Đồ nghề: theo bộ / số lượng.', { batBuoc: true, co: 'vua' }),
       t ? null : truong('Giao cho nhóm', oChon('nhom_id', dsNhom, nhomMacDinh || dsNhom[0]?.value, { trong: null }), null, { batBuoc: true, co: 'vua' }),
       truongSl, truongDv,
       h('datalist', { id: 'ds-don-vi-ts' }, ['Cái', 'Bộ', 'Chiếc', 'Cây', 'Hộp', 'Cuộn'].map((x) => h('option', { value: x }))),
@@ -304,7 +307,7 @@ export default async function trangTaiSan(el) {
       khoiLich,
       chonAnh ? truong('Ảnh', chonAnh, 'Không bắt buộc', { rong: true }) : null);
     capNhatLoai();
-    moModal(t ? `Sửa – ${t.ma}` : 'Thêm tài sản', form, {
+    moModal(t ? `Sửa – ${t.ma}` : 'Thêm thiết bị, đồ nghề', form, {
       rong: true, nhanNut: t ? 'Lưu' : 'Thêm và giao cho nhóm',
       nutChinh: async () => {
         const d = docForm(form);
@@ -312,14 +315,14 @@ export default async function trangTaiSan(el) {
         delete p.ten_viec; delete p.chu_ky_ngay; delete p.anh;
         const id = await api.luuTaiSan(p);
         if (!t && p.loai === 'may_moc' && d.ten_viec) {
-          await api.luuLichBaoDuong({ tai_san_id: id, ten_viec: d.ten_viec, chu_ky_ngay: Number(d.chu_ky_ngay), bat_dau: d.ngay_mua || homNay() }).catch((e) => toast(`Đã thêm tài sản, chưa lưu được lịch bảo dưỡng: ${e.message}`, 'loi'));
+          await api.luuLichBaoDuong({ tai_san_id: id, ten_viec: d.ten_viec, chu_ky_ngay: Number(d.chu_ky_ngay), bat_dau: d.ngay_mua || homNay() }).catch((e) => toast(`Đã thêm, chưa lưu được lịch bảo dưỡng: ${e.message}`, 'loi'));
         }
         const f = chonAnh?.input?.files?.[0];
         if (f) {
           const [moi] = await api.doc('tai_san', (q) => q.eq('id', id));
-          if (moi) await api.taiAnhTaiSan(moi, await nenAnh(f)).catch((e) => toast(`Đã thêm tài sản, chưa lưu được ảnh: ${e.message}`, 'loi'));
+          if (moi) await api.taiAnhTaiSan(moi, await nenAnh(f)).catch((e) => toast(`Đã thêm, chưa lưu được ảnh: ${e.message}`, 'loi'));
         }
-        toast(t ? 'Đã lưu.' : 'Đã thêm tài sản, chờ nhóm xác nhận đã nhận.');
+        toast(t ? 'Đã lưu.' : 'Đã thêm, chờ nhóm xác nhận đã nhận.');
         await taiLai();
       },
     });
@@ -337,9 +340,9 @@ export default async function trangTaiSan(el) {
   }
 
   function moThanhLy(t) {
-    const form = h('form', null, h('p', null, `Thanh lý ${t.so_luong} ${t.don_vi} ${t.ten} (${t.ma}). Tài sản sẽ không còn trong danh sách kiểm tra.`),
+    const form = h('form', null, h('p', null, `Thanh lý ${t.so_luong} ${t.don_vi} ${t.ten} (${t.ma}). Món này sẽ không còn trong danh sách kiểm tra.`),
       truong('Lý do', oVung('ly_do', ''), 'Hư hỏng không sửa được, bán ve chai…', { batBuoc: true }));
-    moModal('Thanh lý tài sản', form, { nhanNut: 'Thanh lý', nutChinh: async () => { await api.thanhLyTaiSan(t.id, docForm(form).ly_do); toast('Đã thanh lý.'); await taiLai(); } });
+    moModal(`Thanh lý – ${t.ten}`, form, { nhanNut: 'Thanh lý', nutChinh: async () => { await api.thanhLyTaiSan(t.id, docForm(form).ly_do); toast('Đã thanh lý.'); await taiLai(); } });
   }
 
   function moBaoSuCo(t) {
@@ -373,7 +376,7 @@ export default async function trangTaiSan(el) {
       truong('Kết quả', chonKq, null, { rong: true, batBuoc: true }),
       truong('Ghi chú', oChu('ghi_chu', ''), null, { rong: true }),
       khoiBt);
-    moModal('Xử lý tài sản thiếu / hỏng', form, {
+    moModal('Xử lý thiếu / hỏng', form, {
       nhanNut: 'Lưu xử lý', nutChinh: async () => {
         const d = docForm(form);
         if (!d.ket_qua) { toast('Chọn kết quả xử lý.', 'loi'); return false; }
@@ -448,7 +451,7 @@ export default async function trangTaiSan(el) {
       nhanNut: 'Xác nhận', nutChinh: async () => {
         const ids = ds.filter((t) => form.querySelector(`[name=ts_${t.id}]`).checked).map((t) => t.id);
         if (!ids.length) { toast('Chưa chọn món nào.', 'loi'); return false; }
-        await api.xacNhanNhanTaiSan(ids); toast(`Đã xác nhận nhận ${ids.length} tài sản.`); await taiLai();
+        await api.xacNhanNhanTaiSan(ids); toast(`Đã xác nhận nhận ${ids.length} món.`); await taiLai();
       },
     });
   }
@@ -537,11 +540,11 @@ export default async function trangTaiSan(el) {
     const ketQua = { du: 'Đủ', thieu: 'Thiếu', hong: 'Có hỏng', thieu_hong: 'Thiếu, có hỏng', du_thua: 'Dư' };
     const noiDung = h('div', { class: 'bien-ban' },
       h('p', { class: 'bb-cty' }, (/hoàng sơn/i.test(api.dm.ten('chi_nhanh', cn) || '') ? api.dm.ten('chi_nhanh', cn) : `Gara Hoàng Sơn${api.dm.ten('chi_nhanh', cn) ? ` – ${api.dm.ten('chi_nhanh', cn)}` : ''}`).toUpperCase()),
-      h('h3', { class: 'bb-tieu-de' }, kk ? 'BIÊN BẢN KIỂM KÊ TÀI SẢN' : 'PHIẾU KIỂM TRA TÀI SẢN TUẦN'),
+      h('h3', { class: 'bb-tieu-de' }, kk ? 'BIÊN BẢN KIỂM KÊ THIẾT BỊ ĐỒ NGHỀ' : 'PHIẾU KIỂM TRA ĐỒ NGHỀ TUẦN'),
       h('p', { class: 'bb-phu' }, `Nhóm: ${n.ten} · Ngày ${ngay(k.ngay)}`),
       h('p', null, 'Người kiểm: ', h('b', null, tenNv(k.nguoi_kiem)?.ho_ten || k.nguoi_kiem_ten || ''), k.cung_kiem ? [' · Người cùng kiểm: ', h('b', null, k.cung_kiem)] : null),
       h('table', { class: 'bang bb-bang' },
-        h('thead', null, h('tr', null, ['STT', 'Mã', 'Tên tài sản', 'ĐVT', 'Trên sổ', 'Thực tế', 'Hỏng', 'Chênh lệch', 'Kết quả', 'Ghi chú'].map((c, i) => h('th', { class: i >= 4 && i <= 7 ? 'so' : null }, c)))),
+        h('thead', null, h('tr', null, ['STT', 'Mã', 'Tên thiết bị, đồ nghề', 'ĐVT', 'Trên sổ', 'Thực tế', 'Hỏng', 'Chênh lệch', 'Kết quả', 'Ghi chú'].map((c, i) => h('th', { class: i >= 4 && i <= 7 ? 'so' : null }, c)))),
         h('tbody', null, dsDong.map((d, i) => { const t = ts[d.tai_san_id] || {}; const cl = d.so_luong_thuc - d.so_luong_so;
           return h('tr', null, h('td', null, i + 1), h('td', null, t.ma || ''), h('td', null, t.ten || ''), h('td', null, t.don_vi || ''),
             h('td', { class: 'so' }, d.so_luong_so), h('td', { class: 'so' }, d.so_luong_thuc), h('td', { class: 'so' }, d.so_hong || ''),
@@ -592,7 +595,7 @@ export default async function trangTaiSan(el) {
     const ds = kq.tai_san || [];
     const pd = `${kq.chi_nhanh || 'Gara Hoàng Sơn'} · Xuất lúc ${ngayGio(kq.luc)} · Người xuất: ${api.toi?.ho_ten || ''}`;
     const tenNhom = [...new Set(ds.map((x) => x.nhom))];
-    const cot = [{ nhan: 'STT', kieu: 'tien', rong: 6 }, { nhan: 'Mã', rong: 14 }, { nhan: 'Tên tài sản', rong: 34 }, { nhan: 'Loại', rong: 16 },
+    const cot = [{ nhan: 'STT', kieu: 'tien', rong: 6 }, { nhan: 'Mã', rong: 14 }, { nhan: 'Tên thiết bị, đồ nghề', rong: 34 }, { nhan: 'Loại', rong: 16 },
       { nhan: 'Số lượng', kieu: 'so', rong: 9 }, { nhan: 'ĐVT', rong: 8 }, { nhan: 'Hãng / model', rong: 18 }, { nhan: 'Serial', rong: 16 },
       { nhan: 'Đơn giá mua (đ)', kieu: 'tien', rong: 15 }, { nhan: 'Giá trị (đ)', kieu: 'tien', rong: 15 }, { nhan: 'Ngày mua', rong: 11 },
       { nhan: 'Bảo hành đến', rong: 11 }, { nhan: 'Vị trí', rong: 18 }, { nhan: 'Tình trạng', rong: 12 }, { nhan: 'Kiểm tra gần nhất', rong: 13 },
@@ -602,25 +605,25 @@ export default async function trangTaiSan(el) {
       x.kiem_tra_cuoi ? ngay(x.kiem_tra_cuoi) : '', x.han_bao_duong ? ngay(x.han_bao_duong) : '', x.ghi_chu || ''];
     const dangDung = (x) => !['mat', 'thanh_ly'].includes(x.tinh_trang);
     const trang = [{
-      ten: 'Tổng hợp', tieuDe: 'TÀI SẢN – TỔNG HỢP THEO NHÓM', phuDe: pd,
-      cot: [{ nhan: 'Nhóm', rong: 24 }, { nhan: 'Số tài sản đang dùng', kieu: 'tien', rong: 14 }, { nhan: 'Giá trị (đ)', kieu: 'tien', rong: 18 },
+      ten: 'Tổng hợp', tieuDe: 'THIẾT BỊ ĐỒ NGHỀ – TỔNG HỢP THEO NHÓM', phuDe: pd,
+      cot: [{ nhan: 'Nhóm', rong: 24 }, { nhan: 'Số món đang dùng', kieu: 'tien', rong: 14 }, { nhan: 'Giá trị (đ)', kieu: 'tien', rong: 18 },
         { nhan: 'Hỏng / đang sửa', kieu: 'tien', rong: 14 }, { nhan: 'Đã mất / thanh lý', kieu: 'tien', rong: 14 }],
       dong: tenNhom.map((tn) => { const x = ds.filter((y) => y.nhom === tn);
         return [tn, x.filter(dangDung).length, x.filter(dangDung).reduce((s, y) => s + Number(y.gia_tri), 0), x.filter((y) => ['hong', 'dang_sua'].includes(y.tinh_trang)).length, x.filter((y) => !dangDung(y)).length]; }),
       tong: ['Tổng cộng', 'SUM', 'SUM', 'SUM', 'SUM'],
     }, ...tenNhom.map((tn) => { const x = ds.filter((y) => y.nhom === tn);
-      return { ten: tn, tieuDe: `TÀI SẢN – ${tn.toUpperCase()}`, phuDe: pd, cot, dong: x.map(dongTs),
-        tong: ['', 'Tổng cộng', `${x.length} tài sản`, null, null, null, null, null, null, 'SUM', null, null, null, null, null, null, null] }; })];
+      return { ten: tn, tieuDe: `THIẾT BỊ ĐỒ NGHỀ – ${tn.toUpperCase()}`, phuDe: pd, cot, dong: x.map(dongTs),
+        tong: ['', 'Tổng cộng', `${x.length} món`, null, null, null, null, null, null, 'SUM', null, null, null, null, null, null, null] }; })];
     const sc = kq.su_co || [];
-    if (sc.length) trang.push({ ten: 'Thiếu – hỏng', tieuDe: 'TÀI SẢN THIẾU / HỎNG VÀ BỒI THƯỜNG', phuDe: pd,
-      cot: [{ nhan: 'Ngày', rong: 11 }, { nhan: 'Mã', rong: 14 }, { nhan: 'Tài sản', rong: 30 }, { nhan: 'Nhóm', rong: 18 }, { nhan: 'Sự cố', rong: 10 },
+    if (sc.length) trang.push({ ten: 'Thiếu – hỏng', tieuDe: 'THIẾT BỊ ĐỒ NGHỀ THIẾU / HỎNG VÀ BỒI THƯỜNG', phuDe: pd,
+      cot: [{ nhan: 'Ngày', rong: 11 }, { nhan: 'Mã', rong: 14 }, { nhan: 'Thiết bị, đồ nghề', rong: 30 }, { nhan: 'Nhóm', rong: 18 }, { nhan: 'Sự cố', rong: 10 },
         { nhan: 'Số lượng', kieu: 'so', rong: 9 }, { nhan: 'Mô tả', rong: 28 }, { nhan: 'Xử lý', rong: 14 }, { nhan: 'Người chịu', rong: 20 },
         { nhan: 'Bồi thường (đ)', kieu: 'tien', rong: 14 }, { nhan: 'Đã trừ', rong: 8 }],
       dong: sc.map((s) => [ngay(s.ngay), s.ma, s.ten, s.nhom, s.loai === 'mat' ? 'Thiếu' : 'Hỏng', Number(s.so_luong), s.mo_ta || '',
         s.trang_thai === 'cho_xu_ly' ? 'Chờ xử lý' : (KET_QUA[s.ket_qua] || ''), s.nguoi_chiu || '', Number(s.boi_thuong) || null, Number(s.boi_thuong) ? (s.da_tru ? 'Có' : 'Chưa') : '']),
       tong: ['Tổng cộng', null, null, null, null, null, null, null, null, 'SUM', null] });
-    taiFileExcel(`Tai-san_${homNay()}.xlsx`, trang);
-    toast(`Đã xuất file tài sản: ${ds.length} tài sản.`);
+    taiFileExcel(`Thiet-bi-do-nghe_${homNay()}.xlsx`, trang);
+    toast(`Đã xuất file thiết bị đồ nghề: ${ds.length} món.`);
   }
 
   await taiLai();
