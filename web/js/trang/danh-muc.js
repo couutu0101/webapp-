@@ -17,7 +17,8 @@ const DANH_MUC = [
   { bang: 'hang_xe', ten: 'Hãng xe', cot: [{ k: 'ten', nhan: 'Tên', batBuoc: true }] },
   { bang: 'dong_xe', ten: 'Dòng xe', cot: [{ k: 'hang_xe_id', nhan: 'Hãng xe', loai: 'chon', nguon: 'hang_xe', batBuoc: true }, { k: 'ten', nhan: 'Dòng xe', batBuoc: true }] },
   { bang: 'tai_khoan_quy', ten: 'Tài khoản quỹ', coDinh: () => ({ chi_nhanh_id: api.toi.chi_nhanh_id }),
-    cot: [{ k: 'ten', nhan: 'Tên', batBuoc: true }, { k: 'so_du_dau_ky', nhan: 'Số dư đầu kỳ', loai: 'tien' }, { k: 'ngay_dau_ky', nhan: 'Ngày đầu kỳ', loai: 'ngay' }, { k: 'hoat_dong', nhan: 'Đang dùng', loai: 'bool' }],
+    cot: [{ k: 'ten', nhan: 'Tên', batBuoc: true }, { k: 'so_du_dau_ky', nhan: 'Số dư đầu kỳ', loai: 'tien' }, { k: 'ngay_dau_ky', nhan: 'Ngày đầu kỳ', loai: 'ngay' },
+      { k: 'mac_dinh', nhan: 'Mặc định nhận tiền (phiếu thu)', loai: 'bool' }, { k: 'hoat_dong', nhan: 'Đang dùng', loai: 'bool' }],
     ghiChu: 'Số dư đầu kỳ nhập một lần lúc bắt đầu dùng phần mềm (số dư ngày 31/10/2026). Tài khoản cá nhân nhân viên: bỏ chọn "Đang dùng".' },
   { bang: 'muc_thu_chi', ten: 'Mục thu chi', cot: [
     { k: 'loai', nhan: 'Loại', loai: 'chon', ds: { thu: 'Thu', chi: 'Chi' }, batBuoc: true }, { k: 'ten', nhan: 'Tên', batBuoc: true },
@@ -75,7 +76,7 @@ export default async function trangDanhMuc(el) {
 
   function moForm(cfg, r) {
     const form = h('form', { class: 'luoi-o' }, cfg.cot.map((c) => {
-      const v = r ? r[c.k] : (c.loai === 'bool' ? true : null);
+      const v = r ? r[c.k] : (c.loai === 'bool' ? c.k !== 'mac_dinh' : null);
       if (c.chiXem) return r ? h('p', { class: 'rong' }, h('b', null, r.khoa), ' – ', v) : null;
       let o;
       if (c.loai === 'bool') return h('div', { class: 'truong' }, oCheck(c.k, v, c.nhan));

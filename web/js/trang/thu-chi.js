@@ -63,7 +63,7 @@ export default async function trangThuChi(el) {
     const oSoTien = oTien('so_tien', null);
     const vungRieng = h('div', { class: 'rong' });
     form.append(
-      truong('Tài khoản nhận', oChon('tai_khoan_id', dsTaiKhoan().map((t) => ({ value: t.id, label: t.ten })), dsTaiKhoan()[0]?.id, { trong: null })),
+      truong('Tài khoản nhận', oChon('tai_khoan_id', dsTaiKhoan().map((t) => ({ value: t.id, label: t.ten })), (dsTaiKhoan().find((t) => t.mac_dinh) || dsTaiKhoan()[0])?.id, { trong: null }), 'Mặc định: tài khoản công ty (đổi ở Danh mục → Tài khoản quỹ)'),
       truong('Mục thu', chonMuc, null, { batBuoc: true }),
       truong('Số tiền', oSoTien, null, { batBuoc: true }),
       truong('Ngày', oNgay('ngay', homNay(), { max: homNay() })),
@@ -85,6 +85,7 @@ export default async function trangThuChi(el) {
         chon.addEventListener('change', () => {
           const x = ds.find((y) => String(y.id) === chon.value);
           if (x && m.tinh_chat === 'thu_khach') oSoTien.value = tien(x.con_no_khach);
+          if (x && !form.noi_dung.value) form.noi_dung.value = `${m.tinh_chat === 'thu_coc' ? 'Cọc' : 'Khách trả'} sửa xe ${x.bien_so_hien_thi || x.ma} – ${x.ten_khach}`;
         });
         vungRieng.append(truong('Xe', chon, m.tinh_chat === 'thu_coc' ? 'Tiền cọc trừ vào phần khách trả khi giao xe' : null, { batBuoc: true }));
         if (hoSoId) chon.dispatchEvent(new Event('change'));
@@ -102,6 +103,14 @@ export default async function trangThuChi(el) {
         });
         vungRieng.append(truong('Hãng bảo hiểm', chonHang, null, { batBuoc: true }), dsXe);
         layPhanBo = () => dongs.map((d) => ({ ho_so_id: d.x.id, so_tien: docTien(d.o.value) })).filter((d) => d.so_tien);
+        const xHs = hoSoId ? hoSoMo.find((y) => String(y.id) === String(hoSoId)) : null;
+        if (xHs && xHs.hang_bh_id) {
+          chonHang.value = String(xHs.hang_bh_id);
+          chonHang.dispatchEvent(new Event('change'));
+          const d = dongs.find((z) => z.x.id === xHs.id);
+          if (d) { d.o.value = tien(xHs.con_no_bh); oSoTien.value = tien(xHs.con_no_bh); }
+          if (!form.noi_dung.value) form.noi_dung.value = `${xHs.hang_bh || 'Bảo hiểm'} trả xe ${xHs.bien_so_hien_thi || xHs.ma} – ${xHs.ten_khach}`;
+        }
       } else if (m.tinh_chat === 'thu_dich_vu_nhanh') {
         const ds = (await api.doc('v_dich_vu_nhanh', (q) => q.eq('trang_thai', 'hieu_luc').order('ngay', { ascending: false }).limit(200)))
           .filter((d) => Number(d.da_thu) < Number(d.so_tien));
@@ -117,7 +126,8 @@ export default async function trangThuChi(el) {
     chonMuc.addEventListener('change', doiMuc);
     if (hoSoId) {
       const x = hoSoMo.find((y) => String(y.id) === String(hoSoId));
-      const tc = x && Number(x.khach_duyet) === 0 && Number(x.con_no_khach) <= 0 ? 'thu_coc' : 'thu_khach';
+      // Tự chọn mục theo bên còn nợ: khách nợ → thu khách; chỉ bảo hiểm nợ → bảo hiểm trả; chưa nợ gì → thu cọc
+      const tc = !x ? 'thu_khach' : Number(x.con_no_khach) > 0 ? 'thu_khach' : Number(x.con_no_bh) > 0 ? 'thu_bao_hiem' : 'thu_coc';
       chonMuc.value = mucThu.find((m) => m.tinh_chat === tc)?.id ?? '';
       await doiMuc();
     } else if (dvnId) {
