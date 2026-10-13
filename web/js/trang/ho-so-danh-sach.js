@@ -1,8 +1,8 @@
 // Danh sách hồ sơ xe
-import { h, bienSo, tien, ngay, bang, nhanTrangThai, NGUON, dat, nhoPhien } from '../ui.js';
+import { h, bienSo, tien, ngay, bang, nhanTrangThai, NGUON, dat, nhoPhien, thanhBuocNho } from '../ui.js';
 import * as api from '../api.js';
 import { nutXuatExcel, xuatExcelKhachHang } from './xuat-excel.js';
-import { viecTiepTheo } from './giao-viec.js';
+import { viecTiepTheo, chipsViec } from './giao-viec.js';
 
 const LOC = [
   { ma: 'dang', nhan: 'Đang ở xưởng', tt: ['tiep_nhan', 'bao_gia', 'da_duyet', 'dang_sua', 'cho_kcs', 'dat_kcs'] },
@@ -53,14 +53,14 @@ export default async function trangHoSo(el) {
     });
     // Ai đang được giao bước tiếp theo
     const viec = ds.length ? await api.doc('v_viec_ho_so', (q) => q.in('ho_so_id', ds.map((d) => d.id))).catch(() => []) : [];
-    const nguoiCua = Object.fromEntries(viec.map((v) => [v.ho_so_id, v.nguoi_tiep_theo_ten]));
+    const viecCua = Object.fromEntries(viec.map((v) => [v.ho_so_id, v]));
     const choPT = Object.fromEntries((ds.length ? await api.doc('v_cho_phu_tung', (q) => q.in('ho_so_id', ds.map((d) => d.id))).catch(() => []) : [])
       .map((c) => [c.ho_so_id, c.so_ngay]));
     const oViec = (d) => {
       const v = viecTiepTheo(d);
       if (!v) return '';
-      const ai = nguoiCua[d.id];
-      return h('span', { class: 'viec-tiep' }, v.ten, h('small', null, ai || 'Chưa giao'));
+      const chips = chipsViec(d, viecCua[d.id]);
+      return h('span', { class: 'viec-tiep' }, h('span', null, v.ten), h('span', { class: 'viec-tiep-ai' }, chips.length ? chips : h('small', null, 'Chưa giao')));
     };
     const coTien = api.coVaiTro('giam_doc', 'ke_toan', 'quan_ly');
     dat(ketQua, 
@@ -73,8 +73,10 @@ export default async function trangHoSo(el) {
         { nhan: 'Khách', lay: (d) => d.ten_khach },
         { nhan: 'Nguồn', lay: (d) => d.nguon_tt === 'khach' ? 'Ngoài BH' : (d.hang_bh || NGUON[d.nguon_tt]) },
         { nhan: 'Vào ngày', lay: (d) => ngay(d.ngay_vao) },
-        { nhan: 'Bước', lay: (d) => h('span', null, nhanTrangThai(d.trang_thai), d.co_phat_sinh ? h('span', { class: 'nhan tt-canh-bao' }, 'Phát sinh') : null,
-          choPT[d.id] !== undefined ? h('span', { class: 'nhan tt-canh-bao' }, `Chờ phụ tùng ${choPT[d.id]} ngày`) : null) },
+        { nhan: 'Bước', lay: (d) => h('span', { class: 'cot-buoc' },
+          h('span', { class: 'cot-buoc-nhan' }, nhanTrangThai(d.trang_thai), d.co_phat_sinh ? h('span', { class: 'nhan tt-canh-bao' }, 'Phát sinh') : null,
+            choPT[d.id] !== undefined ? h('span', { class: 'nhan tt-canh-bao' }, `Chờ phụ tùng ${choPT[d.id]} ngày`) : null),
+          thanhBuocNho(d)) },
         { nhan: 'Việc tiếp theo – Ai làm', lay: oViec },
         coTien ? { nhan: 'Còn nợ', so: true, lay: (d) => {
           const kh = Number(d.con_no_khach) || 0; const bh = Number(d.con_no_bh) || 0;

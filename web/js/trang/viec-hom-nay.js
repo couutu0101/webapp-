@@ -1,5 +1,5 @@
 // Việc hôm nay: số xe theo bước, việc cần xử lý, bảng việc của tổ
-import { h, oChonTep, bienSo, icon, ngayGio, tien, chay, moModal, oVung, truong, docForm, nhanTrangThai, nenAnh, TRANG_THAI, dat } from '../ui.js';
+import { h, oChonTep, bienSo, icon, ngayGio, tien, chay, moModal, oVung, truong, docForm, nhanTrangThai, nenAnh, TRANG_THAI, dat, thanhBuocNho, chipNguoi } from '../ui.js';
 import * as api from '../api.js';
 import { viecTiepTheo } from './giao-viec.js';
 import { moLapDeXuat, moDeXuat, moChiTietMua, moChiTietNhap } from './kho.js';
@@ -34,7 +34,7 @@ export default async function trangViec(el) {
   dat(el, 
     h('div', { class: 'tieu-de-trang' }, h('h1', null, 'Việc hôm nay'), h('div', { class: 'hang-nut' }, nut)),
     laVanPhong ? khoiViecCuaToi(viecCuaToi, () => trangViec(el)) : null,
-    laVanPhong ? h('section', { class: 'luoi-dem' }, NHOM_DEM.map((n) => {
+    laVanPhong ? h('section', { class: 'luoi-dem chuoi-xe', 'aria-label': 'Số xe ở từng bước' }, NHOM_DEM.map((n) => {
       const so = hoSo.filter((x) => n.tt.includes(x.trang_thai)).length;
       return h('a', { class: `o-dem ${so ? '' : 'mo'}`, href: `#/ho-so?tt=${n.tt.join(',')}` },
         h('b', null, so), h('span', null, n.nhan));
@@ -65,11 +65,12 @@ function khoiBangViec(ds, taiLai) {
     !ds.length ? h('p', { class: 'trong' }, 'Không có xe đang sửa.') :
       h('div', { class: 'luoi-the' }, ds.map((x) => h('article', { class: `the-xe ${x.hen_giao && quaHan(new Date(x.hen_giao)) ? 'qua-han' : ''}` },
         h('div', { class: 'the-xe-dau' }, bienSo(x.bien_so, { maThay: x.ma }), nhanTrangThai(x.trang_thai)),
+        thanhBuocNho(x),
         h('div', { class: 'mo-ta' }, x.xe),
         x.hen_giao ? h('div', { class: 'mo-ta' }, 'Hẹn giao: ', h('b', null, ngayGio(x.hen_giao)),
           quaHan(new Date(x.hen_giao)) ? h('span', { class: 'nhan qua-han' }, chuHan(new Date(x.hen_giao))) : null) : null,
         h('ul', { class: 'ds-hang-muc' }, (x.hang_muc || []).map((m) => h('li', { class: m.trang_thai },
-          h('span', null, m.ten, m.nguoi_lam ? h('small', null, ` – ${m.nguoi_lam}`) : null),
+          h('span', { class: 'hang-muc-ten' }, m.ten, m.nguoi_lam ? chipNguoi(m.nguoi_lam, { vai: 'truong_nhom', gon: true, nho: true }) : null),
           m.trang_thai === 'dang_lam'
             ? h('button', { class: 'nut nho', type: 'button', onclick: () => chay(() => api.baoXong(m.id), { thanhCong: `Đã báo xong: ${m.ten}` }).then(taiLai, taiLai) }, 'Báo xong')
             : h('span', { class: 'xong' }, '✓ Xong')))),
@@ -155,7 +156,8 @@ function khoiViecCuaToi(ds, taiLai) {
         const qh = quaHan(v.han);
         const noiDung = [v.dau,
           h('span', { class: 'viec-ten' }, h('b', null, v.ten), h('small', null, v.phu)),
-          h('small', { class: `viec-luc ${qh ? 'chu-loi' : ''}` }, v.han ? chuHan(v.han) : `Từ ${ngayGio(v.luc)}`)];
+          v.han ? h('span', { class: `viec-luc han ${qh ? 'qua' : v.han.getTime() - Date.now() < 4 * 36e5 ? 'sap' : ''}` }, chuHan(v.han))
+            : h('small', { class: 'viec-luc' }, `Từ ${ngayGio(v.luc)}`)];
         return h('li', { class: qh ? 'qua-han' : null },
           v.href ? h('a', { href: v.href }, noiDung)
             : h('a', { href: '#', onclick: (e) => { e.preventDefault(); v.moChiTiet(taiLai); } }, noiDung));

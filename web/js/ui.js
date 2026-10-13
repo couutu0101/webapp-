@@ -100,6 +100,64 @@ export function nhanTrangThai(tt) {
   return h('span', { class: `nhan tt-${tt}` }, TRANG_THAI[tt] || tt);
 }
 
+// ---------- 9 bước của xe ----------
+export const BUOC_XE = ['Tiếp nhận', 'Báo giá', 'Duyệt giá', 'Lệnh sửa chữa', 'Cấp phụ tùng – Sửa chữa', 'KCS', 'Giao xe', 'Hồ sơ BH', 'Chăm sóc'];
+// Bước xe ĐANG CHỜ làm (1–9, khớp "Bước tiếp theo"); 0 = đã xong cả 9 bước; null = hồ sơ hủy.
+// boQua: bước không áp dụng (khách ngoài bảo hiểm không có hồ sơ BH). Chăm sóc làm trước khi gửi hồ sơ BH vẫn tính xong.
+export function buocXe(hs) {
+  if (!hs || hs.trang_thai === 'huy') return { dang: null, boQua: [], xong: () => false };
+  const boQua = hs.nguon_tt === 'khach' ? [8] : [];
+  const chamSoc = !!hs.cham_soc_luc;
+  let dang;
+  if (hs.tu_excel) dang = 0;
+  else switch (hs.trang_thai) {
+    case 'tiep_nhan': dang = 2; break;
+    case 'bao_gia': dang = 3; break;
+    case 'da_duyet': dang = 4; break;
+    case 'dang_sua': dang = 5; break;
+    case 'cho_kcs': dang = 6; break;
+    case 'dat_kcs': dang = 7; break;
+    case 'da_giao': dang = hs.nguon_tt !== 'khach' && !hs.gui_hs_ngay ? 8 : chamSoc ? 0 : 9; break;
+    case 'da_gui_hs': case 'dong': dang = chamSoc ? 0 : 9; break;
+    default: dang = 1;
+  }
+  const xong = (so) => !boQua.includes(so) && (dang === 0 || so < dang || (so === 9 && chamSoc));
+  return { dang, boQua, xong };
+}
+// Thanh 9 vạch thu nhỏ: danh sách hồ sơ, thẻ xe ở bảng việc
+export function thanhBuocNho(hs) {
+  const { dang, boQua, xong } = buocXe(hs);
+  if (dang === null) return null;
+  const soXong = BUOC_XE.filter((_, i) => xong(i + 1)).length;
+  const moTa = dang === 0 ? 'Đã xong cả 9 bước' : `Bước ${dang}/9: ${BUOC_XE[dang - 1]} – đã xong ${soXong} bước`;
+  return h('span', { class: 'buoc-nho', role: 'img', 'aria-label': moTa, title: moTa },
+    BUOC_XE.map((_, i) => h('i', { class: boQua.includes(i + 1) ? 'bo' : xong(i + 1) ? 'xong' : i + 1 === dang ? 'dang' : null })));
+}
+
+// ---------- Người đảm nhận: thẻ tên có chữ cái đầu, màu theo vai trò ----------
+const UU_TIEN_VAI = ['giam_doc', 'quan_ly', 'ke_toan', 'cvdv', 'kho', 'truong_nhom', 'co_dong'];
+export const vaiChinh = (vaiTro = []) => UU_TIEN_VAI.find((v) => vaiTro.includes(v)) || null;
+export const tenNgan = (ten) => String(ten || '').trim().split(/\s+/).pop() || '';
+export function chuDau(ten = '') {
+  const t = String(ten).trim();
+  const to = /^tổ\s+(\S+)/i.exec(t);
+  if (to) return to[1].slice(0, 2).toUpperCase();
+  return (t.split(/\s+/).pop() || '?').charAt(0).toUpperCase();
+}
+// chipNguoi('Nguyễn Trọng Duy', { vai: 'cvdv', gon: true }) → (D) Duy
+export function chipNguoi(ten, { vai = null, gon = false, chu = null, title = null, nho = false } = {}) {
+  if (!ten) return null;
+  return h('span', { class: `nguoi${vai ? ` vai-${vai}` : ''}${nho ? ' nho' : ''}`, title: title || ten },
+    h('span', { class: 'nguoi-av', 'aria-hidden': 'true' }, chu || chuDau(ten)),
+    h('span', { class: 'nguoi-ten' }, gon ? tenNgan(ten) : ten));
+}
+// Hạn xử lý dạng viên: "Còn 5 giờ" (xanh), sắp tới hạn dưới 4 giờ (cam), "Quá hạn 2 giờ" (đỏ)
+export function vienHan(han, chu, lop = '') {
+  if (!han || !chu) return null;
+  const ms = han.getTime() - Date.now();
+  return h('span', { class: `han ${ms < 0 ? 'qua' : ms < 4 * 36e5 ? 'sap' : ''} ${lop}`.trim() }, chu);
+}
+
 // ---------- Biển số: vẽ như biển thật để nhận ra xe ngay ----------
 export function vietBienSo(raw) {
   if (!raw) return '';
@@ -129,6 +187,9 @@ const ICON = {
   menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
   them: '<path d="M12 5v14M5 12h14"/>',
   kho: '<path d="M3 8 12 4l9 4v11H3z"/><path d="M7 19v-7h10v7"/><path d="M7 15h10"/>',
+  check: '<path d="m5 12.5 4.2 4.2L19 7"/>',
+  // Xe nhìn ngang, hướng sang phải – xe đang ở bước nào trên thanh tiến độ
+  xeChay: '<path d="M3 15.5v-3a1 1 0 0 1 .8-1l2.6-.6 2.4-3.3A2 2 0 0 1 10.4 6.8h4.2a2 2 0 0 1 1.6.8l2.6 3.4 1.6.4a1 1 0 0 1 .8 1v3.1"/><path d="M9.3 16h5.4"/><path d="M6.6 11h11.2"/><circle cx="6.8" cy="16.2" r="2.1"/><circle cx="17.2" cy="16.2" r="2.1"/>',
 };
 export function icon(ten) {
   return h('span', { class: 'ic', 'aria-hidden': 'true',

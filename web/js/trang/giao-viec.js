@@ -2,7 +2,7 @@
 //  - Người thực hiện: tự lấy người đăng nhập.
 //  - Người làm bước tiếp theo: phần mềm tự giao theo gợi ý mỗi lần chuyển bước (CSDL, 010_giao_viec.sql);
 //    ở tiếp nhận, báo giá, duyệt giá người làm chọn lại được; đổi giữa chừng: quản lý chung, giám đốc.
-import { h, oChon, truong, moModal, toast, ngayGio, VAI_TRO } from '../ui.js';
+import { h, oChon, truong, moModal, toast, ngayGio, VAI_TRO, chipNguoi, vaiChinh, tenNgan, vienHan } from '../ui.js';
 import * as api from '../api.js';
 
 // Ai làm được bước nào
@@ -66,26 +66,59 @@ export async function giaoSauKhiLuu(hoSoId, nguoi) {
   try { await api.giaoViec(hoSoId, nguoi); } catch (e) { toast(`Đã lưu, nhưng chưa giao được người làm bước tiếp theo: ${e.message}`, 'loi'); }
 }
 
-// Dòng "Đang chờ" ở đầu trang hồ sơ
-//   viec: dòng v_viec_ho_so; hm: hạng mục (để biết các tổ đang sửa)
-export function dongDangCho(hs, viec, hm, veLai) {
+// Ai đang phải làm bước tiếp theo của hồ sơ: [{ ten, nhan, vai, chu }]
+//   Đang sửa: trưởng nhóm các tổ còn hạng mục; bước khác: người được giao (v_viec_ho_so)
+export function aiDangLam(hs, viec, hm = []) {
   const v = viecTiepTheo(hs);
-  if (!v) return null;
-  let ai;
+  if (!v) return [];
   if (v.theoTo) {
     const toDangLam = [...new Set(hm.filter((m) => ['duyet', 'dang_lam'].includes(m.trang_thai) && m.to_id).map((m) => m.to_id))];
-    ai = toDangLam.length ? toDangLam.map((t) => {
-      const truong = nhanVien().find((n) => n.vai_tro.includes('truong_nhom') && n.to_id === t);
-      return `Tổ ${t}${truong ? ` (${truong.ho_ten})` : ''}`;
-    }).join(', ') : 'các tổ được giao';
-  } else {
-    ai = viec?.nguoi_tiep_theo_ten || 'Chưa giao ai';
+    return toDangLam.map((t) => {
+      const tr = (api.dm.nhan_vien || []).find((n) => n.hoat_dong && n.vai_tro.includes('truong_nhom') && n.to_id === t);
+      return { ten: tr ? tr.ho_ten : `Tổ ${t}`, nhan: tr ? `Tổ ${t} · ${tr.ho_ten}` : `Tổ ${t}`, gon: tr ? tenNgan(tr.ho_ten) : `Tổ ${t}`, vai: 'truong_nhom', chu: String(t).slice(0, 2).toUpperCase() };
+    });
   }
+  const nv = (api.dm.nhan_vien || []).find((n) => n.id === viec?.nguoi_tiep_theo);
+  const ten = nv?.ho_ten || viec?.nguoi_tiep_theo_ten;
+  return ten ? [{ ten, nhan: ten, gon: tenNgan(ten), vai: vaiChinh(nv?.vai_tro || []) }] : [];
+}
+// Thẻ tên của một nhân viên theo id (người đã làm một bước)
+export function chipNhanVien(id, opts = {}) {
+  const nv = (api.dm.nhan_vien || []).find((n) => n.id === id);
+  return nv ? chipNguoi(nv.ho_ten, { vai: vaiChinh(nv.vai_tro), ...opts }) : null;
+}
+// Thẻ tên từ một dòng v_viec_ho_so (danh sách hồ sơ): "Đặng Thanh Hận (tổ DS), Tổ DT" hoặc người được giao
+export function chipsViec(hs, viec, { gon = true } = {}) {
+  if (!viec) return [];
+  if (hs.trang_thai === 'dang_sua' && viec.nguoi_tiep_theo_ten) {
+    return viec.nguoi_tiep_theo_ten.split(/,\s*/).filter(Boolean).map((p) => {
+      const m = /^(.+?)\s*\(tổ\s+([^)]+)\)$/i.exec(p);
+      return m ? chipNguoi(m[1], { vai: 'truong_nhom', chu: m[2].slice(0, 2).toUpperCase(), gon, title: `Tổ ${m[2]} · ${m[1]}` })
+        : chipNguoi(p, { vai: 'truong_nhom' });
+    });
+  }
+  const nv = (api.dm.nhan_vien || []).find((n) => n.id === viec.nguoi_tiep_theo);
+  const ten = nv?.ho_ten || viec.nguoi_tiep_theo_ten;
+  return ten ? [chipNguoi(ten, { vai: vaiChinh(nv?.vai_tro || []), gon })] : [];
+}
+
+// Dòng "Đang chờ" ở đầu thẻ tiến độ của hồ sơ
+//   viec: dòng v_viec_ho_so; hm: hạng mục (để biết các tổ đang sửa); han / chuHan: hạn của bước này
+export function dongDangCho(hs, viec, hm, veLai, { han = null, chuHan = '' } = {}) {
+  const v = viecTiepTheo(hs);
+  if (!v) return null;
+  const ds = aiDangLam(hs, viec, hm);
+  const quaHan = han && han.getTime() < Date.now();
   const duocDoi = !v.theoTo && api.coVaiTro('quan_ly', 'giam_doc');
-  return h('div', { class: 'dang-cho' },
-    h('span', null, 'Bước tiếp theo: ', h('b', null, v.ten), ' – Giao cho: ', h('b', null, ai),
-      viec?.giao_viec_luc && !v.theoTo ? h('small', null, ` (từ ${ngayGio(viec.giao_viec_luc)})`) : null),
-    duocDoi ? h('button', { class: 'nut nho', type: 'button', onclick: () => moDoiNguoi(hs, v, viec, veLai) }, 'Đổi người') : null);
+  return h('div', { class: `dang-cho${quaHan ? ' qua-han' : ''}` },
+    h('span', { class: 'dang-cho-buoc' }, h('small', null, 'Đang chờ'), h('b', null, v.ten)),
+    h('span', { class: 'dang-cho-ai' }, h('small', null, 'Giao cho'),
+      ds.length ? ds.map((x) => chipNguoi(x.nhan, { vai: x.vai, chu: x.chu, title: x.ten }))
+        : h('b', null, v.theoTo ? 'các tổ được giao' : 'Chưa giao ai'),
+      viec?.giao_viec_luc && !v.theoTo ? h('small', { class: 'dang-cho-tu' }, `từ ${ngayGio(viec.giao_viec_luc)}`) : null),
+    h('span', { class: 'dang-cho-phai' },
+      vienHan(han, chuHan),
+      duocDoi ? h('button', { class: 'nut nho', type: 'button', onclick: () => moDoiNguoi(hs, v, viec, veLai) }, 'Đổi người') : null));
 }
 
 function moDoiNguoi(hs, v, viec, veLai) {

@@ -1,14 +1,15 @@
 // Chi tiết hồ sơ xe: 9 bước trên một trang, mỗi bước chỉ hiện nút cho đúng người
 import {
   h, oChonTep, bienSo, oNgayVN, oNgayGioVN, tien, ngay, ngayGio, homNay, choODatetime, truong, oChu, oTien, oChon, oVung, oNgay, oCheck, docForm, docTien,
-  chay, moModal, toast, nhanTrangThai, nenAnh, bang, BUOC_SO, NHOM, NHOM_CHON, NGUON, TRANG_THAI, xacNhan, dat, veDanhSachHoSo,
+  chay, moModal, toast, nhanTrangThai, nenAnh, bang, NHOM, NHOM_CHON, NGUON, TRANG_THAI, xacNhan, dat, veDanhSachHoSo,
+  icon, buocXe, BUOC_XE, chipNguoi,
 } from '../ui.js';
 import { khoiPhuTungXe } from './kho.js';
-import { khungGiaoViec, giaoSauKhiLuu, dongDangCho, nguoiLamTungBuoc, tenGoi, VAI_TRO_BUOC } from './giao-viec.js';
+import { khungGiaoViec, giaoSauKhiLuu, dongDangCho, nguoiLamTungBuoc, tenGoi, VAI_TRO_BUOC, aiDangLam, chipNhanVien } from './giao-viec.js';
+import { hanHoSo, chuHan } from '../han-viec.js';
 import * as api from '../api.js';
 import { ghiTiep, tuGhiNgayKhiBam, nhacHetHan, layLichSu, khoiLichSu } from './lich-su-xe.js';
 
-const BUOC = ['Tiếp nhận', 'Báo giá', 'Duyệt giá', 'Lệnh SC', 'Cấp phụ tùng – Sửa chữa', 'KCS', 'Giao xe', 'Hồ sơ BH', 'Chăm sóc'];
 const TT_DONG = { cho_duyet: 'Chờ duyệt', duyet: 'Đã duyệt', tu_choi: 'Không duyệt', dang_lam: 'Đang làm', xong: 'Xong' };
 const BUOC_TEP = { tiep_nhan: 'Nhận xe', duyet_gia: 'Giám định / duyệt giá / HĐ 3 bên', phat_sinh: 'Phát sinh', kcs: 'Sau sửa (KCS)', giao_xe: 'Giao xe', ho_so_bh: 'Hồ sơ bảo hiểm', khac: 'Khác' };
 
@@ -27,7 +28,7 @@ export default async function trangChiTiet(el, idChu) {
     hsDangXem = hs;
     const ctx = { hs, hm, nk, tep, ps, dsKcs, ve, viec, giaVon: Number(gv?.gia_von || 0), cho };
     dat(el, 
-      dau(ctx), dongDangCho(hs, viec, hm, veLai), tienDo(hs, nk),
+      dau(ctx), theTienDo(ctx, veLai),
       h('div', { class: 'cot-doi' },
         h('div', null, theThongTin(ctx), theBaoGia(ctx), theSuaChua(ctx), theKcs(ctx), theGiaoXe(ctx), theHoSoBH(ctx), theChamSoc(ctx)),
         h('div', null, theTien(ctx), theTep(ctx), theNhatKy(ctx))));
@@ -57,20 +58,47 @@ function dau({ hs, cho }) {
         ? h('a', { class: 'nut', href: `#/ho-so/moi?bao_hanh=${hs.id}` }, 'Tạo hồ sơ bảo hành') : null));
 }
 
-function tienDo(hs, nk = []) {
-  const nguoi = nguoiLamTungBuoc(nk);
-  const hienTai = BUOC_SO[hs.trang_thai] || 0;
+// Thẻ tiến độ: dòng "Đang chờ" (bước, người được giao, hạn) + đường 9 bước, xe dừng ở bước đang chờ
+const daChayTienDo = new Set();   // hiệu ứng xe chạy chỉ một lần cho mỗi hồ sơ + bước (vẽ lại sau thao tác thì thôi)
+function theTienDo({ hs, hm, nk, viec }, veLai) {
   if (hs.trang_thai === 'huy') return h('p', { class: 'thong-bao canh-bao' }, 'Hồ sơ đã hủy: ', hs.ly_do_huy || '');
-  const daXong = hs.trang_thai === 'dong';
+  const han = hanHoSo(hs, viec?.giao_viec_luc);
+  const thongTinHan = { han, chuHan: han ? chuHan(han) : '' };
+  return h('section', { class: 'the the-tien-do' },
+    dongDangCho(hs, viec, hm, veLai, thongTinHan),
+    tienDo(hs, nk, aiDangLam(hs, viec, hm)));
+}
+
+function tienDo(hs, nk, aiDang) {
+  const nguoi = nguoiLamTungBuoc(nk);
+  const { dang, boQua, xong } = buocXe(hs);
+  const soXong = BUOC_XE.filter((_, i) => xong(i + 1)).length;
+  const tien = dang === 0 ? 1 : Math.max(0, (dang - 1) / 8);
+  const khoa = `${hs.id}-${dang}`;
+  const chayLan = !daChayTienDo.has(khoa);
+  daChayTienDo.add(khoa);
   return h('div', { class: 'tien-do-khung' },
-    h('p', { class: 'tien-do-chu' }, daXong ? 'Đã xong cả 9 bước' : `Bước ${hienTai} trên 9: ${BUOC[hienTai - 1]}`),
-    h('ol', { class: 'tien-do', 'aria-label': 'Tiến độ 9 bước' }, BUOC.map((b, i) => {
+    h('ol', { class: `tien-do${chayLan ? ' chay' : ''}`, style: `--tien:${tien}`, 'aria-label': 'Tiến độ 9 bước' }, BUOC_XE.map((b, i) => {
       const so = i + 1;
-      const lop = so < hienTai || daXong ? 'xong' : so === hienTai ? 'dang' : '';
+      const lop = boQua.includes(so) ? 'bo' : xong(so) ? 'xong' : so === dang ? 'dang' : '';
       const ai = nguoi[so];
-      return h('li', { class: lop, 'aria-current': so === hienTai && !daXong ? 'step' : null }, h('span', null, so), h('small', null, b),
-        ai ? h('small', { class: 'nguoi-lam', title: `${ngayGio(ai.luc)}` }, `${tenGoi(ai.boi)} · ${ngay(ai.luc).slice(0, 5)}`) : null);
-    })));
+      let nguoiLam = null;
+      if (lop === 'dang') {
+        nguoiLam = h('span', { class: 'buoc-nguoi nguoi-lam' },
+          aiDang.slice(0, 2).map((x) => chipNguoi(x.gon, { vai: x.vai, chu: x.chu, title: x.nhan, nho: true })),
+          aiDang.length > 2 ? h('small', null, `+${aiDang.length - 2} tổ`) : null);
+      } else if (ai && lop !== 'bo') {
+        nguoiLam = h('span', { class: 'buoc-nguoi nguoi-lam', title: `${tenGoi(ai.boi)} · ${ngayGio(ai.luc)}` },
+          chipNhanVien(ai.boi, { gon: true, nho: true }) || chipNguoi(tenGoi(ai.boi) || '?', { nho: true }),
+          h('span', { class: 'buoc-luc' }, ngay(ai.luc).slice(0, 5)));
+      } else if (lop === 'bo') nguoiLam = h('span', { class: 'buoc-luc' }, 'Không áp dụng');
+      return h('li', { class: lop || null, 'aria-current': lop === 'dang' ? 'step' : null },
+        h('span', { class: 'buoc-nut', 'aria-hidden': 'true' },
+          lop === 'xong' ? icon('check') : lop === 'dang' ? icon('xeChay') : lop === 'bo' ? '–' : String(so)),
+        h('span', { class: 'buoc-ten' }, h('span', { class: 'buoc-so' }, `${so}`), ' ', b),
+        nguoiLam);
+    })),
+    h('p', { class: 'tien-do-chu' }, dang === 0 ? 'Đã xong cả 9 bước' : `Bước ${dang}/9: ${BUOC_XE[dang - 1]} · đã xong ${soXong} bước`));
 }
 
 // ---------- Thông tin ----------
@@ -344,7 +372,7 @@ function theSuaChua({ hs, hm, ps, ve }) {
       bang([
         { nhan: 'Hạng mục', khoa: 'ten' },
         { nhan: 'Tổ', lay: (m) => api.dm.ten('to_thuc_hien', m.to_id) },
-        { nhan: 'Người làm', lay: (m) => m.nguoi_lam || '' },
+        { nhan: 'Người làm', lay: (m) => chipNguoi(m.nguoi_lam, { vai: 'truong_nhom' }) || '' },
         { nhan: 'Trạng thái', lay: (m) => m.trang_thai === 'xong' ? `Xong ${ngayGio(m.xong_luc)}` :
           duocLap ? h('button', { class: 'nut nho', type: 'button', onclick: () => chay(() => api.baoXong(m.id), { thanhCong: 'Đã báo xong.' }).then(ve, ve.lai) }, 'Báo xong') : 'Đang làm' },
       ], dangLam),

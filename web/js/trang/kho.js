@@ -2,20 +2,23 @@
 // Theo đặc tả 11/10/2026. Tồn theo đơn vị xuất; giá vốn nhập trước xuất trước, đã gồm VAT.
 import {
   h, tien, ngay, ngayGio, homNay, truong, oChu, oTien, oChon, oNgay, oVung, oCheck, oChonTep, docTien, chay, bang,
-  moModal, toast, dat, xacNhan, bienSo, nenAnh, taiTepCSV, nhoPhien, cuoiThang, oGoiY, VAI_TRO,
+  moModal, toast, dat, xacNhan, bienSo, nenAnh, taiTepCSV, nhoPhien, cuoiThang, oGoiY, VAI_TRO, chipNguoi, vaiChinh, vienHan,
 } from '../ui.js';
 import * as api from '../api.js';
 import { nutXuatExcel, xuatExcelKho } from './xuat-excel.js';
 import { buocTiepPhieu, hanPhieu, tenNguoiVai, tenVaiTro, quaHan, chuHan } from '../han-viec.js';
 
 // "Người yêu cầu → người xử lý tiếp theo (hạn)" của phiếu kho: dùng ở bảng và chi tiết
-function oYeuCauTiep(loai, r, nguoiYeuCau, { mot = false } = {}) {
+// Ô "Người yêu cầu → tiếp theo": thẻ tên người lập (bảng) + bước tiếp theo, người xử lý, hạn
+function oYeuCauTiep(loai, r, nguoiYeuCau, { mot = false, ten = null } = {}) {
   const b = buocTiepPhieu(loai, r);
   const han = hanPhieu(loai, r);
   const tiep = b ? h('small', { class: `tiep-theo ${quaHan(han) ? 'chu-loi' : ''}` },
-    `→ ${b.ten}: ${tenNguoiVai(b.vaiTro, r.chi_nhanh_id) || tenVaiTro(b.vaiTro)}`, han ? ` · ${chuHan(han)}` : '')
+    `→ ${b.ten}: ${tenNguoiVai(b.vaiTro, r.chi_nhanh_id) || tenVaiTro(b.vaiTro)} `, han ? vienHan(han, chuHan(han), 'nho') : null)
     : h('small', { class: 'tiep-theo chu-tot' }, '✓ Không còn việc chờ');
-  return h('span', { class: 'yeu-cau-tiep' }, nguoiYeuCau || '', mot ? ' ' : h('br'), tiep);
+  const nv = ten ? (api.dm.nhan_vien || []).find((n) => n.ho_ten === ten) : null;
+  const dau = ten && !mot ? chipNguoi(ten, { vai: vaiChinh(nv?.vai_tro || []), nho: true }) : (nguoiYeuCau || '');
+  return h('span', { class: 'yeu-cau-tiep' }, dau, mot ? ' ' : h('br'), tiep);
 }
 
 export const NHOM_HANG = ['Sơn', 'Nhám', 'Vật tư phụ', 'Phụ tùng', 'Dầu nhớt', 'Detailing', 'Khác'];
@@ -190,7 +193,7 @@ export default async function trangKho(el) {
         { nhan: 'Phiếu', lay: (r) => h('b', null, r.ma) },
         { nhan: 'Xe', lay: (r) => h('span', null, bienSo(r.bien_so, { maThay: r.ma_ho_so }), h('small', null, ` ${r.ma_ho_so}`)) },
         { nhan: 'Tổ', lay: (r) => r.to_id || '' },
-        { nhan: 'Người yêu cầu → tiếp theo', lay: (r) => oYeuCauTiep('de_xuat', r, `${r.nguoi_lap_ten || ''} · ${ngayGio(r.tao_luc)}`) },
+        { nhan: 'Người yêu cầu → tiếp theo', lay: (r) => oYeuCauTiep('de_xuat', r, `${r.nguoi_lap_ten || ''} · ${ngayGio(r.tao_luc)}`, { ten: r.nguoi_lap_ten }) },
         { nhan: 'Số dòng', so: true, lay: (r) => r.so_dong },
         { nhan: 'Trạng thái', lay: (r) => h('span', null, TT_DE_XUAT[r.trang_thai],
           r.so_dong_cho_mua ? h('span', { class: 'nhan tt-canh-bao' }, `Chờ mua ${r.so_dong_cho_mua}`) : null) },
@@ -219,7 +222,7 @@ export default async function trangKho(el) {
         { nhan: 'Phiếu', lay: (r) => h('b', null, r.ma) },
         { nhan: 'Nhà cung cấp', lay: (r) => h('span', null, r.nha_cung_cap, r.so_hoa_don ? h('small', null, ` · HĐ ${r.so_hoa_don}`) : null) },
         { nhan: 'Cho xe / đề nghị', lay: (r) => [r.ma_ho_so, r.ma_de_nghi_mua].filter(Boolean).join(' · ') },
-        { nhan: 'Người nhập → tiếp theo', lay: (r) => oYeuCauTiep('nhap', r, r.tao_boi_ten) },
+        { nhan: 'Người nhập → tiếp theo', lay: (r) => oYeuCauTiep('nhap', r, r.tao_boi_ten, { ten: r.tao_boi_ten }) },
         { nhan: 'Tổng (gồm VAT)', so: true, lay: (r) => tien(r.tong_tien) },
         { nhan: 'Trạng thái', lay: (r) => h('span', null, TT_NHAP[r.trang_thai], r.so_tep ? h('small', null, ` · ${r.so_tep} ảnh`) : h('small', { class: 'chu-loi' }, ' · chưa có ảnh HĐ'),
           r.ly_do_treo ? h('small', null, ` · ${r.ly_do_treo}`) : null) },
@@ -249,7 +252,7 @@ export default async function trangKho(el) {
         { nhan: 'Phiếu', lay: (r) => h('b', null, r.ma) },
         { nhan: 'Nhà cung cấp', lay: (r) => r.nha_cung_cap },
         { nhan: 'Cho xe', lay: (r) => r.ma_ho_so || '' },
-        { nhan: 'Người yêu cầu → tiếp theo', lay: (r) => oYeuCauTiep('mua', r, r.nguoi_lap_ten) },
+        { nhan: 'Người yêu cầu → tiếp theo', lay: (r) => oYeuCauTiep('mua', r, r.nguoi_lap_ten, { ten: r.nguoi_lap_ten }) },
         { nhan: 'Tổng (gồm VAT)', so: true, lay: (r) => h('span', null, tien(r.tong_tien),
           r.can_3_bao_gia ? h('small', { class: r.so_bao_gia >= 3 ? 'nhan' : 'nhan tt-canh-bao' }, `${r.so_bao_gia}/3 báo giá`) : null) },
         { nhan: 'Trạng thái', lay: (r) => h('span', null, TT_MUA[r.trang_thai], r.duyet_boi_ten ? h('small', null, ` · ${r.duyet_boi_ten}`) : null,
