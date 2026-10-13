@@ -1,5 +1,5 @@
 // Bước 1: Tiếp nhận xe – 10 thông tin bắt buộc + ảnh nhận xe
-import { h, oGoiY, bienSo, vietBienSo, oChonTep, oCheck, truong, oChu, oChon, oVung, oNgayVN, oNgayGioVN, oTien, isoSangVN, vnSangIso, docForm, chay, toast, nenAnh, dat, veDanhSachHoSo, xacNhan, tien, ngay } from '../ui.js';
+import { h, oGoiY, bienSo, vietBienSo, oChonTep, oCheck, truong, oChu, oChon, oVung, oNgayVN, oTien, isoSangVN, vnSangIso, docForm, chay, toast, nenAnh, dat, veDanhSachHoSo, xacNhan, tien, ngay } from '../ui.js';
 import * as api from '../api.js';
 import { khungGiaoViec, giaoSauKhiLuu, VAI_TRO_BUOC } from './giao-viec.js';
 import { homNayVN, themNgay, tuGhiNgayKhiBam, nhacHetHan, layLichSu, khoiLichSu } from './lich-su-xe.js';
@@ -148,7 +148,6 @@ export default async function trangTiepNhan(el) {
         truong('Hãng xe', chonHangXe, null, { batBuoc: true }),
         truong('Dòng xe', chonDongXe, null, { batBuoc: true }),
         truong('Màu', oMau),
-        truong('Ngày giờ vào', oNgayGioVN('ngay_vao', new Date(), { batBuoc: true }), 'Giờ 24h', { batBuoc: true }),
         truong('Số km (ODO)', oKm, goiYKm, { co: 'vua' }))),
     h('fieldset', { class: 'nhom-o' }, h('legend', null, 'Khách hàng'),
       h('div', { class: 'luoi-o' },
@@ -229,7 +228,7 @@ export default async function trangTiepNhan(el) {
     const p = {
       bien_so: d.bien_so, ten_khach: d.ten_khach, dien_thoai: d.dien_thoai,
       dong_xe_id: d.dong_xe_id, mau: d.mau, nguon_tt: d.nguon_tt,
-      ngay_vao: d.ngay_vao ? new Date(d.ngay_vao).toISOString() : null,
+      ngay_vao: null,   // không nhập: máy chủ ghi đúng lúc lưu hồ sơ (vẫn hiện "Vào xưởng" trong hồ sơ)
       hang_bh_id: d.hang_bh_id, gdv_id: d.gdv_id, gdv_ten_tam: d.gdv_ten_tam,
       han_bao_hiem: d.han_bao_hiem, han_bh_than_vo: d.han_bh_than_vo, tinh_trang_xe: d.tinh_trang_xe, tu_van: d.tu_van, so_km: d.so_km,
       loai: hoSoGoc ? 'bao_hanh' : 'sua_chua', ho_so_goc_id: hoSoGoc ? hoSoGoc.id : null,
