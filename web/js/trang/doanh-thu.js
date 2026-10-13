@@ -128,6 +128,15 @@ export default async function trangDoanhThu(el) {
       theoHang.set(k, c);
     }
     const dsHang = [...theoHang.values()].sort((a, b) => b.tien - a.tien);
+    // Phần khách: khách ngoài bảo hiểm, và khách của xe bảo hiểm (khấu trừ, dòng tự trả)
+    const gomKhach = (ds, ten) => {
+      if (!ds.length) return null;
+      const c = { hang: ten, so: ds.length, tien: 0, lau_nhat: null, khach: true };
+      for (const x of ds) { c.tien += Number(x.con_no_khach); const n = soNgay(x.giao_luc); if (n !== null && (c.lau_nhat === null || n > c.lau_nhat)) c.lau_nhat = n; }
+      return c;
+    };
+    const dsBen = [...dsHang, gomKhach(noKhach.filter((x) => x.nguon_tt === 'khach'), 'Khách ngoài bảo hiểm'),
+      gomKhach(noKhach.filter((x) => x.nguon_tt !== 'khach'), 'Khách của xe bảo hiểm (khấu trừ, phần tự trả)')].filter(Boolean);
 
     let loc = 'tat';
     const kq = h('div');
@@ -156,13 +165,14 @@ export default async function trangDoanhThu(el) {
         h('div', { class: 'o-dem', 'data-no-bh': '' }, h('b', { class: tongBH > 0 ? 'chu-cam' : null }, tien(tongBH)), h('span', null, `Hãng bảo hiểm còn nợ · ${noBH.length} hồ sơ`)),
         h('div', { class: 'o-dem' }, h('b', null, tien(tongKhach + tongBH)), h('span', null, `Tổng phải thu · trong đó xe chưa giao ${tien(tongChuaGiao)} đ`)),
         ncc.length ? h('a', { class: 'o-dem', href: '#/kho?the=cong_no' }, h('b', null, tien(tongNcc)), h('span', null, `Nợ nhà cung cấp (phải trả) · ${noNcc.length} NCC`)) : null),
-      dsHang.length ? h('section', { class: 'the' }, h('h2', null, 'Theo hãng bảo hiểm'),
+      dsBen.length ? h('section', { class: 'the' }, h('h2', null, 'Theo bên nợ'),
         bang([
-          { nhan: 'Hãng bảo hiểm', lay: (c) => h('b', null, c.hang) },
+          { nhan: 'Bên nợ', lay: (c) => h('b', null, c.hang) },
           { nhan: 'Số hồ sơ', so: true, lay: (c) => c.so },
-          { nhan: 'Còn nợ', so: true, lay: (c) => h('b', { class: 'chu-cam' }, tien(c.tien)) },
-          { nhan: 'Lâu nhất', so: true, lay: (c) => (c.lau_nhat === null ? '' : `${c.lau_nhat} ngày`) },
-        ], dsHang)) : null,
+          { nhan: 'Còn nợ', so: true, lay: (c) => h('b', { class: c.khach ? 'chu-loi' : 'chu-cam' }, tien(c.tien)) },
+          { nhan: 'Lâu nhất (từ giao xe / gửi hồ sơ)', so: true, lay: (c) => (c.lau_nhat === null ? '' : `${c.lau_nhat} ngày`) },
+        ], dsBen),
+        h('p', { class: 'mo-ta' }, `Tổng cộng ${tien(dsBen.reduce((s, c) => s + c.tien, 0))} đ`)) : null,
       h('section', { class: 'the' },
         h('div', { class: 'the-dau' }, h('h2', null, 'Hồ sơ còn nợ'),
           api.coVaiTro('giam_doc') ? h('button', { class: 'nut', type: 'button', onclick: () => taiTepCSV(`cong-no_${homNay()}.csv`, cot, dsLoc()) }, 'Tải file CSV') : null),
