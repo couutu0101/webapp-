@@ -1,6 +1,7 @@
 // Danh sách hồ sơ xe
 import { h, bienSo, tien, ngay, bang, nhanTrangThai, NGUON, dat, nhoPhien } from '../ui.js';
 import * as api from '../api.js';
+import { nutXuatExcel, xuatExcelKhachHang } from './xuat-excel.js';
 import { viecTiepTheo } from './giao-viec.js';
 
 const LOC = [
@@ -32,7 +33,9 @@ export default async function trangHoSo(el) {
 
   dat(el, 
     h('div', { class: 'tieu-de-trang' }, h('h1', null, 'Hồ sơ xe'),
-      api.coVaiTro('cvdv', 'quan_ly', 'giam_doc') ? h('a', { class: 'nut chinh', href: '#/ho-so/moi' }, '+ Tiếp nhận xe') : null),
+      h('div', { class: 'hang-nut' },
+        nutXuatExcel('Xuất Excel khách hàng', xuatExcelKhachHang),
+        api.coVaiTro('cvdv', 'quan_ly', 'giam_doc') ? h('a', { class: 'nut chinh', href: '#/ho-so/moi' }, '+ Tiếp nhận xe') : null)),
     h('div', { class: 'thanh-loc' }, oTim, tabs),
     ketQua);
 

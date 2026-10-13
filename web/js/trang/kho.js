@@ -5,6 +5,7 @@ import {
   moModal, toast, dat, xacNhan, bienSo, nenAnh, taiTepCSV, nhoPhien, cuoiThang,
 } from '../ui.js';
 import * as api from '../api.js';
+import { nutXuatExcel, xuatExcelKho } from './xuat-excel.js';
 
 export const NHOM_HANG = ['Sơn', 'Nhám', 'Vật tư phụ', 'Phụ tùng', 'Dầu nhớt', 'Detailing', 'Khác'];
 const DVT_GOI_Y = ['Cái', 'Bộ', 'Chai', 'Lít', 'Can 4L', 'Bình 20L', 'Hộp', 'Cây', 'Tờ', 'Kg', 'Mét', 'Cuộn'];
@@ -93,6 +94,8 @@ export default async function trangKho(el) {
   async function veTon() {
     if (api.coVaiTro('kho', 'quan_ly', 'giam_doc')) nut.append(h('button', { class: 'nut chinh', type: 'button', onclick: () => moHang(null, ve) }, '+ Mã hàng'));
     if (laKho()) nut.append(h('button', { class: 'nut', type: 'button', onclick: () => moXuatDungChung(ve) }, 'Xuất dùng chung'));
+    const nutExcel = nutXuatExcel('Xuất Excel', xuatExcelKho);
+    if (nutExcel) nut.append(nutExcel);
     let tuKhoa = ''; let nhom = ''; let chiThieu = false;
     const oTim = h('input', { type: 'search', placeholder: 'Tìm mã, tên hàng…', 'aria-label': 'Tìm hàng' });
     const chonNhom = oChon('nhom', NHOM_HANG.map((x) => ({ value: x, label: x })), '', { trong: 'Mọi nhóm', 'aria-label': 'Nhóm hàng' });

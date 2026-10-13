@@ -555,6 +555,32 @@ with sync_playwright() as p:
     toast_co(thuan, 'Đã lưu')
     ghi('Giám đốc cấp quyền CVDV cho nhân viên mới')
 
+    # ---------- Xuất Excel: chỉ giám đốc ----------
+    import openpyxl
+    ve_trang(long_, '#/ho-so')
+    long_.wait_for_selector('.tieu-de-trang h1')
+    ve_trang(long_, '#/kho?the=ton')
+    long_.wait_for_selector('.tieu-de-trang h1')
+    ghi('Quản lý chung không thấy nút Xuất Excel: ' + str(long_.locator('[data-xuat-excel]').count() == 0))
+    ve_trang(thuan, '#/kho?the=ton')
+    thuan.wait_for_selector('[data-xuat-excel]')
+    with thuan.expect_download() as tai:
+        thuan.locator('[data-xuat-excel]').click()
+    duong_kho = os.path.join(CHUP, 'ton-kho.xlsx')
+    tai.value.save_as(duong_kho)
+    wb = openpyxl.load_workbook(duong_kho)
+    ghi(f'File kho "{tai.value.suggested_filename}": các trang ' + ', '.join(wb.sheetnames)
+        + ' | dòng tổng: ' + str([c for c in next(wb['Tổng hợp'].iter_rows(min_row=wb['Tổng hợp'].max_row, values_only=True))]))
+    ve_trang(thuan, '#/ho-so')
+    thuan.wait_for_selector('[data-xuat-excel]')
+    with thuan.expect_download() as tai:
+        thuan.locator('[data-xuat-excel]').click()
+    duong_kh = os.path.join(CHUP, 'khach-hang.xlsx')
+    tai.value.save_as(duong_kh)
+    wb = openpyxl.load_workbook(duong_kh)
+    ghi('File khách hàng: các trang ' + ', '.join(wb.sheetnames) + f" | {wb['Khách – xe'].max_row - 5} xe, {wb['Công nợ'].max_row - 5} hồ sơ còn nợ"
+        + ' | nợ theo hãng: ' + str([r for r in wb['Nợ theo hãng BH'].iter_rows(min_row=5, values_only=True)]))
+
     codong = mo(b, 'codong@gara.vn')
     ghi('Cổ đông menu: ' + (', '.join(codong.locator('.menu-ds a').all_inner_texts()) or '(trống)') + ' | ' + codong.locator('#noi-dung').inner_text()[:60].replace('\n', ' '))
 

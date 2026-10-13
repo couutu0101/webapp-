@@ -512,6 +512,29 @@ select kt.ghi('Hủy phiếu xuất dùng chung: hàng về lại kho (1,5 lít)
 select kt.ghi('Thẻ kho cộng đúng tồn', (select sum(so_luong) from public.v_the_kho where hang_id=(select v::bigint from ctx where k='hang_son')) = 1.5);
 select kt.dong_vai('codong@gara.vn');
 select kt.ghi('Cổ đông không thấy kho', (select count(*) from public.v_ton_kho) = 0 and (select count(*) from public.phieu_nhap) = 0);
+
+-- ---------------- 013: xuất Excel – chỉ giám đốc ----------------
+select kt.dong_vai('long@gara.vn');
+select kt.mong_loi('Quản lý chung không xuất được file kho', 'select public.xuat_du_lieu_kho()', 'quyền');
+select kt.mong_loi('Quản lý chung không xuất được file khách hàng', 'select public.xuat_du_lieu_khach()', 'quyền');
+select kt.dong_vai('tien@gara.vn');
+select kt.mong_loi('Kế toán không xuất được file khách hàng', 'select public.xuat_du_lieu_khach()', 'quyền');
+select kt.dong_vai('thuan@gara.vn');
+insert into ctx select 'xk', public.xuat_du_lieu_kho()::text;
+select kt.ghi('Giám đốc xuất file kho: đủ mã, có giá trị tồn và đơn giá',
+  jsonb_array_length((select v::jsonb from ctx where k='xk')->'hang') = (select count(*) from public.hang_kho where chi_nhanh_id='TK' and hoat_dong)
+  and exists (select 1 from jsonb_array_elements((select v::jsonb from ctx where k='xk')->'hang') x where x->>'ma'='SON-TRANG01' and (x->>'ton')::numeric = 1.5 and (x->>'don_gia') is not null),
+  (select v from ctx where k='xk'));
+insert into ctx select 'xkh', public.xuat_du_lieu_khach()::text;
+select kt.ghi('Giám đốc xuất file khách hàng: có danh sách xe và công nợ',
+  jsonb_array_length((select v::jsonb from ctx where k='xkh')->'xe') > 0 and jsonb_typeof((select v::jsonb from ctx where k='xkh')->'cong_no') = 'array');
+select kt.ghi('Công nợ trong file khớp v_ho_so (xe đã giao còn nợ)',
+  coalesce((select sum((x->>'con_no_khach')::numeric + (x->>'con_no_bh')::numeric) from jsonb_array_elements((select v::jsonb from ctx where k='xkh')->'cong_no') x), 0)
+  = coalesce((select sum(con_no_khach + con_no_bh) from public.v_ho_so where not tu_excel and trang_thai in ('da_giao','da_gui_hs','dong')
+              and (round(con_no_khach) <> 0 or round(con_no_bh) <> 0)), 0));
+select kt.ghi('Mỗi lần xuất đều ghi nhật ký (2 lần)', (select count(*) from public.nhat_ky_xuat_file) = 2);
+select kt.dong_vai('long@gara.vn');
+select kt.ghi('Người khác không xem được nhật ký xuất file', (select count(*) from public.nhat_ky_xuat_file) = 0);
 select kt.dong_vai(null);
 \o
 \echo '======== KẾT QUẢ ========'

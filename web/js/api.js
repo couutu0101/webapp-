@@ -176,6 +176,9 @@ export const ghiKiemQuy = (taiKhoan, soDem, ghiChu) => rpc('ghi_kiem_quy', { p_t
 
 // ---------- Kho (012) ----------
 export const luuHangKho = (p) => rpc('luu_hang_kho', { p });
+// Xuất Excel – chỉ giám đốc (máy chủ kiểm quyền và ghi nhật ký mỗi lần xuất)
+export const xuatDuLieuKho = () => rpc('xuat_du_lieu_kho');
+export const xuatDuLieuKhach = () => rpc('xuat_du_lieu_khach');
 export const lapPhieuNhap = (p) => rpc('lap_phieu_nhap', { p });
 export const khopPhieuNhap = (id, khop, lyDo) => rpc('khop_phieu_nhap', { p_id: id, p_khop: khop, p_ly_do: lyDo ?? null });
 export const huyPhieuNhap = (id, lyDo) => rpc('huy_phieu_nhap', { p_id: id, p_ly_do: lyDo });
