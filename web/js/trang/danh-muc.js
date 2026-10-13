@@ -1,5 +1,5 @@
-// Danh mục và cài đặt: giám đốc, kế toán thêm / sửa. Không xóa – bỏ chọn "Đang dùng" để ẩn.
-import { h, tien, ngay, truong, oChu, oTien, oChon, oNgay, oCheck, docForm, bang, moModal, toast, dat } from '../ui.js';
+// Danh mục và cài đặt: giám đốc, kế toán thêm / sửa / xóa. Dòng đã được dùng (có hồ sơ, phiếu trỏ tới) thì không xóa được – bỏ chọn "Đang dùng" để ẩn.
+import { h, tien, ngay, truong, oChu, oTien, oChon, oNgay, oCheck, docForm, bang, moModal, toast, dat, xacNhan, chay } from '../ui.js';
 import * as api from '../api.js';
 
 const TINH_CHAT = {
@@ -26,7 +26,7 @@ const DANH_MUC = [
     ghiChu: '"Tính chất" quyết định khoản đó có vào lãi lỗ hay không: chỉ "Chi phí" vào lãi lỗ; trả nhà cung cấp, tạm ứng, trả nội bộ chỉ trừ công nợ.' },
   { bang: 'nha_cung_cap', ten: 'Nhà cung cấp', cot: [{ k: 'ten', nhan: 'Tên', batBuoc: true }, { k: 'hoat_dong', nhan: 'Đang dùng', loai: 'bool' }] },
   { bang: 'don_vi_lien_quan', ten: 'Đơn vị liên quan', cot: [{ k: 'ten', nhan: 'Tên', batBuoc: true }] },
-  { bang: 'cai_dat', ten: 'Cài đặt', khoa: 'khoa', chiGD: true, khongThem: true,
+  { bang: 'cai_dat', ten: 'Cài đặt', khoa: 'khoa', chiGD: true, khongThem: true, khongXoa: true,
     cot: [{ k: 'mo_ta', nhan: 'Nội dung', chiXem: true }, { k: 'gia_tri', nhan: 'Giá trị', loai: 'so', batBuoc: true }] },
   { bang: 'thue_suat_vat', ten: 'Thuế suất VAT', khoa: 'ap_dung_tu', chiGD: true, khongSua: true,
     cot: [{ k: 'ap_dung_tu', nhan: 'Áp dụng từ ngày', loai: 'ngay', batBuoc: true }, { k: 'ty_le', nhan: 'Tỷ lệ (0,08 = 8%)', loai: 'so', batBuoc: true }],
@@ -60,7 +60,17 @@ export default async function trangDanhMuc(el) {
         cfg.khongThem ? null : h('button', { class: 'nut chinh', type: 'button', onclick: () => moForm(cfg, null) }, '+ Thêm')),
       cfg.ghiChu ? h('p', { class: 'goi-y' }, cfg.ghiChu) : null,
       bang([...cfg.cot.map((c) => ({ nhan: c.nhan, lay: (r) => hienThi(c, r) })),
-        cfg.khongSua ? null : { nhan: '', lay: (r) => h('button', { class: 'nut-chu', type: 'button', onclick: (e) => { e.stopPropagation(); moForm(cfg, r); } }, 'Sửa') }].filter(Boolean), rows)));
+        cfg.khongSua && cfg.khongXoa ? null : { nhan: '', lay: (r) => h('span', { class: 'hang-nut' },
+          cfg.khongSua ? null : h('button', { class: 'nut-chu', type: 'button', onclick: (e) => { e.stopPropagation(); moForm(cfg, r); } }, 'Sửa'),
+          cfg.khongXoa ? null : h('button', { class: 'nut-chu chu-loi', type: 'button', 'data-xoa': r[khoa], onclick: (e) => { e.stopPropagation(); xoaDong(cfg, r); } }, 'Xóa')) }].filter(Boolean), rows)));
+  }
+
+  async function xoaDong(cfg, r) {
+    const ten = r.ten || r[cfg.khoa || 'id'];
+    if (!(await xacNhan(`Xóa "${ten}" khỏi ${cfg.ten}? Chỉ xóa được khi chưa dùng ở hồ sơ, phiếu nào.`, 'Xóa'))) return;
+    try { await chay(() => api.xoaDanhMuc(cfg.bang, r[cfg.khoa || 'id']), { thanhCong: `Đã xóa "${ten}".` }); } catch { return; }
+    await api.taiDanhMuc();
+    await tai();
   }
 
   function moForm(cfg, r) {

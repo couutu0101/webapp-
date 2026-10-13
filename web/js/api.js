@@ -82,6 +82,9 @@ export const caiDat = (khoa, macDinh) => {
   return r ? Number(r.gia_tri) : macDinh;
 };
 
+// Xóa dòng danh mục chưa dùng ở đâu (019)
+export const xoaDanhMuc = (bang, khoa) => rpc('xoa_danh_muc', { p_bang: bang, p_khoa: String(khoa) });
+
 // ---------- Hồ sơ xe ----------
 export const tiepNhanXe = (p) => rpc('tiep_nhan_xe', { p });
 export const traCuuXe = (bienSo) => rpc('tra_cuu_xe', { p_bien_so: bienSo });

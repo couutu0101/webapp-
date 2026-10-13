@@ -629,6 +629,20 @@ select kt.dong_vai(null);
 select kt.dong_vai('long@gara.vn');
 select kt.ghi('Người khác không xem được nhật ký xuất file', (select count(*) from public.nhat_ky_xuat_file) = 0);
 select kt.dong_vai(null);
+
+-- ---------- 019: xóa dòng danh mục ----------
+select kt.dong_vai('thuan@gara.vn');
+insert into public.giam_dinh_vien (ten, hang_id) values ('GDV tạm', (select id from public.hang_bao_hiem order by id limit 1));
+select public.xoa_danh_muc('giam_dinh_vien', (select id::text from public.giam_dinh_vien where ten = 'GDV tạm'));
+select kt.ghi('019 Giám đốc xóa được GDV chưa dùng', not exists (select 1 from public.giam_dinh_vien where ten = 'GDV tạm'));
+select kt.mong_loi('019 Không xóa được hãng BH đang có hồ sơ dùng',
+  format('select public.xoa_danh_muc(%L, %L)', 'hang_bao_hiem', (select hang_bh_id::text from public.ho_so where hang_bh_id is not null limit 1)), 'đang được dùng');
+select kt.mong_loi('019 Không xóa cài đặt', 'select public.xoa_danh_muc(''cai_dat'', ''so_gio_kcs'')', 'Không xóa được');
+select kt.dong_vai(null);
+select kt.dong_vai('duy@gara.vn');
+select kt.mong_loi('019 CVDV không được xóa danh mục',
+  format('select public.xoa_danh_muc(%L, %L)', 'hang_xe', (select id::text from public.hang_xe limit 1)), 'quyền');
+select kt.dong_vai(null);
 \o
 \echo '======== KẾT QUẢ ========'
 select stt, case when dat then 'ĐẠT ' else 'LỖI ' end as kq, ten, left(coalesce(chi_tiet,''), 140) as chi_tiet from kt.ket_qua order by stt;
