@@ -179,6 +179,30 @@ export const huyPhieu = (id, lyDo) => rpc('huy_phieu', { p_id: id, p_ly_do: lyDo
 export const lapDeNghiChi = (p) => rpc('lap_de_nghi_chi', { p });
 export const duyetDeNghi = (id, dongY, lyDo) => rpc('duyet_de_nghi_chi', { p_id: id, p_dong_y: dongY, p_ly_do: lyDo });
 export const huyDeNghi = (id) => rpc('huy_de_nghi_chi', { p_id: id });
+// ---------- Tài sản – dụng cụ, máy móc của các nhóm (028) ----------
+export const luuTaiSan = (p) => rpc('luu_tai_san', { p });
+export const chuyenNhomTaiSan = (id, nhom, ghiChu) => rpc('chuyen_nhom_tai_san', { p_id: id, p_nhom: nhom, p_ghi_chu: ghiChu ?? null });
+export const xacNhanNhanTaiSan = (ids) => rpc('xac_nhan_nhan_tai_san', { p_ids: ids });
+export const luuKiemTraTaiSan = (p) => rpc('luu_kiem_tra_tai_san', { p });
+export const baoSuCoTaiSan = (p) => rpc('bao_su_co_tai_san', { p });
+export const xuLySuCoTaiSan = (p) => rpc('xu_ly_su_co_tai_san', { p });
+export const danhDauBoiThuong = (id, daTru) => rpc('danh_dau_boi_thuong', { p_id: id, p_da_tru: daTru });
+export const thanhLyTaiSan = (id, lyDo) => rpc('thanh_ly_tai_san', { p_id: id, p_ly_do: lyDo });
+export const luuLichBaoDuong = (p) => rpc('luu_lich_bao_duong', { p });
+export const ghiBaoDuong = (p) => rpc('ghi_bao_duong', { p });
+export const xuatDuLieuTaiSan = () => rpc('xuat_du_lieu_tai_san');
+export async function taiAnhTaiSan(ts, file) {
+  const ten = file.name.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w.-]+/g, '-');
+  const duongDan = `${ts.chi_nhanh_id}/tai-san/${ts.ma}/${Date.now()}-${ten}`;
+  const { error } = await sb.storage.from('ho-so-xe').upload(duongDan, file, { upsert: false });
+  if (error) throw loi(error);
+  const nho = await taoAnhNho(file);
+  if (nho) {
+    try { await sb.storage.from('ho-so-xe').upload(duongDanAnhNho(duongDan), nho, { upsert: false, contentType: 'image/jpeg' }); }
+    catch { /* bỏ qua */ }
+  }
+  return rpc('anh_tai_san', { p_id: ts.id, p_duong_dan: duongDan });
+}
 export const chiTien = (id, taiKhoan, ngay, chiHoBoi = null) => rpc('chi_tien', { p_de_nghi: id, p_tai_khoan: taiKhoan, p_ngay: ngay, ...(chiHoBoi ? { p_chi_ho_boi: chiHoBoi } : {}) });
 
 // ---------- Nhân viên ----------

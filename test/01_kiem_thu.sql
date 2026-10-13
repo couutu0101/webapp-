@@ -778,6 +778,120 @@ select kt.dong_vai(null);
 select kt.dong_vai('duy@gara.vn');
 select kt.ghi('027 CVDV không thấy công nợ nội bộ', (select count(*) from public.v_cong_no_noi_bo) = 0);
 select kt.dong_vai(null);
+
+-- ---------- 028: tài sản – dụng cụ, máy móc của các nhóm ----------
+select kt.dong_vai(null);
+select kt.ghi('028 Có 5 nhóm tài sản: 3 tổ + Dùng chung xưởng + Văn phòng', (select count(*) from public.nhom_tai_san) = 5
+  and (select vai_phu_trach from public.nhom_tai_san where id = 'VP') = '{ke_toan}');
+select kt.dong_vai('duy@gara.vn');   -- CVDV + kho: được thêm tài sản
+insert into ctx select 'ts_may', public.luu_tai_san('{"ten":"Máy nén khí 50L","loai":"may_moc","nhom_id":"CHUNG","gia_mua":12000000,"so_serial":"MNK-01"}')::text;
+insert into ctx select 'ts_tuyp', public.luu_tai_san('{"ten":"Bộ tuýp 1/2 24 chi tiết","loai":"dung_cu","nhom_id":"DS","so_luong":2,"don_vi":"Bộ","gia_mua":850000}')::text;
+insert into ctx select 'ts_bua', public.luu_tai_san('{"ten":"Búa gò","loai":"dung_cu","nhom_id":"DS","so_luong":3,"gia_mua":120000}')::text;
+insert into ctx select 'ts_may_ds', public.luu_tai_san('{"ten":"Máy đánh bóng","loai":"may_moc","nhom_id":"DS","gia_mua":4500000}')::text;
+select kt.ghi('028 Mã tự sinh theo nhóm: TS-CHUNG-001, TS-DS-001, TS-DS-002',
+  (select ma from public.tai_san where id = (select v::bigint from ctx where k='ts_may')) = 'TS-CHUNG-001'
+  and (select ma from public.tai_san where id = (select v::bigint from ctx where k='ts_tuyp')) = 'TS-DS-001'
+  and (select ma from public.tai_san where id = (select v::bigint from ctx where k='ts_bua')) = 'TS-DS-002');
+select kt.mong_loi('028 Dụng cụ số lượng 0 bị chặn',
+  $$select public.luu_tai_san('{"ten":"Kìm","loai":"dung_cu","nhom_id":"DS","so_luong":0}')$$, 'từ 1');
+select kt.dong_vai(null);
+select kt.dong_vai('tien@gara.vn');
+select kt.mong_loi('028 Kế toán không thêm tài sản được', $$select public.luu_tai_san('{"ten":"Máy in","loai":"may_moc","nhom_id":"VP"}')$$, 'quyền');
+select kt.dong_vai(null);
+select kt.dong_vai('han@gara.vn');   -- trưởng nhóm tổ DS
+select kt.ghi('028 Trưởng nhóm DS chỉ thấy tài sản tổ mình (3 món), không thấy Dùng chung', (select count(*) from public.v_tai_san) = 3
+  and (select count(*) from public.v_nhom_tai_san) = 1 and (select nhom_id from public.v_nhom_tai_san) = 'DS');
+select kt.ghi('028 Trưởng nhóm có việc: xác nhận nhận 3 món', exists (select 1 from public.v_viec_tai_san where loai = 'xac_nhan' and nhom_id = 'DS' and so = 3));
+select kt.mong_loi('028 Trưởng nhóm DS không xác nhận tài sản nhóm khác', format('select public.xac_nhan_nhan_tai_san(''[%s]''::jsonb)', (select v from ctx where k='ts_may')), '');
+select kt.ghi('028 Trưởng nhóm DS xác nhận nhận 2 món', public.xac_nhan_nhan_tai_san(jsonb_build_array((select v::bigint from ctx where k='ts_tuyp'), (select v::bigint from ctx where k='ts_bua'))) = 2);
+select kt.mong_loi('028 Kiểm tra tuần phải đủ mọi tài sản của nhóm',
+  format($$select public.luu_kiem_tra_tai_san('{"nhom_id":"DS","loai":"kiem_tra","dong":[{"tai_san_id":%s,"so_thuc":2}]}')$$, (select v from ctx where k='ts_tuyp')), 'chưa kiểm');
+insert into ctx select 'kt_ds', public.luu_kiem_tra_tai_san(jsonb_build_object('nhom_id','DS','loai','kiem_tra','dong', jsonb_build_array(
+  jsonb_build_object('tai_san_id', (select v::bigint from ctx where k='ts_tuyp'), 'so_thuc', 2, 'so_hong', 0),
+  jsonb_build_object('tai_san_id', (select v::bigint from ctx where k='ts_bua'), 'so_thuc', 2, 'so_hong', 0, 'ghi_chu', 'Không thấy 1 cái'),
+  jsonb_build_object('tai_san_id', (select v::bigint from ctx where k='ts_may_ds'), 'so_thuc', 1, 'so_hong', 1, 'ghi_chu', 'Không lên nguồn'))))::text;
+select kt.ghi('028 Kiểm tra tuần: 1 thiếu, 1 hỏng → 2 sự cố chờ xử lý, máy hỏng chuyển tình trạng Hỏng, máy đếm thấy coi như đã nhận',
+  (select so_thieu = 1 and so_hong = 1 and so_dong = 3 from public.kiem_tra_tai_san where id = (select v::bigint from ctx where k='kt_ds'))
+  and (select count(*) from public.su_co_tai_san where kiem_tra_id = (select v::bigint from ctx where k='kt_ds')) = 2
+  and (select tinh_trang = 'hong' and not cho_nhan from public.tai_san where id = (select v::bigint from ctx where k='ts_may_ds')));
+select kt.ghi('028 Hạn kiểm tra tuần tiếp theo = hôm nay + 7, hết việc kiểm tra và xác nhận', (select han_kiem_tra from public.v_nhom_tai_san where nhom_id = 'DS') = current_date + 7
+  and not exists (select 1 from public.v_viec_tai_san where nhom_id = 'DS' and loai in ('kiem_tra','xac_nhan')));
+select kt.dong_vai(null);
+select kt.dong_vai('tien@gara.vn');
+select kt.mong_loi('028 Kế toán không kiểm tra tuần nhóm DS (không phụ trách)', $$select public.luu_kiem_tra_tai_san('{"nhom_id":"DS","loai":"kiem_tra","dong":[{"tai_san_id":1,"so_thuc":1}]}')$$, 'phụ trách');
+select kt.mong_loi('028 Kiểm kê phải ghi người cùng kiểm', $$select public.luu_kiem_tra_tai_san('{"nhom_id":"DS","loai":"kiem_ke","dong":[{"tai_san_id":1,"so_thuc":1}]}')$$, 'cùng kiểm');
+select kt.dong_vai(null);
+select kt.dong_vai('long@gara.vn');
+select kt.ghi('028 Quản lý chung có việc xử lý 2 sự cố của DS và kiểm tra tuần nhóm Dùng chung', exists (select 1 from public.v_viec_tai_san where loai = 'su_co' and nhom_id = 'DS' and so = 2)
+  and exists (select 1 from public.v_viec_tai_san where loai = 'xac_nhan' and nhom_id = 'CHUNG'));
+select kt.mong_loi('028 Quản lý chung không ghi tiền bồi thường', format($$select public.xu_ly_su_co_tai_san('{"id":%s,"ket_qua":"ghi_mat","boi_thuong":100000,"nguoi_chiu_ten":"Hận"}')$$,
+  (select id from public.su_co_tai_san where loai = 'mat' and kiem_tra_id = (select v::bigint from ctx where k='kt_ds'))), 'giám đốc');
+select kt.dong_vai(null);
+select kt.dong_vai('thuan@gara.vn');
+select public.xu_ly_su_co_tai_san(jsonb_build_object('id', (select id from public.su_co_tai_san where loai = 'mat' and kiem_tra_id = (select v::bigint from ctx where k='kt_ds')),
+  'ket_qua', 'ghi_mat', 'boi_thuong', 120000, 'nguoi_chiu', (select id from public.nhan_vien where email = 'han@gara.vn'), 'ghi_chu', 'Làm mất ngoài bãi'));
+select kt.ghi('028 Giám đốc ghi mất + bồi thường 120.000 (Đặng Thanh Hận) → búa còn 2, sự cố đã xử lý',
+  (select so_luong from public.tai_san where id = (select v::bigint from ctx where k='ts_bua')) = 2
+  and (select trang_thai = 'da_xu_ly' and boi_thuong = 120000 and nguoi_chiu_ten = 'Đặng Thanh Hận' and not da_tru from public.su_co_tai_san where loai = 'mat' and kiem_tra_id = (select v::bigint from ctx where k='kt_ds')));
+select kt.dong_vai(null);
+select kt.dong_vai('tien@gara.vn');
+select public.danh_dau_boi_thuong((select id from public.su_co_tai_san where loai = 'mat' and kiem_tra_id = (select v::bigint from ctx where k='kt_ds')), true);
+select kt.ghi('028 Kế toán đánh dấu bồi thường đã trừ lương', (select da_tru from public.su_co_tai_san where loai = 'mat' and kiem_tra_id = (select v::bigint from ctx where k='kt_ds')));
+-- Kiểm kê tháng nhóm DS do kế toán làm cùng trưởng nhóm
+insert into ctx select 'kk_ds', public.luu_kiem_tra_tai_san(jsonb_build_object('nhom_id','DS','loai','kiem_ke','cung_kiem','Đặng Thanh Hận','dong', jsonb_build_array(
+  jsonb_build_object('tai_san_id', (select v::bigint from ctx where k='ts_tuyp'), 'so_thuc', 2),
+  jsonb_build_object('tai_san_id', (select v::bigint from ctx where k='ts_bua'), 'so_thuc', 2),
+  jsonb_build_object('tai_san_id', (select v::bigint from ctx where k='ts_may_ds'), 'so_thuc', 1, 'so_hong', 1, 'ghi_chu', 'Vẫn hỏng'))))::text;
+select kt.ghi('028 Kiểm kê tháng xong → hạn kiểm kê tiếp theo là cuối tháng sau', (select han_kiem_ke from public.v_nhom_tai_san where nhom_id = 'DS')
+  = (date_trunc('month', current_date) + interval '2 month' - interval '1 day')::date);
+select kt.ghi('028 Kiểm kê thấy máy vẫn hỏng (đang chờ xử lý) → không báo trùng sự cố', (select count(*) from public.su_co_tai_san where kiem_tra_id = (select v::bigint from ctx where k='kk_ds')) = 0
+  and (select count(*) from public.su_co_tai_san where tai_san_id = (select v::bigint from ctx where k='ts_may_ds') and trang_thai = 'cho_xu_ly') = 1
+  and (select so_hong = 1 from public.kiem_tra_tai_san where id = (select v::bigint from ctx where k='kk_ds')));
+select kt.dong_vai(null);
+select kt.dong_vai('han@gara.vn');
+insert into ctx select 'kt_ds2', public.luu_kiem_tra_tai_san(jsonb_build_object('nhom_id','DS','loai','kiem_tra','dong', jsonb_build_array(
+  jsonb_build_object('tai_san_id', (select v::bigint from ctx where k='ts_tuyp'), 'so_thuc', 0, 'ghi_chu', 'Không thấy cả 2 bộ'),
+  jsonb_build_object('tai_san_id', (select v::bigint from ctx where k='ts_bua'), 'so_thuc', 2),
+  jsonb_build_object('tai_san_id', (select v::bigint from ctx where k='ts_may_ds'), 'so_thuc', 1, 'so_hong', 1))))::text;
+insert into ctx select 'kt_ds3', public.luu_kiem_tra_tai_san(jsonb_build_object('nhom_id','DS','loai','kiem_tra','dong', jsonb_build_array(
+  jsonb_build_object('tai_san_id', (select v::bigint from ctx where k='ts_tuyp'), 'so_thuc', 1),
+  jsonb_build_object('tai_san_id', (select v::bigint from ctx where k='ts_bua'), 'so_thuc', 2),
+  jsonb_build_object('tai_san_id', (select v::bigint from ctx where k='ts_may_ds'), 'so_thuc', 1, 'so_hong', 1))))::text;
+select kt.ghi('028 Tuần sau vẫn thiếu như cũ → không báo lại; thiếu thêm chỉ báo phần thêm',
+  (select count(*) from public.su_co_tai_san where kiem_tra_id = (select v::bigint from ctx where k='kt_ds2')) = 1
+  and (select count(*) from public.su_co_tai_san where kiem_tra_id = (select v::bigint from ctx where k='kt_ds3')) = 0
+  and (select sum(so_luong) from public.su_co_tai_san where tai_san_id = (select v::bigint from ctx where k='ts_tuyp') and trang_thai = 'cho_xu_ly') = 2);
+select kt.dong_vai(null);
+select kt.dong_vai('thuan@gara.vn');
+select public.xu_ly_su_co_tai_san(jsonb_build_object('id', (select id from public.su_co_tai_san where kiem_tra_id = (select v::bigint from ctx where k='kt_ds2')), 'ket_qua', 'tim_thay', 'ghi_chu', 'Tổ ĐMG mượn, đã trả'));
+select kt.ghi('028 Tìm thấy → giữ nguyên số lượng, hết sự cố chờ', (select so_luong from public.tai_san where id = (select v::bigint from ctx where k='ts_tuyp')) = 2
+  and not exists (select 1 from public.su_co_tai_san where tai_san_id = (select v::bigint from ctx where k='ts_tuyp') and trang_thai = 'cho_xu_ly'));
+select kt.dong_vai(null);
+-- Bảo dưỡng máy nén khí: chu kỳ 90 ngày, bắt đầu 100 ngày trước → quá hạn; ghi bảo dưỡng → hết việc
+select kt.dong_vai('long@gara.vn');
+insert into ctx select 'lich_mnk', public.luu_lich_bao_duong(jsonb_build_object('tai_san_id', (select v::bigint from ctx where k='ts_may'), 'ten_viec', 'Thay dầu, xả nước bình', 'chu_ky_ngay', 90, 'bat_dau', current_date - 100))::text;
+select kt.ghi('028 Lịch bảo dưỡng quá hạn hiện thành việc của quản lý chung (nhóm Dùng chung)',
+  exists (select 1 from public.v_viec_tai_san where loai = 'bao_duong' and tai_san_id = (select v::bigint from ctx where k='ts_may') and han = current_date - 10 and vai @> '{quan_ly}'));
+select public.ghi_bao_duong(jsonb_build_object('tai_san_id', (select v::bigint from ctx where k='ts_may'), 'lich_id', (select v::bigint from ctx where k='lich_mnk'),
+  'loai', 'bao_duong', 'noi_dung', 'Thay 1 lít dầu, xả nước', 'nguoi_lam', 'Vinh', 'chi_phi', 150000));
+select kt.ghi('028 Ghi bảo dưỡng → hạn tiếp theo sau 90 ngày, hết việc', (select han_bao_duong from public.v_tai_san where id = (select v::bigint from ctx where k='ts_may')) = current_date + 90
+  and not exists (select 1 from public.v_viec_tai_san where loai = 'bao_duong' and tai_san_id = (select v::bigint from ctx where k='ts_may')));
+-- Máy hỏng: đưa đi sửa → sửa xong qua ghi sửa chữa
+select public.xu_ly_su_co_tai_san(jsonb_build_object('id', (select id from public.su_co_tai_san where loai = 'hong' and kiem_tra_id = (select v::bigint from ctx where k='kt_ds')), 'ket_qua', 'dua_sua'));
+select kt.ghi('028 Đưa máy đi sửa → Đang sửa', (select tinh_trang from public.tai_san where id = (select v::bigint from ctx where k='ts_may_ds')) = 'dang_sua');
+select public.ghi_bao_duong(jsonb_build_object('tai_san_id', (select v::bigint from ctx where k='ts_may_ds'), 'loai', 'sua_chua', 'noi_dung', 'Thay chổi than', 'chi_phi', 300000, 'thue_ngoai', true, 'xong', true));
+select kt.ghi('028 Ghi sửa chữa xong → máy Tốt, có lịch sử', (select tinh_trang from public.tai_san where id = (select v::bigint from ctx where k='ts_may_ds')) = 'tot'
+  and exists (select 1 from public.tai_san_lich_su where tai_san_id = (select v::bigint from ctx where k='ts_may_ds') and loai = 'sua_chua'));
+select kt.dong_vai(null);
+select kt.dong_vai('duy@gara.vn');
+select public.chuyen_nhom_tai_san((select v::bigint from ctx where k='ts_bua'), 'DMG', 'Tổ ĐMG mượn hẳn');
+select public.thanh_ly_tai_san((select v::bigint from ctx where k='ts_tuyp'), 'Mòn, gãy');
+select kt.ghi('028 Chuyển nhóm → chờ nhóm mới xác nhận; thanh lý → không còn tính', (select nhom_id = 'DMG' and cho_nhan from public.tai_san where id = (select v::bigint from ctx where k='ts_bua'))
+  and (select so_tai_san from public.v_nhom_tai_san where nhom_id = 'DS') = 1);
+select kt.dong_vai(null);
+select kt.dong_vai('codong@gara.vn');
+select kt.ghi('028 Cổ đông không thấy tài sản', (select count(*) from public.v_tai_san) = 0);
+select kt.dong_vai(null);
 \o
 \echo '======== KẾT QUẢ ========'
 select stt, case when dat then 'ĐẠT ' else 'LỖI ' end as kq, ten, left(coalesce(chi_tiet,''), 140) as chi_tiet from kt.ket_qua order by stt;

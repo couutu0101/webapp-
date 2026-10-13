@@ -103,7 +103,7 @@ export default async function trangDeNghi(el) {
     return ds;
   }
 
-  async function moLap({ mucTen = null, kyMacDinh = null } = {}) {
+  async function moLap({ mucTen = null, kyMacDinh = null, soTien = null, noiDung = '', nguoiNhan = '' } = {}) {
     const mucChi = api.dm.muc_thu_chi.filter((m) => m.loai === 'chi' && m.hoat_dong);
     const NHOM = { gia_von: 'Giá vốn', co_dinh: 'Chi phí cố định', van_hanh: 'Chi phí vận hành' };
     const chonMuc = h('select', { name: 'muc_id' }, h('option', { value: '' }, '— Chọn —'),
@@ -131,9 +131,9 @@ export default async function trangDeNghi(el) {
     if (mucTen) { const m = mucChi.find((x) => x.ten === mucTen); if (m) { chonMuc.value = String(m.id); chonMuc.dispatchEvent(new Event('change')); } }
     const form = h('form', { class: 'luoi-o', novalidate: true },
       truong('Mục chi', chonMuc, null, { batBuoc: true }),
-      truong('Số tiền', oTien('so_tien', null), null, { batBuoc: true }),
-      truong('Nội dung', oChu('noi_dung', ''), null, { batBuoc: true, rong: true }),
-      truong('Người nhận tiền', oChu('nguoi_nhan', '')),
+      truong('Số tiền', oTien('so_tien', soTien), null, { batBuoc: true }),
+      truong('Nội dung', oChu('noi_dung', noiDung || ''), null, { batBuoc: true, rong: true }),
+      truong('Người nhận tiền', oChu('nguoi_nhan', nguoiNhan || '')),
       truong('Ngày', oNgay('ngay', homNay())),
       vungRieng);
     moModal('Lập đề nghị chi', form, {
@@ -143,7 +143,10 @@ export default async function trangDeNghi(el) {
   }
 
   await tai();
-  // Mở sẵn form từ trang Kết quả kinh doanh: #/de-nghi?lap=1&muc=Điện&ky=2026-10-01
+  // Mở sẵn form từ trang khác: #/de-nghi?lap=1&muc=Điện&ky=2026-10-01 (Kết quả kinh doanh), &tien=…&nd=…&nhan=… (bảo dưỡng tài sản thuê ngoài)
   const thamSo = new URLSearchParams(location.hash.split('?')[1] || '');
-  if (thamSo.get('lap')) { history.replaceState(null, '', '#/de-nghi'); await moLap({ mucTen: thamSo.get('muc'), kyMacDinh: thamSo.get('ky') }); }
+  if (thamSo.get('lap')) {
+    history.replaceState(null, '', '#/de-nghi');
+    await moLap({ mucTen: thamSo.get('muc'), kyMacDinh: thamSo.get('ky'), soTien: thamSo.get('tien') ? Number(thamSo.get('tien')) : null, noiDung: thamSo.get('nd') || '', nguoiNhan: thamSo.get('nhan') || '' });
+  }
 }

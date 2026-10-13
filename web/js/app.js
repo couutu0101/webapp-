@@ -22,6 +22,7 @@ const MENU = [
   { duong: 'thu-chi', nhan: 'Thu chi', ic: 'quy', ai: () => api.coVaiTro('giam_doc', 'ke_toan', 'quan_ly') },
   { duong: 'de-nghi', nhan: 'Đề nghị chi', ic: 'phieu', ai: () => api.laNhanVien() || api.coVaiTro('truong_nhom') },
   { duong: 'kho', nhan: 'Kho', ic: 'kho', ai: () => api.laNhanVien() || api.coVaiTro('truong_nhom') },
+  { duong: 'tai-san', nhan: 'Tài sản – dụng cụ', ic: 'taiSan', ai: () => api.coVaiTro('giam_doc', 'quan_ly', 'ke_toan', 'kho', 'truong_nhom') },
   { duong: 'doanh-thu', nhan: 'Doanh thu & công nợ', ic: 'doanhThu', ai: () => api.coVaiTro('giam_doc', 'ke_toan', 'quan_ly') },
   { duong: 'danh-muc', nhan: 'Danh mục', ic: 'danhMuc', ai: () => api.coVaiTro('giam_doc', 'ke_toan') },
   { duong: 'nhan-vien', nhan: 'Nhân viên', ic: 'nguoi', ai: () => api.coVaiTro('giam_doc') },
@@ -154,6 +155,13 @@ async function dieuHuong() {
   if (duong === 'co-dong') {
     dat(khung.noiDung, h('div', { class: 'dang-tai' }, 'Đang tải…'));
     import('./trang/co-dong.js').then((m) => m.default(khung.noiDung)).catch((e) => baoLoi(e));
+    return;
+  }
+  if (duong === 'tai-san') {
+    if (!quyenMenu('tai-san')()) { dat(khung.noiDung, h('p', { class: 'trong' }, 'Anh/chị không có quyền mở trang này.')); return; }
+    const vung = h('div', { class: 'trang' }, h('div', { class: 'dang-tai', role: 'status' }, 'Đang tải…'));
+    dat(khung.noiDung, vung);
+    import('./trang/tai-san.js').then((m) => m.default(vung)).catch((e) => baoLoi(e));
     return;
   }
   const tim = TUYEN.find(([re]) => re.test(duong));

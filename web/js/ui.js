@@ -188,6 +188,8 @@ const ICON = {
   them: '<path d="M12 5v14M5 12h14"/>',
   kho: '<path d="M3 8 12 4l9 4v11H3z"/><path d="M7 19v-7h10v7"/><path d="M7 15h10"/>',
   check: '<path d="m5 12.5 4.2 4.2L19 7"/>',
+  // Hộp đồ nghề – mục Tài sản
+  taiSan: '<path d="M3 10h18v9H3z"/><path d="M8 10V7a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v3"/><path d="M3 14h18"/><path d="M10 13v2M14 13v2"/>',
   // Xe nhìn ngang, hướng sang phải – xe đang ở bước nào trên thanh tiến độ
   xeChay: '<path d="M3 15.5v-3a1 1 0 0 1 .8-1l2.6-.6 2.4-3.3A2 2 0 0 1 10.4 6.8h4.2a2 2 0 0 1 1.6.8l2.6 3.4 1.6.4a1 1 0 0 1 .8 1v3.1"/><path d="M9.3 16h5.4"/><path d="M6.6 11h11.2"/><circle cx="6.8" cy="16.2" r="2.1"/><circle cx="17.2" cy="16.2" r="2.1"/>',
 };
@@ -368,8 +370,8 @@ function coTuDong(input) {
   return '';
 }
 export function truong(nhan, input, goiY, { batBuoc = false, rong = false, co = '' } = {}) {
-  // Ô đã là <label> (nút chọn ảnh) thì khung ngoài dùng <div> để không lồng label
-  const tag = input?.tagName === 'LABEL' ? 'div' : 'label';
+  // Ô đã là <label> (nút chọn ảnh) hoặc chứa label (nhóm nút chọn) thì khung ngoài dùng <div> để không lồng label
+  const tag = input?.tagName === 'LABEL' || input?.querySelector?.('label') ? 'div' : 'label';
   const be = rong ? 'rong' : (co || coTuDong(input));
   return h(tag, { class: `truong ${be === 'rong' ? 'rong' : be ? `co-${be}` : ''}` },
     h('span', { class: 'truong-nhan' }, nhan, batBuoc ? h('b', { class: 'bat-buoc', 'aria-hidden': 'true' }, ' *') : null),

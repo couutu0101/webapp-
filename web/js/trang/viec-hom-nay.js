@@ -1,5 +1,5 @@
 // Việc hôm nay: số xe theo bước, việc cần xử lý, bảng việc của tổ
-import { h, oChonTep, bienSo, icon, ngayGio, tien, chay, moModal, oVung, truong, docForm, nhanTrangThai, nenAnh, TRANG_THAI, dat, thanhBuocNho, chipNguoi } from '../ui.js';
+import { h, oChonTep, bienSo, icon, ngayGio, tien, chay, moModal, oVung, truong, docForm, nhanTrangThai, nenAnh, TRANG_THAI, dat, thanhBuocNho, chipNguoi, nhoPhien } from '../ui.js';
 import * as api from '../api.js';
 import { viecTiepTheo } from './giao-viec.js';
 import { moLapDeXuat, moDeXuat, moChiTietMua, moChiTietNhap } from './kho.js';
@@ -22,7 +22,7 @@ export default async function trangViec(el) {
     laVanPhong ? api.doc('v_ho_so', (q) => q.not('trang_thai', 'in', '(dong,huy)')) : [],
     laVanPhong ? api.doc('v_canh_bao') : [],
     api.coVaiTro('truong_nhom', 'quan_ly', 'cvdv', 'ke_toan', 'giam_doc') ? api.bangViecTo() : [],
-    laVanPhong ? layViecCuaToi() : [],
+    laVanPhong ? layViecCuaToi() : api.coVaiTro('truong_nhom') ? viecTaiSanCuaToi() : [],
     laVanPhong ? demKho() : null,
   ]);
 
@@ -33,7 +33,7 @@ export default async function trangViec(el) {
 
   dat(el, 
     h('div', { class: 'tieu-de-trang' }, h('h1', null, 'Việc hôm nay'), h('div', { class: 'hang-nut' }, nut)),
-    laVanPhong ? khoiViecCuaToi(viecCuaToi, () => trangViec(el)) : null,
+    laVanPhong || viecCuaToi.length ? khoiViecCuaToi(viecCuaToi, () => trangViec(el)) : null,
     laVanPhong ? h('section', { class: 'luoi-dem chuoi-xe', 'aria-label': 'Số xe ở từng bước' }, NHOM_DEM.map((n) => {
       const so = hoSo.filter((x) => n.tt.includes(x.trang_thai)).length;
       return h('a', { class: `o-dem ${so ? '' : 'mo'}`, href: `#/ho-so?tt=${n.tt.join(',')}` },
@@ -140,10 +140,27 @@ async function layViecCuaToi() {
     if (r.trang_thai === 'cho_duyet' && r.nguoi_de_nghi === toi.id && !api.coVaiTro('giam_doc')) continue;
     themPhieu('de_nghi_chi', r, `Đề nghị chi ${tien(r.so_tien)} đ`, `${r.noi_dung || r.muc || ''} · ${r.nguoi_de_nghi_ten || ''} đề nghị`, '#/de-nghi');
   }
+  ds.push(...(await viecTaiSanCuaToi()));
   // Quá hạn lên đầu, rồi theo hạn gần nhất, rồi theo lúc giao
   const khoa = (v) => (v.han ? v.han.getTime() : Infinity);
   ds.sort((a, b) => (quaHan(b.han) - quaHan(a.han)) || (khoa(a) - khoa(b)) || (new Date(a.luc) - new Date(b.luc)));
   return ds;
+}
+
+// Việc về tài sản (028): kiểm tra tuần, kiểm kê tháng, xác nhận nhận, bảo dưỡng tới hạn, thiếu / hỏng chờ xử lý – theo vai trò
+async function viecTaiSanCuaToi() {
+  if (!api.coVaiTro('giam_doc', 'quan_ly', 'ke_toan', 'kho', 'truong_nhom')) return [];
+  const ds = await api.doc('v_viec_tai_san', (q) => q.eq('chi_nhanh_id', api.toi.chi_nhanh_id)).catch(() => []);
+  const truongNhom = api.coVaiTro('truong_nhom');
+  return ds.filter((x) => (x.vai || []).some((v) => api.coVaiTro(v)) && (!x.to_id || !truongNhom || api.laNhanVien() || x.to_id === api.toi.to_id))
+    .map((x) => ({
+      dau: h('b', { class: 'dau-tai-san' }, x.loai === 'bao_duong' ? x.chi_tiet : 'Tài sản'),
+      ten: x.tieu_de,
+      phu: x.loai === 'bao_duong' ? `Nhóm ${x.nhom_ten}` : x.chi_tiet,
+      han: x.han ? new Date(`${String(x.han).slice(0, 10)}T23:59:59`) : null,
+      luc: null,
+      moChiTiet: () => { nhoPhien.ghi('ts_the', x.nhom_id); location.hash = '#/tai-san'; },
+    }));
 }
 
 function khoiViecCuaToi(ds, taiLai) {
@@ -157,7 +174,7 @@ function khoiViecCuaToi(ds, taiLai) {
         const noiDung = [v.dau,
           h('span', { class: 'viec-ten' }, h('b', null, v.ten), h('small', null, v.phu)),
           v.han ? h('span', { class: `viec-luc han ${qh ? 'qua' : v.han.getTime() - Date.now() < 4 * 36e5 ? 'sap' : ''}` }, chuHan(v.han))
-            : h('small', { class: 'viec-luc' }, `Từ ${ngayGio(v.luc)}`)];
+            : v.luc ? h('small', { class: 'viec-luc' }, `Từ ${ngayGio(v.luc)}`) : h('small', { class: 'viec-luc' }, 'Chờ xử lý')];
         return h('li', { class: qh ? 'qua-han' : null },
           v.href ? h('a', { href: v.href }, noiDung)
             : h('a', { href: '#', onclick: (e) => { e.preventDefault(); v.moChiTiet(taiLai); } }, noiDung));
