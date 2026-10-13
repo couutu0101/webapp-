@@ -1,5 +1,6 @@
 """Kiểm thử giao diện từ đầu đến cuối: một chiếc xe bảo hiểm đi hết 9 bước, đổi người dùng theo vai trò.
 Chạy: test/lam_moi_csdl.sh && python3 test/may_chu_thu.py 8765 & python3 test/thu_giao_dien.py"""
+import subprocess
 import os, sys, base64, re
 from playwright.sync_api import sync_playwright, expect
 
@@ -176,8 +177,19 @@ with sync_playwright() as p:
     lg = mo(b, 'long@gara.vn')
     lg.wait_for_selector('.viec-cua-toi', timeout=20000)
     expect(lg.locator('.viec-cua-toi')).to_contain_text('Nhập kết quả duyệt giá')
+    expect(lg.locator('.viec-cua-toi .viec-luc').first).to_contain_text('Còn')
+    assert lg.locator('.viec-cua-toi li.qua-han').count() == 0
     chup(lg, '10b-viec-cua-toi')
-    ghi('Việc hôm nay của anh Long: ' + lg.locator('.viec-cua-toi h2').inner_text())
+    ghi('Việc hôm nay của anh Long: ' + lg.locator('.viec-cua-toi h2').inner_text() + ' · hạn: ' + lg.locator('.viec-cua-toi .viec-luc').first.inner_text())
+    # Giả lập xe vào xưởng 4 ngày trước (quá hạn chờ duyệt giá 3 ngày) → việc tô vàng
+    subprocess.run(['psql', '-h', '/tmp', '-U', 'postgres', '-d', 'gara', '-qc', f"update public.ho_so set ngay_vao = now() - interval '4 days' where id = {id_hs}"], check=True)
+    ve_trang(lg, '#/viec')
+    lg.wait_for_selector('.viec-cua-toi li.qua-han', timeout=20000)
+    expect(lg.locator('.viec-cua-toi li.qua-han .viec-luc')).to_contain_text('Quá hạn')
+    expect(lg.locator('.viec-cua-toi h2 .nhan.qua-han')).to_contain_text('1 quá hạn')
+    chup(lg, '10c-viec-qua-han')
+    ghi('Xe vào xưởng 4 ngày chưa duyệt giá → Việc của anh Long tô vàng: ' + lg.locator('.viec-cua-toi li.qua-han .viec-luc').inner_text())
+    subprocess.run(['psql', '-h', '/tmp', '-U', 'postgres', '-d', 'gara', '-qc', f"update public.ho_so set ngay_vao = now() where id = {id_hs}"], check=True)
     ve_trang(lg, f'#/ho-so/{id_hs}')
     lg.locator('.dang-cho button', has_text='Đổi người').click()
     mm = modal(lg)
@@ -281,7 +293,12 @@ with sync_playwright() as p:
     ghi('Kho xuất sơn, gương hết hàng → chuyển mua; hồ sơ hiện: ' + duy.locator('h1 .tt-canh-bao').inner_text())
 
     lg = mo(b, 'long@gara.vn')
+    lg.wait_for_selector('.viec-cua-toi', timeout=20000)
+    expect(lg.locator('.viec-cua-toi')).to_contain_text('Duyệt mua')
+    ghi('Việc hôm nay của anh Long có đề nghị mua chờ duyệt: ' + lg.locator('.viec-cua-toi li', has_text='Duyệt mua').first.inner_text().replace('\n', ' · ')[:120])
     ve_trang(lg, '#/kho?the=mua')
+    expect(lg.locator('tbody')).to_contain_text('→ Duyệt mua')
+    ghi('Danh sách mua hiện người yêu cầu → tiếp theo: ' + lg.locator('tbody .yeu-cau-tiep').first.inner_text().replace('\n', ' '))
     lg.locator('tbody tr.bam-duoc').first.click()
     m = modal(lg)
     # 5.400.000 đ ≥ ngưỡng 5 triệu, chưa có báo giá nào → không có nút Duyệt thường, chỉ có Duyệt ngoại lệ (bắt buộc lý do)

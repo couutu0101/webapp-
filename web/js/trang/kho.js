@@ -6,6 +6,17 @@ import {
 } from '../ui.js';
 import * as api from '../api.js';
 import { nutXuatExcel, xuatExcelKho } from './xuat-excel.js';
+import { buocTiepPhieu, hanPhieu, tenNguoiVai, tenVaiTro, quaHan, chuHan } from '../han-viec.js';
+
+// "Người yêu cầu → người xử lý tiếp theo (hạn)" của phiếu kho: dùng ở bảng và chi tiết
+function oYeuCauTiep(loai, r, nguoiYeuCau, { mot = false } = {}) {
+  const b = buocTiepPhieu(loai, r);
+  const han = hanPhieu(loai, r);
+  const tiep = b ? h('small', { class: `tiep-theo ${quaHan(han) ? 'chu-loi' : ''}` },
+    `→ ${b.ten}: ${tenNguoiVai(b.vaiTro, r.chi_nhanh_id) || tenVaiTro(b.vaiTro)}`, han ? ` · ${chuHan(han)}` : '')
+    : h('small', { class: 'tiep-theo chu-tot' }, '✓ Không còn việc chờ');
+  return h('span', { class: 'yeu-cau-tiep' }, nguoiYeuCau || '', mot ? ' ' : h('br'), tiep);
+}
 
 export const NHOM_HANG = ['Sơn', 'Nhám', 'Vật tư phụ', 'Phụ tùng', 'Dầu nhớt', 'Detailing', 'Khác'];
 const DVT_GOI_Y = ['Cái', 'Bộ', 'Chai', 'Lít', 'Can 4L', 'Bình 20L', 'Hộp', 'Cây', 'Tờ', 'Kg', 'Mét', 'Cuộn'];
@@ -179,7 +190,7 @@ export default async function trangKho(el) {
         { nhan: 'Phiếu', lay: (r) => h('b', null, r.ma) },
         { nhan: 'Xe', lay: (r) => h('span', null, bienSo(r.bien_so, { maThay: r.ma_ho_so }), h('small', null, ` ${r.ma_ho_so}`)) },
         { nhan: 'Tổ', lay: (r) => r.to_id || '' },
-        { nhan: 'Người lập', lay: (r) => h('span', null, r.nguoi_lap_ten || '', h('small', null, ` · ${ngayGio(r.tao_luc)}`)) },
+        { nhan: 'Người yêu cầu → tiếp theo', lay: (r) => oYeuCauTiep('de_xuat', r, `${r.nguoi_lap_ten || ''} · ${ngayGio(r.tao_luc)}`) },
         { nhan: 'Số dòng', so: true, lay: (r) => r.so_dong },
         { nhan: 'Trạng thái', lay: (r) => h('span', null, TT_DE_XUAT[r.trang_thai],
           r.so_dong_cho_mua ? h('span', { class: 'nhan tt-canh-bao' }, `Chờ mua ${r.so_dong_cho_mua}`) : null) },
@@ -208,6 +219,7 @@ export default async function trangKho(el) {
         { nhan: 'Phiếu', lay: (r) => h('b', null, r.ma) },
         { nhan: 'Nhà cung cấp', lay: (r) => h('span', null, r.nha_cung_cap, r.so_hoa_don ? h('small', null, ` · HĐ ${r.so_hoa_don}`) : null) },
         { nhan: 'Cho xe / đề nghị', lay: (r) => [r.ma_ho_so, r.ma_de_nghi_mua].filter(Boolean).join(' · ') },
+        { nhan: 'Người nhập → tiếp theo', lay: (r) => oYeuCauTiep('nhap', r, r.tao_boi_ten) },
         { nhan: 'Tổng (gồm VAT)', so: true, lay: (r) => tien(r.tong_tien) },
         { nhan: 'Trạng thái', lay: (r) => h('span', null, TT_NHAP[r.trang_thai], r.so_tep ? h('small', null, ` · ${r.so_tep} ảnh`) : h('small', { class: 'chu-loi' }, ' · chưa có ảnh HĐ'),
           r.ly_do_treo ? h('small', null, ` · ${r.ly_do_treo}`) : null) },
@@ -237,7 +249,7 @@ export default async function trangKho(el) {
         { nhan: 'Phiếu', lay: (r) => h('b', null, r.ma) },
         { nhan: 'Nhà cung cấp', lay: (r) => r.nha_cung_cap },
         { nhan: 'Cho xe', lay: (r) => r.ma_ho_so || '' },
-        { nhan: 'Người lập', lay: (r) => r.nguoi_lap_ten || '' },
+        { nhan: 'Người yêu cầu → tiếp theo', lay: (r) => oYeuCauTiep('mua', r, r.nguoi_lap_ten) },
         { nhan: 'Tổng (gồm VAT)', so: true, lay: (r) => h('span', null, tien(r.tong_tien),
           r.can_3_bao_gia ? h('small', { class: r.so_bao_gia >= 3 ? 'nhan' : 'nhan tt-canh-bao' }, `${r.so_bao_gia}/3 báo giá`) : null) },
         { nhan: 'Trạng thái', lay: (r) => h('span', null, TT_MUA[r.trang_thai], r.duyet_boi_ten ? h('small', null, ` · ${r.duyet_boi_ten}`) : null,
@@ -453,7 +465,8 @@ export async function moDeXuat(id, veLai) {
     return t >= con(d) ? h('span', { class: 'chu-tot' }, 'Đủ hàng') : h('span', { class: 'chu-loi' }, t > 0 ? `Thiếu ${sl(con(d) - t)}` : 'Hết hàng');
   };
   const noiDung = h('div', null,
-    h('p', { class: 'mo-ta' }, `Xe ${r.bien_so} · ${r.ma_ho_so}`, r.to_id ? ` · Tổ ${r.to_id}` : '', ` · ${r.nguoi_lap_ten || ''} lập ${ngayGio(r.tao_luc)}`, r.ghi_chu ? ` · ${r.ghi_chu}` : ''),
+    h('p', { class: 'mo-ta' }, `Xe ${r.bien_so} · ${r.ma_ho_so}`, r.to_id ? ` · Tổ ${r.to_id}` : '', r.ghi_chu ? ` · ${r.ghi_chu}` : ''),
+    h('p', { class: 'mo-ta' }, oYeuCauTiep('de_xuat', r, `Người yêu cầu: ${r.nguoi_lap_ten || ''} (${ngayGio(r.tao_luc)})`, { mot: true })),
     bang([
       { nhan: 'Mã hàng', lay: (d) => { const x = hangTheoId(d.hang_id); return h('span', null, h('b', null, x?.ma), ` ${x?.ten || ''}`); } },
       { nhan: 'Đề xuất', so: true, lay: (d) => `${sl(d.so_luong)} ${hangTheoId(d.hang_id)?.dvt || ''}` },
@@ -618,7 +631,7 @@ export async function moPhieuNhap({ deNghi = null } = {}, veLai) {
 }
 
 // Chi tiết phiếu nhập: kế toán khớp / treo, kho hủy, xem ảnh hóa đơn
-async function moChiTietNhap(id, veLai) {
+export async function moChiTietNhap(id, veLai) {
   await taiHang();
   const [[r], dongs, tep] = await Promise.all([
     api.doc('v_phieu_nhap', (q) => q.eq('id', id)),
@@ -627,8 +640,9 @@ async function moChiTietNhap(id, veLai) {
   ]);
   if (!r) return;
   const noiDung = h('div', null,
-    h('p', { class: 'mo-ta' }, `${ngay(r.ngay)} · ${r.nha_cung_cap}`, r.so_hoa_don ? ` · HĐ ${r.so_hoa_don}` : '', ` · ${r.tao_boi_ten || ''} nhập`,
+    h('p', { class: 'mo-ta' }, `${ngay(r.ngay)} · ${r.nha_cung_cap}`, r.so_hoa_don ? ` · HĐ ${r.so_hoa_don}` : '',
       r.ma_de_nghi_mua ? ` · theo ${r.ma_de_nghi_mua}` : '', r.ma_ho_so ? ` · cho xe ${r.ma_ho_so}` : ''),
+    h('p', { class: 'mo-ta' }, oYeuCauTiep('nhap', r, `Người nhập: ${r.tao_boi_ten || ''} (${ngayGio(r.tao_luc)})`, { mot: true })),
     r.ly_do_treo ? h('p', { class: 'thong-bao canh-bao' }, `Treo: ${r.ly_do_treo}`) : null,
     bang([
       { nhan: 'Mã hàng', lay: (d) => { const x = hangTheoId(d.hang_id); return h('span', null, h('b', null, x?.ma), ` ${x?.ten || ''}`); } },
@@ -696,7 +710,7 @@ async function moLapDeNghiMua(_, veLai) {
 }
 
 // Chi tiết đề nghị mua: duyệt / từ chối / thêm báo giá / hủy / nhập hàng
-async function moChiTietMua(id, veLai) {
+export async function moChiTietMua(id, veLai) {
   await taiHang();
   const [[r], dongs, tep] = await Promise.all([
     api.doc('v_de_nghi_mua', (q) => q.eq('id', id)),
@@ -705,7 +719,8 @@ async function moChiTietMua(id, veLai) {
   ]);
   if (!r) return;
   const noiDung = h('div', null,
-    h('p', { class: 'mo-ta' }, `${ngay(r.ngay)} · ${r.nha_cung_cap}`, r.ma_ho_so ? ` · cho xe ${r.ma_ho_so}` : ' · mua cho kho', ` · ${r.nguoi_lap_ten || ''} lập`, r.ghi_chu ? ` · ${r.ghi_chu}` : ''),
+    h('p', { class: 'mo-ta' }, `${ngay(r.ngay)} · ${r.nha_cung_cap}`, r.ma_ho_so ? ` · cho xe ${r.ma_ho_so}` : ' · mua cho kho', r.ghi_chu ? ` · ${r.ghi_chu}` : ''),
+    h('p', { class: 'mo-ta' }, oYeuCauTiep('mua', r, `Người yêu cầu: ${r.nguoi_lap_ten || ''} (${ngayGio(r.tao_luc)})`, { mot: true })),
     r.ly_do_tu_choi ? h('p', { class: 'thong-bao canh-bao' }, `Từ chối: ${r.ly_do_tu_choi}`) : null,
     r.ngoai_le ? h('p', { class: 'thong-bao canh-bao' }, h('b', null, 'Duyệt ngoại lệ – thiếu báo giá cạnh tranh: '),
       r.ly_do_ngoai_le || '', r.duyet_boi_ten ? ` · ${r.duyet_boi_ten} duyệt ${ngayGio(r.duyet_luc)}` : '') : null,

@@ -435,3 +435,10 @@ a.o-dem:not(.mo) b { color: var(--muc); }
 @media (max-width: 560px) { .tim-hang { grid-template-columns: 1fr; } }
 /* Ô số tiền lớn: rộng hơn để không bị cắt chữ số */
 .luoi-dem.tien { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+
+/* Việc quá hạn: tô vàng (Việc hôm nay, bảng việc tổ) */
+.nhan.qua-han { background: #ffe08a; color: #6b4a00; margin-left: 8px; }
+.ds-viec-toi li.qua-han a { background: #fff1b8; border-color: var(--vang-dam); border-left: 5px solid var(--vang); }
+.ds-viec-toi li.qua-han a:hover { background: #ffe8a0; }
+.the-xe.qua-han { background: #fff1b8; border-color: var(--vang-dam); }
+.yeu-cau-tiep .tiep-theo { display: inline-block; line-height: 1.3; }
