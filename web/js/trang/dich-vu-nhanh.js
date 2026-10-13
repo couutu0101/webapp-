@@ -2,7 +2,7 @@
 // 032: gõ biển số / SĐT → gợi ý xe cũ, hiện khách, lần vào gần nhất, số km lần trước, hạn BH, tư vấn còn ghi.
 //      Mỗi lượt lưu kèm xe – khách (chưa có thì tạo), số km BẮT BUỘC; lượt dịch vụ nhanh vào lịch sử xe.
 import {
-  h, bienSo, vietBienSo, oGoiY, tien, ngay, homNay, truong, oChu, oTien, oNgay, oCheck, docForm, chay, bang, moModal, oVung, toast, dat, xacNhan,
+  h, bienSo, vietBienSo, oGoiY, tien, ngay, homNay, truong, oChu, oTien, oCheck, docForm, chay, bang, moModal, oVung, toast, dat, xacNhan,
 } from '../ui.js';
 import * as api from '../api.js';
 import { nhacHetHan } from './lich-su-xe.js';
@@ -75,7 +75,6 @@ export default async function trangDichVu(el) {
     h('datalist', { id: 'goi-y-dv' }, ['Rửa xe', 'Vá lốp', 'Thay bóng đèn', 'Kích bình', 'Bơm lốp', 'Vệ sinh nội thất'].map((x) => h('option', { value: x }))),
     truong('Người làm', oChu('nguoi_lam', '')),
     truong('Số tiền khách trả', oTien('so_tien', null), null, { batBuoc: true }),
-    truong('Ngày', oNgay('ngay', homNay(), { max: homNay() })),
     h('div', { class: 'truong' }, oCheck('xuat_hd', false, 'Có xuất hóa đơn')),
     h('div', { class: 'hang-nut rong' }, h('button', { class: 'nut chinh', type: 'submit' }, 'Ghi dịch vụ')));
   const ds = h('div');
@@ -89,8 +88,9 @@ export default async function trangDichVu(el) {
     if (kmTruoc && d.so_km < Number(kmTruoc.so)
       && !(await xacNhan(`Số km ${tien(d.so_km)} nhỏ hơn lần trước (${tien(kmTruoc.so)} km). Vẫn lưu?`, 'Vẫn lưu'))) { oKm.focus(); return; }
     try {
-      await chay(() => api.ghiDichVuNhanh({ ...d, bat_buoc_km: true }), { thanhCong: 'Đã ghi.' });
-      form.reset(); form.ngay.value = homNay(); daTra = ''; hienXe(null); await tai();
+      // Ngày = hôm nay (giờ máy, không chọn được); máy chủ vẫn lưu cột ngay + giờ ghi tao_luc
+      await chay(() => api.ghiDichVuNhanh({ ...d, ngay: homNay(), bat_buoc_km: true }), { thanhCong: 'Đã ghi.' });
+      form.reset(); daTra = ''; hienXe(null); await tai();
     } catch { /* đã báo lỗi */ }
   });
 
