@@ -87,7 +87,17 @@ insert into ctx select 'hs1', (public.tiep_nhan_xe(jsonb_build_object(
   'bien_so','50h - 923.61','ten_khach','Anh Liêm','dien_thoai','0567 248 565','dong_xe_id',(select id from public.dong_xe where ten='VF6 Plus'),
   'mau','Trắng','nguon_tt','bao_hiem','hang_bh_id',(select id from public.hang_bao_hiem where ten='Tasco'),
   'gdv_id',(select id from public.giam_dinh_vien where ten='Hảo'),'han_bao_hiem','2027-03-01','han_bh_than_vo','2027-05-20',
-  'tinh_trang_xe','Móp cửa trước trái','tu_van','Bảo dưỡng 20.000 km')))->>'id';
+  'tinh_trang_xe','Móp cửa trước trái','tu_van','Bảo dưỡng 20.000 km','so_km',45230)))->>'id';
+select kt.ghi('031 Lưu số km (ODO) khi tiếp nhận', (select so_km from public.ho_so where id = (select v::bigint from ctx where k='hs1')) = 45230);
+select kt.mong_loi('031 Số km quá lớn bị chặn', $$select public.tiep_nhan_xe(jsonb_build_object(
+  'bien_so','51A-111.11','ten_khach','Khách Thử','dien_thoai','0901111111','dong_xe_id',(select id from public.dong_xe where ten='VF6 Plus'),
+  'nguon_tt','khach','tinh_trang_xe','Thay dầu','tu_van','Không','so_km','123456789'))$$, 'Số km');
+select kt.mong_loi('031 Thiếu yêu cầu khách hàng bị chặn', $$select public.tiep_nhan_xe(jsonb_build_object(
+  'bien_so','51A-111.11','ten_khach','Khách Thử','dien_thoai','0901111111','dong_xe_id',(select id from public.dong_xe where ten='VF6 Plus'),
+  'nguon_tt','khach','tinh_trang_xe','','tu_van','Không'))$$, 'yêu cầu của khách hàng');
+select public.sua_thong_tin_ho_so((select v::bigint from ctx where k='hs1'), '{"so_km": 45320}');
+select public.sua_thong_tin_ho_so((select v::bigint from ctx where k='hs1'), '{"mau":"Trắng"}');
+select kt.ghi('031 Sửa số km ở Sửa thông tin; không gửi so_km thì giữ nguyên', (select so_km from public.ho_so where id = (select v::bigint from ctx where k='hs1')) = 45320);
 select kt.ghi('Lưu hạn BH thân vỏ vào hồ sơ và xe',
   (select h.han_bh_than_vo = '2027-05-20' and x.han_bh_than_vo = '2027-05-20' and h.han_bao_hiem = '2027-03-01'
      from public.ho_so h join public.xe x on x.id = h.xe_id where h.id = (select v::bigint from ctx where k='hs1')));
@@ -625,7 +635,7 @@ select kt.ghi('Giám đốc đổi quyền tài khoản mới tạo', (select va
 select kt.dong_vai(null);
 insert into app.nap_tam (phan, dong) values (1, $j$[
   {"bien_so":"51K-999.01","khach":"Khách nợ cũ","dien_thoai":"0911000001","hang_xe":"Kia","dong_xe":"Morning","mau":"Trắng",
-   "ngay_vao":"2026-09-02","ngay_giao":"2026-09-05","nguon":"khach","tinh_trang":"02/09/2026: Trầy cản","gia_tri":3000000,"con_no_khach":1200000},
+   "ngay_vao":"2026-09-02","ngay_giao":"2026-09-05","nguon":"khach","tinh_trang":"02/09/2026: Trầy cản","gia_tri":3000000,"con_no_khach":1200000,"so_km":61500},
   {"bien_so":"51K99901","khach":"Khách nợ cũ","dien_thoai":"0911000001","ngay_vao":"2026-06-01","nguon":"bao_hiem","hang_bh":"tasco","gdv":"X"},
   {"bien_so":"51K-999.02","khach":"Khách BH nợ","dien_thoai":"","ngay_vao":"2026-09-10","ngay_giao":"2026-09-15","nguon":"bao_hiem",
    "hang_bh":"Hãng Lạ","con_no_bh":2500000},
@@ -634,6 +644,7 @@ insert into app.nap_tam (phan, dong) values (1, $j$[
 select kt.mong_loi('Xóa hết khi đã có phiếu thu gắn hồ sơ thì dừng, báo rõ', 'select app.nap_data_khach(true)', 'phân bổ phiếu thu');
 insert into ctx select 'nap', app.nap_data_khach(false)::text;
 select kt.dong_vai('thuan@gara.vn');
+select kt.ghi('031 Nạp Data khách hàng có số km', exists (select 1 from public.ho_so where tu_excel and so_km = 61500));
 select kt.ghi('Nạp: 3 xe mới, 3 hồ sơ, 2 hồ sơ còn nợ; hãng lạ báo cảnh báo',
   ((select v::jsonb from ctx where k='nap')->>'xe_moi')::int = 3 and ((select v::jsonb from ctx where k='nap')->>'ho_so')::int = 3
   and ((select v::jsonb from ctx where k='nap')->>'ho_so_con_no')::int = 2

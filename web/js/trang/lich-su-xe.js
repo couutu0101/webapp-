@@ -1,6 +1,6 @@
 // Lịch sử tình trạng – tư vấn – phản hồi của một xe qua các lần vào gara.
 // Quy ước ghi: mỗi lần nhập là một dòng bắt đầu bằng ngày "dd/mm/yyyy: …", ghi tiếp chứ không ghi đè.
-import { h, ngay, homNay, isoSangVN, NGUON } from '../ui.js';
+import { h, ngay, tien, homNay, isoSangVN, NGUON } from '../ui.js';
 import * as api from '../api.js';
 
 export const homNayVN = () => isoSangVN(homNay());
@@ -42,8 +42,12 @@ export function nhacHetHan(isoThanVo, isoTnds) {
 // Các lần vào gara trước của xe (mới nhất trước), bỏ hồ sơ đang xem
 export async function layLichSu(xeId, boQuaId = null) {
   if (!xeId) return [];
-  const ds = await api.doc('v_ho_so', (q) => q.eq('xe_id', xeId).order('ngay_vao', { ascending: false }).limit(30));
-  return ds.filter((x) => String(x.id) !== String(boQuaId));
+  const [ds, km] = await Promise.all([
+    api.doc('v_ho_so', (q) => q.eq('xe_id', xeId).order('ngay_vao', { ascending: false }).limit(30)),
+    api.doc('ho_so', (q) => q.eq('xe_id', xeId), 'id, so_km').catch(() => []),   // số km chưa có trong v_ho_so (031)
+  ]);
+  const soKm = new Map(km.map((x) => [x.id, x.so_km]));
+  return ds.filter((x) => String(x.id) !== String(boQuaId)).map((x) => ({ ...x, so_km: soKm.get(x.id) ?? null }));
 }
 
 // Bỏ các câu giữ chỗ của dữ liệu chuyển từ Excel
@@ -63,7 +67,8 @@ export function khoiLichSu(ds, { tieuDe = 'Lịch sử các lần trước', moS
         h('a', { href: `#/ho-so/${x.id}` }, x.ma), ' ',
         h('small', null, x.nguon_tt === 'khach' ? NGUON.khach : (x.hang_bh || NGUON[x.nguon_tt])),
         x.tu_excel ? h('span', { class: 'nhan' }, 'Từ Excel') : null),
-      dongNoiDung('Tình trạng', x.tinh_trang_xe, x.ngay_vao),
+      x.so_km !== null && x.so_km !== undefined ? h('div', { class: 'ls-dong' }, h('span', { class: 'ls-nhan' }, 'Số km'), h('span', { class: 'ls-noi-dung' }, `${tien(x.so_km)} km`)) : null,
+      dongNoiDung('Yêu cầu khách hàng', x.tinh_trang_xe, x.ngay_vao),
       dongNoiDung('Tư vấn', x.tu_van, x.ngay_vao),
       dongNoiDung('Phản hồi khi giao xe', x.cam_nhan_khach, x.giao_luc),
       dongNoiDung('Phản hồi khi gọi chăm sóc', x.cham_soc_ket_qua, x.cham_soc_luc)))));

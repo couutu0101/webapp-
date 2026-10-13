@@ -114,8 +114,9 @@ function theThongTin({ hs, ve }) {
         dong('Bảo hiểm', hs.hang_bh),
         dong('Giám định viên', hs.gdv_cho_them ? h('span', null, hs.gdv, ' ', h('span', { class: 'nhan tt-canh-bao' }, 'chờ thêm vào danh sách')) : hs.gdv)] : null,
       dong('Hết hạn BH thân vỏ', ngay(hs.han_bh_than_vo)), dong('Hết hạn BH TNDS', ngay(hs.han_bao_hiem)),
-      dong('Vào xưởng', ngayGio(hs.ngay_vao)), dong('Hẹn giao', ngayGio(hs.hen_giao)),
-      dong('Tình trạng', hs.tinh_trang_xe), dong('Có thể tư vấn', hs.tu_van)),
+      dong('Vào xưởng', ngayGio(hs.ngay_vao)), dong('Số km (ODO)', hs.so_km !== null && hs.so_km !== undefined ? `${tien(hs.so_km)} km` : null),
+      dong('Hẹn giao', ngayGio(hs.hen_giao)),
+      dong('Yêu cầu khách hàng', hs.tinh_trang_xe), dong('Có thể tư vấn', hs.tu_van)),
     khungLichSuXe(hs));
 }
 
@@ -138,15 +139,16 @@ function moSuaThongTin(hs, ve) {
     truong('Tên khách', oChu('ten_khach', hs.ten_khach)),
     truong('Số điện thoại', oChu('dien_thoai', hs.dien_thoai, { inputmode: 'tel' })),
     truong('Màu xe', oChu('mau', hs.mau)),
+    truong('Số km (ODO)', oTien('so_km', hs.so_km ?? null), 'Số trên đồng hồ lúc nhận xe'),
     truong('Hẹn giao', oNgayGioVN('hen_giao', hs.hen_giao), 'Giờ 24h'),
     hs.nguon_tt !== 'khach' ? [
       truong('Hãng bảo hiểm', oChon('hang_bh_id', dm.hang_bao_hiem.map((x) => ({ value: x.id, label: x.ten })), hs.hang_bh_id)),
       truong('Giám định viên', chonGdv), truong('Tên GDV mới (nếu chọn "chờ thêm")', oGdvMoi)] : null,
     truong('Hết hạn bảo hiểm thân vỏ', oNgayVN('han_bh_than_vo', hs.han_bh_than_vo), 'Ngày/tháng/năm'),
     truong('Hết hạn bảo hiểm TNDS', oNgayVN('han_bao_hiem', hs.han_bao_hiem), 'Ngày/tháng/năm'),
-    // Tình trạng và tư vấn: không sửa nội dung cũ, chỉ ghi thêm (tự có ngày ở đầu) để giữ toàn bộ lịch sử
-    h('div', { class: 'truong rong' }, h('span', { class: 'truong-nhan' }, 'Tình trạng đã ghi'), h('div', { class: 'nhat-ky-ghi' }, hs.tinh_trang_xe || '—')),
-    truong('Ghi thêm tình trạng', oThemTinhTrang, 'Để trống nếu không có gì mới', { rong: true }),
+    // Yêu cầu khách hàng và tư vấn: không sửa nội dung cũ, chỉ ghi thêm (tự có ngày ở đầu) để giữ toàn bộ lịch sử
+    h('div', { class: 'truong rong' }, h('span', { class: 'truong-nhan' }, 'Yêu cầu khách hàng đã ghi'), h('div', { class: 'nhat-ky-ghi' }, hs.tinh_trang_xe || '—')),
+    truong('Ghi thêm yêu cầu', oThemTinhTrang, 'Để trống nếu không có gì mới', { rong: true }),
     h('div', { class: 'truong rong' }, h('span', { class: 'truong-nhan' }, 'Tư vấn đã ghi'), h('div', { class: 'nhat-ky-ghi' }, hs.tu_van || '—')),
     truong('Ghi thêm tư vấn', oThemTuVan, 'Để trống nếu không có gì mới', { rong: true }));
   moModal('Sửa thông tin', form, {
@@ -161,7 +163,8 @@ function moSuaThongTin(hs, ve) {
       for (const x of nhac) tuVan = ghiTiep(tuVan, x);
       tuVan = ghiTiep(tuVan, d.them_tu_van);
       const tinhTrang = ghiTiep(hs.tinh_trang_xe || '', d.them_tinh_trang);
-      const p = { ten_khach: d.ten_khach, dien_thoai: d.dien_thoai, mau: d.mau,
+      if (d.so_km !== null && d.so_km > 9999999) throw new Error('Số km (ODO) không đúng.');
+      const p = { ten_khach: d.ten_khach, dien_thoai: d.dien_thoai, mau: d.mau, so_km: d.so_km,
         hen_giao: d.hen_giao ? new Date(d.hen_giao).toISOString() : null, han_bao_hiem: d.han_bao_hiem, han_bh_than_vo: d.han_bh_than_vo };
       if (tinhTrang !== (hs.tinh_trang_xe || '')) p.tinh_trang_xe = tinhTrang;
       if (tuVan !== (hs.tu_van || '')) p.tu_van = tuVan;

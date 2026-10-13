@@ -13,11 +13,12 @@ COT = {  # tên cột trong file → khóa
     'biển số': 'bien_so', 'khách hàng': 'khach', 'điện thoại': 'dien_thoai', 'hãng xe': 'hang_xe', 'dòng xe': 'dong_xe',
     'màu': 'mau', 'hạn bh thân vỏ': 'han_than_vo', 'hạn bh tnds': 'han_tnds', 'mã hồ sơ': 'ma',
     'ngày vào xưởng': 'ngay_vao', 'ngày giao xe': 'ngay_giao', 'nguồn': 'nguon', 'đơn vị bảo hiểm': 'hang_bh',
-    'giám định viên': 'gdv', 'tình trạng xe': 'tinh_trang', 'tư vấn': 'tu_van', 'phản hồi khách': 'phan_hoi',
+    'giám định viên': 'gdv', 'tình trạng xe': 'tinh_trang', 'yêu cầu khách hàng': 'tinh_trang', 'tư vấn': 'tu_van', 'phản hồi khách': 'phan_hoi',
+    'số km': 'so_km',
     'giá trị sửa chữa (đ)': 'gia_tri', 'khách còn nợ (đ)': 'con_no_khach', 'bh còn nợ (đ)': 'con_no_bh', 'ghi chú': 'ghi_chu',
 }
 NGAY = {'han_than_vo', 'han_tnds', 'ngay_vao', 'ngay_giao'}
-SO = {'gia_tri', 'con_no_khach', 'con_no_bh'}
+SO = {'gia_tri', 'con_no_khach', 'con_no_bh', 'so_km'}
 
 
 def chuan(s): return re.sub(r'\s+', ' ', str(s or '').strip().lower())

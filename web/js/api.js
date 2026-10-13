@@ -119,7 +119,11 @@ export const nhapHoaHong = (id, soTien, ghiChu, boQua) =>
 export const ghiChamSoc = (id, ketQua, henBD) => rpc('ghi_cham_soc', { p_ho_so: id, p_ket_qua: ketQua, p_hen_bao_duong: henBD });
 export const huyHoSo = (id, lyDo) => rpc('huy_ho_so', { p_ho_so: id, p_ly_do: lyDo });
 
-export const layHoSo = async (id) => (await doc('v_ho_so', (q) => q.eq('id', id)))[0];
+export const layHoSo = async (id) => {
+  // Số km (ODO, 031) đọc thẳng từ bảng ho_so: v_ho_so chỉ tạo lại khi chạy 008
+  const [[hs], [km]] = await Promise.all([doc('v_ho_so', (q) => q.eq('id', id)), doc('ho_so', (q) => q.eq('id', id), 'so_km').catch(() => [])]);
+  return hs ? { ...hs, so_km: km?.so_km ?? null } : hs;
+};
 export const layHangMuc = (id) => doc('hang_muc', (q) => q.eq('ho_so_id', id).order('lan_bao_gia').order('id'));
 export const layNhatKy = (id) => doc('ho_so_nhat_ky', (q) => q.eq('ho_so_id', id).order('luc', { ascending: false }));
 export const layTep = (id) => doc('ho_so_tep', (q) => q.eq('ho_so_id', id).order('tai_luc'));

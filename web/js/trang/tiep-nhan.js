@@ -1,5 +1,5 @@
 // Bước 1: Tiếp nhận xe – 10 thông tin bắt buộc + ảnh nhận xe
-import { h, oGoiY, bienSo, vietBienSo, oChonTep, oCheck, truong, oChu, oChon, oVung, oNgayVN, oNgayGioVN, isoSangVN, vnSangIso, docForm, chay, toast, nenAnh, dat, veDanhSachHoSo } from '../ui.js';
+import { h, oGoiY, bienSo, vietBienSo, oChonTep, oCheck, truong, oChu, oChon, oVung, oNgayVN, oNgayGioVN, oTien, isoSangVN, vnSangIso, docForm, chay, toast, nenAnh, dat, veDanhSachHoSo, xacNhan, tien, ngay } from '../ui.js';
 import * as api from '../api.js';
 import { khungGiaoViec, giaoSauKhiLuu, VAI_TRO_BUOC } from './giao-viec.js';
 import { homNayVN, themNgay, tuGhiNgayKhiBam, nhacHetHan, layLichSu, khoiLichSu } from './lich-su-xe.js';
@@ -61,6 +61,10 @@ export default async function trangTiepNhan(el) {
   const oTen = oChu('ten_khach', '', { autocomplete: 'off' });
   const oSdt = oChu('dien_thoai', '', { inputmode: 'tel', placeholder: '09xxxxxxxx', autocomplete: 'off' });
   const oMau = oChu('mau', '', { placeholder: 'Trắng, đỏ…' });
+  // Số km (ODO) trên đồng hồ lúc nhận xe; xe cũ: hiện số km lần trước để so
+  const oKm = oTien('so_km', null, { placeholder: 'Vd 45.230', 'aria-label': 'Số km (ODO)' });
+  const goiYKm = h('span', null, 'Số trên đồng hồ công tơ mét');
+  let kmTruoc = null;
 
   const truongHangBH = truong('Hãng bảo hiểm', chonHangBH, null, { batBuoc: true });
   const truongGdv = truong('Giám định viên', chonGdv, null, { batBuoc: true });
@@ -87,8 +91,8 @@ export default async function trangTiepNhan(el) {
   };
   radioNguon.addEventListener('change', () => { hienBH(); capNhatNhac(); });
 
-  // Tình trạng và tư vấn: mỗi lần nhập có ngày ở đầu; lịch sử các lần trước hiện ngay trên
-  const oTinhTrang = oVung('tinh_trang_xe', '', { rows: 3, placeholder: 'Ngoại thất, đồ trên xe, hư hỏng thấy được…' });
+  // Yêu cầu khách hàng (cột tinh_trang_xe) và tư vấn: mỗi lần nhập có ngày ở đầu; lịch sử các lần trước hiện ngay trên
+  const oTinhTrang = oVung('tinh_trang_xe', '', { rows: 3, placeholder: 'Khách muốn làm gì: sơn cản sau, kiểm tra tiếng kêu gầm, bảo dưỡng định kỳ…' });
   const oTuVan = oVung('tu_van', '', { rows: 3, placeholder: 'Bảo dưỡng, đồ chơi, detailing… (ghi "Không" nếu không có)' });
   tuGhiNgayKhiBam(oTinhTrang); tuGhiNgayKhiBam(oTuVan);
   const khungLichSu = h('div', { class: 'rong' });
@@ -144,17 +148,18 @@ export default async function trangTiepNhan(el) {
         truong('Hãng xe', chonHangXe, null, { batBuoc: true }),
         truong('Dòng xe', chonDongXe, null, { batBuoc: true }),
         truong('Màu', oMau),
-        truong('Ngày giờ vào', oNgayGioVN('ngay_vao', new Date(), { batBuoc: true }), 'Giờ 24h', { batBuoc: true }))),
+        truong('Ngày giờ vào', oNgayGioVN('ngay_vao', new Date(), { batBuoc: true }), 'Giờ 24h', { batBuoc: true }),
+        truong('Số km (ODO)', oKm, goiYKm, { co: 'vua' }))),
     h('fieldset', { class: 'nhom-o' }, h('legend', null, 'Khách hàng'),
       h('div', { class: 'luoi-o' },
         truong('Tên khách', oTen, null, { batBuoc: true }),
         truong('Số điện thoại', oSdt, 'Không gửi SĐT khách ra ngoài', { batBuoc: true }))),
     h('fieldset', { class: 'nhom-o' }, h('legend', null, 'Xe bảo hiểm hay khách ngoài bảo hiểm'), radioNguon),
     khungBH,
-    h('fieldset', { class: 'nhom-o' }, h('legend', null, 'Tình trạng và tư vấn'),
+    h('fieldset', { class: 'nhom-o' }, h('legend', null, 'Yêu cầu khách hàng và tư vấn'),
       h('div', { class: 'luoi-o' },
         khungLichSu,
-        truong('Tình trạng chung của xe', oTinhTrang, 'Ngày hôm nay tự thêm vào đầu khi bấm vào ô', { batBuoc: true, rong: true }),
+        truong('Yêu cầu khách hàng', oTinhTrang, 'Ngày hôm nay tự thêm vào đầu khi bấm vào ô', { batBuoc: true, rong: true }),
         truong('Những gì có thể tư vấn', oTuVan, 'Anh Long dùng để tư vấn khi giao xe. Bảo hiểm hết hạn sẽ tự ghi nhắc ở đầu.', { batBuoc: true, rong: true }))),
     h('fieldset', { class: 'nhom-o' }, h('legend', null, 'Ảnh nhận xe'),
       truong('Ảnh xe lúc nhận', chonAnh, 'Không bắt buộc. Có thể chụp bổ sung sau trong hồ sơ.'), xemAnh),
@@ -173,6 +178,7 @@ export default async function trangTiepNhan(el) {
     daTraCuu = gon;
     thongBaoXe.hidden = true;
     dat(khungLichSu);
+    kmTruoc = null; dat(goiYKm, 'Số trên đồng hồ công tơ mét');
     if (!bs) return;
     try {
       const x = await api.traCuuXe(bs);
@@ -191,10 +197,15 @@ export default async function trangTiepNhan(el) {
       }
       if (g && g.nguon_tt !== 'khach' && g.hang_bh_id) { chonHangBH.value = g.hang_bh_id; capNhatBH(g.gdv_id); }
       capNhatNhac();
-      layLichSu(x.xe_id).then((ds) => dat(khungLichSu, khoiLichSu(ds))).catch(() => {});
+      layLichSu(x.xe_id).then((ds) => {
+        dat(khungLichSu, khoiLichSu(ds));
+        const coKm = ds.find((y) => y.so_km !== null && y.so_km !== undefined);
+        kmTruoc = coKm ? { so: Number(coKm.so_km), ngay: coKm.ngay_vao } : null;
+        dat(goiYKm, kmTruoc ? `Lần trước: ${tien(kmTruoc.so)} km (${ngay(kmTruoc.ngay)})` : 'Số trên đồng hồ công tơ mét');
+      }).catch(() => {});
       thongBaoXe.hidden = false;
       thongBaoXe.className = x.ho_so_mo ? 'thong-bao canh-bao' : 'thong-bao';
-      dat(thongBaoXe, `Xe cũ, đã vào gara ${x.so_lan_vao} lần. Đã tự điền thông tin của lần trước – kiểm tra lại. Lịch sử tình trạng, tư vấn, phản hồi ở mục "Tình trạng và tư vấn".`,
+      dat(thongBaoXe, `Xe cũ, đã vào gara ${x.so_lan_vao} lần. Đã tự điền thông tin của lần trước – kiểm tra lại. Lịch sử yêu cầu, tư vấn, phản hồi ở mục "Yêu cầu khách hàng và tư vấn".`,
         x.ho_so_mo ? h('div', null, 'Đang có hồ sơ chưa đóng: ', x.ho_so_mo.map((m) => h('a', { href: `#/ho-so/${m.id}` }, m.ma, ' '))) : null);
     } catch (e) { /* chỉ là gợi ý, bỏ qua lỗi */ }
   }
@@ -210,14 +221,17 @@ export default async function trangTiepNhan(el) {
       if (bh && !v && !khong) { o.focus(); return toast(`Xe bảo hiểm: nhập ngày hết hạn bảo hiểm ${ten}, hoặc tích "Không có BH ${ten}".`, 'loi'); }
     }
     d.tinh_trang_xe = themNgay(d.tinh_trang_xe); d.tu_van = themNgay(d.tu_van);
-    if (!d.tinh_trang_xe) { oTinhTrang.focus(); return toast('Ghi tình trạng chung của xe.', 'loi'); }
+    if (!d.tinh_trang_xe) { oTinhTrang.focus(); return toast('Ghi yêu cầu của khách hàng.', 'loi'); }
+    if (d.so_km !== null && d.so_km > 9999999) { oKm.focus(); return toast('Số km (ODO) không đúng.', 'loi'); }
+    if (d.so_km !== null && kmTruoc && d.so_km < kmTruoc.so
+      && !(await xacNhan(`Số km ${tien(d.so_km)} nhỏ hơn lần trước (${tien(kmTruoc.so)} km). Vẫn lưu?`, 'Vẫn lưu'))) { oKm.focus(); return; }
     if (!d.tu_van) { oTuVan.focus(); return toast('Ghi những gì có thể tư vấn (ghi "Không" nếu không có).', 'loi'); }
     const p = {
       bien_so: d.bien_so, ten_khach: d.ten_khach, dien_thoai: d.dien_thoai,
       dong_xe_id: d.dong_xe_id, mau: d.mau, nguon_tt: d.nguon_tt,
       ngay_vao: d.ngay_vao ? new Date(d.ngay_vao).toISOString() : null,
       hang_bh_id: d.hang_bh_id, gdv_id: d.gdv_id, gdv_ten_tam: d.gdv_ten_tam,
-      han_bao_hiem: d.han_bao_hiem, han_bh_than_vo: d.han_bh_than_vo, tinh_trang_xe: d.tinh_trang_xe, tu_van: d.tu_van,
+      han_bao_hiem: d.han_bao_hiem, han_bh_than_vo: d.han_bh_than_vo, tinh_trang_xe: d.tinh_trang_xe, tu_van: d.tu_van, so_km: d.so_km,
       loai: hoSoGoc ? 'bao_hanh' : 'sua_chua', ho_so_goc_id: hoSoGoc ? hoSoGoc.id : null,
     };
     const nut = form.querySelector('button[type=submit]');
