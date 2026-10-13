@@ -241,6 +241,7 @@ export default async function trangKho(el) {
         { nhan: 'Tổng (gồm VAT)', so: true, lay: (r) => h('span', null, tien(r.tong_tien),
           r.can_3_bao_gia ? h('small', { class: r.so_bao_gia >= 3 ? 'nhan' : 'nhan tt-canh-bao' }, `${r.so_bao_gia}/3 báo giá`) : null) },
         { nhan: 'Trạng thái', lay: (r) => h('span', null, TT_MUA[r.trang_thai], r.duyet_boi_ten ? h('small', null, ` · ${r.duyet_boi_ten}`) : null,
+          r.ngoai_le ? h('span', { class: 'nhan tt-canh-bao', title: r.ly_do_ngoai_le || '' }, 'Duyệt ngoại lệ') : null,
           r.ly_do_tu_choi ? h('small', null, ` · ${r.ly_do_tu_choi}`) : null) },
       ], ds, { onRow: (r) => moChiTietMua(r.id, tai), trong: 'Không có đề nghị mua nào.' }));
     }
@@ -692,6 +693,8 @@ async function moChiTietMua(id, veLai) {
   const noiDung = h('div', null,
     h('p', { class: 'mo-ta' }, `${ngay(r.ngay)} · ${r.nha_cung_cap}`, r.ma_ho_so ? ` · cho xe ${r.ma_ho_so}` : ' · mua cho kho', ` · ${r.nguoi_lap_ten || ''} lập`, r.ghi_chu ? ` · ${r.ghi_chu}` : ''),
     r.ly_do_tu_choi ? h('p', { class: 'thong-bao canh-bao' }, `Từ chối: ${r.ly_do_tu_choi}`) : null,
+    r.ngoai_le ? h('p', { class: 'thong-bao canh-bao' }, h('b', null, 'Duyệt ngoại lệ – thiếu báo giá cạnh tranh: '),
+      r.ly_do_ngoai_le || '', r.duyet_boi_ten ? ` · ${r.duyet_boi_ten} duyệt ${ngayGio(r.duyet_luc)}` : '') : null,
     bang([
       { nhan: 'Mã hàng', lay: (d) => { const x = hangTheoId(d.hang_id); return h('span', null, h('b', null, x?.ma), ` ${x?.ten || ''}`, h('small', null, ` · tồn ${sl(x?.ton)} ${x?.dvt || ''}`)); } },
       { nhan: 'Số lượng', so: true, lay: (d) => `${sl(d.so_luong)} ${dvtNhap(hangTheoId(d.hang_id))}` },
@@ -707,8 +710,23 @@ async function moChiTietMua(id, veLai) {
   const sau = async () => { dongModal(); await veLai?.(); };
   if (r.trang_thai === 'cho_duyet') {
     hangNut.append(nutTaiTep('de_nghi_mua', r, async () => { dongModal(); await moChiTietMua(id, veLai); }));
-    if (ql() && r.nguoi_lap !== api.toi.id) {
-      hangNut.append(h('button', { class: 'nut chinh', type: 'button', onclick: () => chay(() => api.duyetDeNghiMua(id, true), { thanhCong: 'Đã duyệt đề nghị mua.' }).then(sau).catch(() => {}) }, 'Duyệt'));
+    // Giám đốc được tự duyệt phiếu mình lập; người khác thì không
+    const thieuBaoGia = r.can_3_bao_gia && Number(r.so_bao_gia) < 3;
+    if (ql() && (r.nguoi_lap !== api.toi.id || api.coVaiTro('giam_doc'))) {
+      if (thieuBaoGia) {
+        noiDung.insertBefore(h('p', { class: 'thong-bao canh-bao' }, `Chưa đủ 3 báo giá cạnh tranh (đang có ${r.so_bao_gia}/3). Tải thêm báo giá, hoặc "Duyệt ngoại lệ" và ghi lý do.`), hangNut);
+        hangNut.append(h('button', { class: 'nut chinh', type: 'button', 'data-duyet-ngoai-le': '', onclick: () => {
+          const form = h('form', null,
+            h('p', { class: 'mo-ta' }, `${r.ma} · ${tien(r.tong_tien)} đ · đang có ${r.so_bao_gia}/3 báo giá. Phiếu sẽ ghi "Duyệt ngoại lệ" kèm tên anh/chị và lý do.`),
+            truong('Lý do duyệt khi thiếu báo giá', oVung('ly_do', '', { placeholder: 'Ví dụ: hàng chính hãng chỉ đại lý VinFast bán; xe khách cần gấp' }), null, { batBuoc: true }));
+          moModal(`Duyệt ngoại lệ ${r.ma}`, form, { nhanNut: 'Duyệt ngoại lệ', nutChinh: async () => {
+            if (!form.ly_do.value.trim()) { toast('Ghi lý do duyệt khi thiếu báo giá.', 'loi'); return false; }
+            await api.duyetMuaNgoaiLe(id, form.ly_do.value); toast('Đã duyệt ngoại lệ đề nghị mua.'); await sau();
+          } });
+        } }, 'Duyệt ngoại lệ (thiếu báo giá)'));
+      } else {
+        hangNut.append(h('button', { class: 'nut chinh', type: 'button', onclick: () => chay(() => api.duyetDeNghiMua(id, true), { thanhCong: 'Đã duyệt đề nghị mua.' }).then(sau).catch(() => {}) }, 'Duyệt'));
+      }
       hangNut.append(h('button', { class: 'nut', type: 'button', onclick: () => {
         const form = h('form', null, truong('Lý do từ chối', oVung('ly_do', ''), null, { batBuoc: true }));
         moModal(`Từ chối ${r.ma}`, form, { nhanNut: 'Từ chối', nutChinh: async () => { await api.duyetDeNghiMua(id, false, form.ly_do.value); toast('Đã từ chối.'); await sau(); } });

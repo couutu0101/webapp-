@@ -190,6 +190,7 @@ export const xuatDungChung = (p) => rpc('xuat_dung_chung', { p });
 export const huyPhieuXuat = (id, lyDo) => rpc('huy_phieu_xuat', { p_id: id, p_ly_do: lyDo });
 export const lapDeNghiMua = (p) => rpc('lap_de_nghi_mua', { p });
 export const duyetDeNghiMua = (id, dongY, lyDo) => rpc('duyet_de_nghi_mua', { p_id: id, p_dong_y: dongY, p_ly_do: lyDo ?? null });
+export const duyetMuaNgoaiLe = (id, lyDo) => rpc('duyet_mua_ngoai_le', { p_id: id, p_ly_do: lyDo });
 export const huyDeNghiMua = (id) => rpc('huy_de_nghi_mua', { p_id: id });
 export const taoKiemKe = (p) => rpc('tao_kiem_ke', { p });
 export const luuDemKiemKe = (id, dong) => rpc('luu_dem_kiem_ke', { p_id: id, p_dong: dong });

@@ -464,6 +464,27 @@ select kt.dong_vai('long@gara.vn');
 select public.duyet_de_nghi_mua((select v::bigint from ctx where k='dm1'), true);
 select kt.ghi('Đủ 3 báo giá thì quản lý chung duyệt được', (select trang_thai from public.de_nghi_mua where id=(select v::bigint from ctx where k='dm1')) = 'da_duyet');
 
+-- 015: duyệt ngoại lệ khi thiếu báo giá cạnh tranh; giám đốc tự duyệt phiếu mình lập
+select kt.dong_vai('duy@gara.vn');
+insert into ctx select 'dm_nl', (public.lap_de_nghi_mua(jsonb_build_object('nha_cung_cap_id',(select id from public.nha_cung_cap where ten='Phụ tùng VinFast'),
+  'dong',jsonb_build_array(jsonb_build_object('hang_id',(select v::bigint from ctx where k='hang_guong'),'so_luong',1,'don_gia',5500000,'ty_le_vat',0.08)))))->>'id';
+select public.them_tep_kho('de_nghi_mua', (select v::bigint from ctx where k='dm_nl'), 'TK/kho/nl1.jpg', 'Báo giá đại lý');
+select kt.mong_loi('Kho không duyệt ngoại lệ', format($$select public.duyet_mua_ngoai_le(%s, 'gấp')$$, (select v from ctx where k='dm_nl')), 'không có quyền');
+select kt.dong_vai('long@gara.vn');
+select kt.mong_loi('Duyệt thường khi thiếu báo giá: nhắc dùng Duyệt ngoại lệ', format($$select public.duyet_de_nghi_mua(%s, true)$$, (select v from ctx where k='dm_nl')), 'Duyệt ngoại lệ');
+select kt.mong_loi('Duyệt ngoại lệ phải ghi lý do', format($$select public.duyet_mua_ngoai_le(%s, '  ')$$, (select v from ctx where k='dm_nl')), 'Ghi lý do');
+select public.duyet_mua_ngoai_le((select v::bigint from ctx where k='dm_nl'), 'Gương chính hãng chỉ đại lý VinFast bán');
+select kt.ghi('Quản lý chung duyệt ngoại lệ: đã duyệt, đánh dấu ngoại lệ kèm lý do và số báo giá',
+  (select trang_thai = 'da_duyet' and ngoai_le and ly_do_ngoai_le like 'Gương chính hãng%(có 1/3 báo giá)' from public.v_de_nghi_mua where id=(select v::bigint from ctx where k='dm_nl')));
+select kt.dong_vai('thuan@gara.vn');
+insert into ctx select 'dm_gd', (public.lap_de_nghi_mua(jsonb_build_object('nha_cung_cap_id',(select id from public.nha_cung_cap where ten='Phụ tùng VinFast'),
+  'dong',jsonb_build_array(jsonb_build_object('hang_id',(select v::bigint from ctx where k='hang_guong'),'so_luong',1,'don_gia',100000,'ty_le_vat',0.08)))))->>'id';
+select public.duyet_de_nghi_mua((select v::bigint from ctx where k='dm_gd'), true);
+select kt.ghi('Giám đốc tự duyệt đề nghị mua do mình lập', (select trang_thai from public.de_nghi_mua where id=(select v::bigint from ctx where k='dm_gd')) = 'da_duyet');
+select public.huy_de_nghi_mua((select v::bigint from ctx where k='dm_gd'));
+select public.huy_de_nghi_mua((select v::bigint from ctx where k='dm_nl'));
+select kt.dong_vai('long@gara.vn');
+
 -- Hàng về: nhập theo đề nghị mua → xe hết chờ phụ tùng → xuất gương
 select kt.dong_vai('duy@gara.vn');
 insert into ctx select 'pn3', (public.lap_phieu_nhap(jsonb_build_object('nha_cung_cap_id',(select id from public.nha_cung_cap where ten='Phụ tùng VinFast'),
