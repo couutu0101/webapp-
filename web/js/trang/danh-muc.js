@@ -26,7 +26,13 @@ const DANH_MUC = [
     { k: 'can_ho_so', nhan: 'Bắt buộc gắn xe', loai: 'bool', macDinh: false }, { k: 'dinh_ky', nhan: 'Định kỳ hàng tháng (nhắc trước khi chốt)', loai: 'bool', macDinh: false }, { k: 'hoat_dong', nhan: 'Đang dùng', loai: 'bool' }],
     ghiChu: '"Tính chất" quyết định khoản đó có vào lãi lỗ hay không: chỉ "Chi phí" vào lãi lỗ; trả nhà cung cấp, tạm ứng, trả nội bộ chỉ trừ công nợ.' },
   { bang: 'nha_cung_cap', ten: 'Nhà cung cấp', cot: [{ k: 'ten', nhan: 'Tên', batBuoc: true }, { k: 'hoat_dong', nhan: 'Đang dùng', loai: 'bool' }] },
-  { bang: 'don_vi_lien_quan', ten: 'Đơn vị liên quan', cot: [{ k: 'ten', nhan: 'Tên', batBuoc: true }] },
+  { bang: 'don_vi_lien_quan', ten: 'Đơn vị liên quan & cá nhân', cot: [
+    { k: 'ten', nhan: 'Tên', batBuoc: true },
+    { k: 'loai', nhan: 'Loại', loai: 'chon', ds: { cong_ty: 'Công ty cùng hệ thống', ca_nhan: 'Cá nhân (giám đốc, cổ đông…)' }, batBuoc: true },
+    { k: 'so_du_dau_ky', nhan: 'Nợ đầu kỳ', loai: 'no' }, { k: 'ngay_dau_ky', nhan: 'Ngày đầu kỳ', loai: 'ngay' },
+    { k: 'hoat_dong', nhan: 'Đang dùng', loai: 'bool' }],
+    ghiChu: 'Theo dõi tiền vay mượn nội bộ, không vào lãi lỗ. Nợ đầu kỳ: số còn nợ tính đến ngày đầu kỳ và chiều nợ (họ nợ công ty, hay công ty nợ họ). '
+      + 'Từ đó: phiếu thu từ họ (mục "Công ty mượn tiền…", "…trả tiền mượn") và đề nghị chi cho họ (mục "Cho cổ đông / cá nhân mượn", "Trả tiền mượn…") tự cộng trừ; xem số còn lại ở Doanh thu & công nợ → Công nợ → Nội bộ & cá nhân.' },
   { bang: 'cai_dat', ten: 'Cài đặt', khoa: 'khoa', chiGD: true, khongThem: true, khongXoa: true,
     cot: [{ k: 'mo_ta', nhan: 'Nội dung', chiXem: true }, { k: 'gia_tri', nhan: 'Giá trị', loai: 'so', batBuoc: true }] },
   { bang: 'thue_suat_vat', ten: 'Thuế suất VAT', khoa: 'ap_dung_tu', chiGD: true, khongSua: true,
@@ -53,6 +59,7 @@ export default async function trangDanhMuc(el) {
       if (c.loai === 'chon' && c.nguon) return api.dm.ten(c.nguon, v);
       if (c.loai === 'chon' && c.ds) return c.ds[v] || v || '';
       if (c.loai === 'tien') return tien(v);
+      if (c.loai === 'no') return !v ? '—' : Number(v) < 0 ? `Công ty nợ ${tien(-v)}` : `Họ nợ công ty ${tien(v)}`;
       if (c.loai === 'ngay') return ngay(v);
       return v ?? '';
     };
@@ -83,10 +90,12 @@ export default async function trangDanhMuc(el) {
       if (c.loai === 'chon' && c.nguon) o = oChon(c.k, (api.dm[c.nguon] || []).map((x) => ({ value: x.id, label: x.ten })), v);
       else if (c.loai === 'chon') o = oChon(c.k, Object.entries(c.ds).map(([value, label]) => ({ value, label })), v);
       else if (c.loai === 'tien') o = oTien(c.k, v);
+      else if (c.loai === 'no') o = h('div', { class: 'hang-nut' }, oTien(c.k, v === null ? null : Math.abs(Number(v))),
+        oChon(`chieu_${c.k}`, [{ value: 'ho_no', label: 'Họ nợ công ty' }, { value: 'cong_ty_no', label: 'Công ty nợ họ' }], Number(v) < 0 ? 'cong_ty_no' : 'ho_no', { trong: null }));
       else if (c.loai === 'ngay') o = oNgay(c.k, v);
       else if (c.loai === 'so') o = oChu(c.k, v, { inputmode: 'decimal' });
       else o = oChu(c.k, v);
-      return truong(c.nhan, o, null, { batBuoc: c.batBuoc });
+      return truong(c.nhan, o, null, { batBuoc: c.batBuoc, co: c.loai === 'no' ? 'lon' : '' });
     }));
     moModal(`${r ? 'Sửa' : 'Thêm'} – ${cfg.ten}`, form, {
       nutChinh: async () => {
@@ -95,6 +104,7 @@ export default async function trangDanhMuc(el) {
           if (c.chiXem) delete d[c.k];
           else if (c.batBuoc && (d[c.k] === null || d[c.k] === undefined || d[c.k] === '')) { toast(`Thiếu "${c.nhan}".`, 'loi'); return false; }
           if (c.loai === 'so' && d[c.k] !== null) d[c.k] = Number(String(d[c.k]).replace(',', '.'));
+          if (c.loai === 'no') { d[c.k] = (d[`chieu_${c.k}`] === 'cong_ty_no' ? -1 : 1) * Math.abs(Number(d[c.k]) || 0); delete d[`chieu_${c.k}`]; }
         }
         Object.assign(d, cfg.coDinh ? cfg.coDinh() : {});
         if (r) await api.sua(cfg.bang, r[cfg.khoa || 'id'], d, cfg.khoa || 'id');

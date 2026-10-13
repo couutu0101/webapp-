@@ -719,6 +719,65 @@ select kt.dong_vai(null);
 select kt.dong_vai('duy@gara.vn');
 select kt.mong_loi('025 CVDV không xem được kết quả kinh doanh', 'select * from public.ket_qua_kinh_doanh()', 'quyền');
 select kt.dong_vai(null);
+
+-- ---------- 027: nợ nội bộ & cá nhân, chi hộ ----------
+select kt.dong_vai(null);
+insert into public.don_vi_lien_quan (ten, loai, so_du_dau_ky, ngay_dau_ky) values ('Anh Thuận (cá nhân)', 'ca_nhan', -10000000, current_date - 30), ('Cổ đông A', 'ca_nhan', 0, null);
+insert into ctx values ('dv_thuan', (select id from public.don_vi_lien_quan where ten='Anh Thuận (cá nhân)')::text), ('dv_codong', (select id from public.don_vi_lien_quan where ten='Cổ đông A')::text);
+insert into ctx values ('quy_truoc', (select so_du::text from public.v_so_du_quy where ten='Tiền mặt'));
+select kt.dong_vai('thuan@gara.vn');
+select kt.ghi('027 Đầu kỳ: công ty nợ giám đốc 10 triệu', (select con_lai from public.v_cong_no_noi_bo where id = (select v::bigint from ctx where k='dv_thuan')) = -10000000);
+select kt.ghi('027 Có đủ 4 mục thu chi nội bộ / cá nhân, mục hệ thống muon_ca_nhan', (select count(*) from public.muc_thu_chi where ten in ('Công ty mượn tiền giám đốc / cổ đông','Cổ đông / cá nhân trả tiền mượn','Cho cổ đông / cá nhân mượn','Trả tiền mượn giám đốc / cổ đông')) = 4
+  and (select he_thong from public.muc_thu_chi where ten='Công ty mượn tiền giám đốc / cổ đông') = 'muon_ca_nhan');
+select kt.dong_vai(null);
+select kt.dong_vai('tien@gara.vn');
+-- Giám đốc cho công ty mượn thêm 5 triệu (phiếu thu) → công ty nợ 15 triệu
+select public.lap_phieu_thu(jsonb_build_object('tai_khoan_id',(select id from public.tai_khoan_quy where ten='Tiền mặt'),'muc_id',(select id from public.muc_thu_chi where ten='Công ty mượn tiền giám đốc / cổ đông'),
+  'so_tien',5000000,'noi_dung','Mượn thêm','don_vi_lien_quan_id',(select v::bigint from ctx where k='dv_thuan')));
+select kt.ghi('027 Phiếu thu mượn thêm → công ty nợ 15 triệu', (select con_lai from public.v_cong_no_noi_bo where id = (select v::bigint from ctx where k='dv_thuan')) = -15000000);
+-- Cổ đông mượn 3 triệu: đề nghị chi (trả nội bộ) → duyệt → chi
+insert into ctx select 'dn_codong', public.lap_de_nghi_chi(jsonb_build_object('muc_id',(select id from public.muc_thu_chi where ten='Cho cổ đông / cá nhân mượn'),'so_tien',3000000,'noi_dung','Cổ đông A mượn','don_vi_lien_quan_id',(select v::bigint from ctx where k='dv_codong')))::text;
+select kt.dong_vai(null);
+select kt.dong_vai('thuan@gara.vn');
+select public.duyet_de_nghi_chi((select v::bigint from ctx where k='dn_codong'), true);
+select kt.dong_vai(null);
+select kt.dong_vai('tien@gara.vn');
+select kt.mong_loi('027 Khoản cho mượn không chi hộ được', format('select public.chi_tien(%s, (select id from public.tai_khoan_quy where ten=''Tiền mặt''), current_date, %s)', (select v from ctx where k='dn_codong'), (select v from ctx where k='dv_thuan')), 'không chi hộ');
+select public.chi_tien((select v::bigint from ctx where k='dn_codong'), (select id from public.tai_khoan_quy where ten='Tiền mặt'));
+select kt.ghi('027 Cổ đông mượn 3 triệu → cổ đông nợ công ty 3 triệu', (select con_lai from public.v_cong_no_noi_bo where id = (select v::bigint from ctx where k='dv_codong')) = 3000000);
+-- Chi hộ: giám đốc trả tiền điện 2 triệu bằng tiền túi → phiếu chi + phiếu thu đối ứng, quỹ không đổi, chi phí vẫn tính, công ty nợ thêm
+insert into ctx select 'dn_dien2', public.lap_de_nghi_chi(jsonb_build_object('muc_id',(select id from public.muc_thu_chi where ten='Điện'),'so_tien',2000000,'noi_dung','Tiền điện tháng này'))::text;
+select kt.dong_vai(null);
+select kt.dong_vai('thuan@gara.vn');
+select public.duyet_de_nghi_chi((select v::bigint from ctx where k='dn_dien2'), true);
+insert into ctx values ('quy_truoc_chi_ho', (select so_du::text from public.v_so_du_quy where ten='Tiền mặt'));
+insert into ctx values ('cp_truoc', (select chi_co_dinh::text from public.ket_qua_kinh_doanh() where thang = date_trunc('month', current_date)::date));
+select kt.dong_vai(null);
+select kt.dong_vai('tien@gara.vn');
+insert into ctx select 'pc_chi_ho', public.chi_tien((select v::bigint from ctx where k='dn_dien2'), (select id from public.tai_khoan_quy where ten='Tiền mặt'), current_date, (select v::bigint from ctx where k='dv_thuan'))::text;
+select kt.ghi('027 Chi hộ: có phiếu thu đối ứng cùng số tiền, gắn người chi hộ',
+  (select count(*) from public.phieu_thu_chi t where t.phieu_doi_ung_id = (select v::bigint from ctx where k='pc_chi_ho') and t.loai='thu' and t.so_tien=2000000 and t.don_vi_lien_quan_id = (select v::bigint from ctx where k='dv_thuan') and t.trang_thai='hieu_luc') = 1
+  and (select chi_ho_boi from public.phieu_thu_chi where id = (select v::bigint from ctx where k='pc_chi_ho')) = (select v::bigint from ctx where k='dv_thuan'));
+select kt.ghi('027 Chi hộ: số dư quỹ không đổi', (select so_du::text from public.v_so_du_quy where ten='Tiền mặt') = (select v from ctx where k='quy_truoc_chi_ho'));
+select kt.ghi('027 Chi hộ: công ty nợ giám đốc thêm 2 triệu = 17 triệu', (select con_lai from public.v_cong_no_noi_bo where id = (select v::bigint from ctx where k='dv_thuan')) = -17000000);
+select kt.dong_vai(null);
+select kt.dong_vai('thuan@gara.vn');
+select kt.ghi('027 Chi hộ: chi phí cố định tháng này vẫn tính thêm 2 triệu',
+  (select chi_co_dinh from public.ket_qua_kinh_doanh() where thang = date_trunc('month', current_date)::date) = (select v::numeric from ctx where k='cp_truoc') + 2000000);
+select kt.ghi('027 Tổng phải thu / phải trả nội bộ', (select sum(case when con_lai > 0 then con_lai else 0 end) from public.v_cong_no_noi_bo) = 3000000
+  and (select sum(case when con_lai < 0 then -con_lai else 0 end) from public.v_cong_no_noi_bo) = 17000000);
+select kt.dong_vai(null);
+select kt.dong_vai('tien@gara.vn');
+-- Hủy phiếu thu đối ứng → phiếu chi hủy theo, đề nghị về đã duyệt, nợ về 15 triệu
+select public.huy_phieu((select id from public.phieu_thu_chi where phieu_doi_ung_id = (select v::bigint from ctx where k='pc_chi_ho') and loai='thu'), 'Ghi nhầm');
+select kt.ghi('027 Hủy một phiếu chi hộ → phiếu kia hủy theo, đề nghị về Đã duyệt, nợ về 15 triệu',
+  (select trang_thai from public.phieu_thu_chi where id = (select v::bigint from ctx where k='pc_chi_ho')) = 'huy'
+  and (select trang_thai from public.de_nghi_chi where id = (select v::bigint from ctx where k='dn_dien2')) = 'da_duyet'
+  and (select con_lai from public.v_cong_no_noi_bo where id = (select v::bigint from ctx where k='dv_thuan')) = -15000000);
+select kt.dong_vai(null);
+select kt.dong_vai('duy@gara.vn');
+select kt.ghi('027 CVDV không thấy công nợ nội bộ', (select count(*) from public.v_cong_no_noi_bo) = 0);
+select kt.dong_vai(null);
 \o
 \echo '======== KẾT QUẢ ========'
 select stt, case when dat then 'ĐẠT ' else 'LỖI ' end as kq, ten, left(coalesce(chi_tiet,''), 140) as chi_tiet from kt.ket_qua order by stt;

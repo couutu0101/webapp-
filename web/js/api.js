@@ -179,7 +179,7 @@ export const huyPhieu = (id, lyDo) => rpc('huy_phieu', { p_id: id, p_ly_do: lyDo
 export const lapDeNghiChi = (p) => rpc('lap_de_nghi_chi', { p });
 export const duyetDeNghi = (id, dongY, lyDo) => rpc('duyet_de_nghi_chi', { p_id: id, p_dong_y: dongY, p_ly_do: lyDo });
 export const huyDeNghi = (id) => rpc('huy_de_nghi_chi', { p_id: id });
-export const chiTien = (id, taiKhoan, ngay) => rpc('chi_tien', { p_de_nghi: id, p_tai_khoan: taiKhoan, p_ngay: ngay });
+export const chiTien = (id, taiKhoan, ngay, chiHoBoi = null) => rpc('chi_tien', { p_de_nghi: id, p_tai_khoan: taiKhoan, p_ngay: ngay, ...(chiHoBoi ? { p_chi_ho_boi: chiHoBoi } : {}) });
 
 // ---------- Nhân viên ----------
 export const luuNhanVien = (id, p) => rpc('luu_nhan_vien', { p_id: id, p });

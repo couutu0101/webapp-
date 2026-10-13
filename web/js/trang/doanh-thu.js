@@ -109,10 +109,16 @@ export default async function trangDoanhThu(el) {
   async function veCongNo() {
     const homNayMs = Date.now();
     const soNgay = (d) => (d ? Math.max(0, Math.floor((homNayMs - new Date(d).getTime()) / 864e5)) : null);
-    const [hs, ncc] = await Promise.all([
+    const [hs, ncc, noiBoTatCa] = await Promise.all([
       api.doc('v_ho_so', (q) => q.neq('trang_thai', 'huy').or('con_no_khach.gt.0,con_no_bh.gt.0').order('giao_luc', { ascending: true, nullsFirst: false }).order('ngay_vao')),
       api.coVaiTro('giam_doc', 'ke_toan', 'quan_ly') ? api.doc('v_cong_no_ncc').catch(() => []) : [],
+      api.coVaiTro('giam_doc', 'ke_toan', 'quan_ly') ? api.doc('v_cong_no_noi_bo', (q) => q.order('ten')).catch(() => []) : [],
     ]);
+    // Nội bộ & cá nhân (027): còn lại dương = họ nợ công ty, âm = công ty nợ họ (giám đốc, cổ đông cho công ty mượn)
+    const noiBo = noiBoTatCa.map((r) => ({ ...r, con: Number(r.con_lai) })).filter((r) => r.con !== 0 || Number(r.da_chi) || Number(r.da_thu) || r.hoat_dong !== false);
+    const phaiThuNoiBo = noiBo.reduce((t, r) => t + (r.con > 0 ? r.con : 0), 0);
+    const phaiTraNoiBo = noiBo.reduce((t, r) => t + (r.con < 0 ? -r.con : 0), 0);
+    const chieuNo = (v) => (!v ? '—' : v < 0 ? h('span', { class: 'chu-loi' }, `Công ty nợ ${tien(-v)}`) : h('span', { class: 'chu-cam' }, `Nợ công ty ${tien(v)}`));
     const noKhach = hs.filter((x) => Number(x.con_no_khach) > 0);
     const noBH = hs.filter((x) => Number(x.con_no_bh) > 0);
     const chuaGiao = hs.filter((x) => !x.giao_luc && !x.tu_excel);
@@ -168,7 +174,19 @@ export default async function trangDoanhThu(el) {
         h('div', { class: 'o-dem', 'data-no-khach': '' }, h('b', { class: tongKhach > 0 ? 'chu-loi' : null }, tien(tongKhach)), h('span', null, `Khách hàng còn nợ · ${noKhach.length} xe`)),
         h('div', { class: 'o-dem', 'data-no-bh': '' }, h('b', { class: tongBH > 0 ? 'chu-cam' : null }, tien(tongBH)), h('span', null, `Hãng bảo hiểm còn nợ · ${noBH.length} hồ sơ`)),
         h('div', { class: 'o-dem' }, h('b', null, tien(tongKhach + tongBH)), h('span', null, `Tổng phải thu · trong đó xe chưa giao ${tien(tongChuaGiao)} đ`)),
-        ncc.length ? h('a', { class: 'o-dem', href: '#/kho?the=cong_no' }, h('b', null, tien(tongNcc)), h('span', null, `Nợ nhà cung cấp (phải trả) · ${noNcc.length} NCC`)) : null),
+        ncc.length ? h('a', { class: 'o-dem', href: '#/kho?the=cong_no' }, h('b', null, tien(tongNcc)), h('span', null, `Nợ nhà cung cấp (phải trả) · ${noNcc.length} NCC`)) : null,
+        noiBo.length ? h('div', { class: 'o-dem', 'data-noi-bo-thu': '' }, h('b', { class: phaiThuNoiBo > 0 ? 'chu-cam' : null }, tien(phaiThuNoiBo)), h('span', null, 'Nội bộ, cá nhân nợ công ty (phải thu)')) : null,
+        noiBo.length ? h('div', { class: 'o-dem', 'data-noi-bo-tra': '' }, h('b', { class: phaiTraNoiBo > 0 ? 'chu-loi' : null }, tien(phaiTraNoiBo)), h('span', null, 'Công ty nợ nội bộ, cá nhân (phải trả)')) : null),
+      noiBo.length ? h('section', { class: 'the', 'data-khoi-noi-bo': '' }, h('h2', null, 'Nội bộ & cá nhân'),
+        h('p', { class: 'goi-y' }, 'Tiền vay mượn với công ty cùng hệ thống, giám đốc, cổ đông – không vào lãi lỗ. Ghi bằng Phiếu thu (mục "Công ty mượn tiền…", "…trả tiền mượn") và Đề nghị chi (mục "Cho cổ đông / cá nhân mượn", "Trả tiền mượn…"); giám đốc chi hộ thì chọn "Chi hộ bởi" lúc chi tiền. Nợ đầu kỳ sửa ở Danh mục → Đơn vị liên quan & cá nhân.'),
+        bang([
+          { nhan: 'Đơn vị / cá nhân', lay: (r) => h('span', null, h('b', null, r.ten), h('br'), h('small', null, r.loai === 'ca_nhan' ? 'Cá nhân' : 'Công ty cùng hệ thống')) },
+          { nhan: 'Nợ đầu kỳ', so: true, lay: (r) => chieuNo(Number(r.so_du_dau_ky)) },
+          { nhan: 'Đã chi cho họ', so: true, lay: (r) => tien(r.da_chi) || '0' },
+          { nhan: 'Đã thu từ họ', so: true, lay: (r) => tien(r.da_thu) || '0' },
+          { nhan: 'Còn lại', so: true, lay: (r) => h('b', null, chieuNo(r.con)) },
+          { nhan: 'Giao dịch gần nhất', so: true, lay: (r) => (r.ngay_cuoi ? ngay(r.ngay_cuoi) : '') },
+        ], noiBo)) : null,
       dsBen.length ? h('section', { class: 'the' }, h('h2', null, 'Theo bên nợ'),
         bang([
           { nhan: 'Bên nợ', lay: (c) => h('b', null, c.hang) },

@@ -74,11 +74,22 @@ export default async function trangDeNghi(el) {
 
   function moChi(r) {
     const tks = (api.dm.tai_khoan_quy || []).filter((t) => t.hoat_dong && t.chi_nhanh_id === r.chi_nhanh_id);
+    const macDinh = tks.find((t) => t.mac_dinh) || tks[0];
+    // Chi hộ: giám đốc / cổ đông bỏ tiền túi trả thay → phần mềm ghi thêm phiếu thu "công ty mượn" cùng số tiền, quỹ không đổi
+    const nguoiChiHo = (api.dm.don_vi_lien_quan || []).filter((x) => x.hoat_dong !== false)
+      .sort((a, b) => (a.loai === 'ca_nhan' ? 0 : 1) - (b.loai === 'ca_nhan' ? 0 : 1));
+    const chonChiHo = oChon('chi_ho_boi', nguoiChiHo.map((x) => ({ value: x.id, label: x.ten })), null, { trong: '— Không, chi từ quỹ —' });
+    const goiYChiHo = h('small', { class: 'goi-y' }, 'Chọn người khi tiền do giám đốc / cổ đông bỏ ra trả thay: công ty ghi nợ người đó, số dư quỹ không đổi, chi phí vẫn tính đúng tháng.');
     const form = h('form', null,
       h('p', null, `${r.noi_dung}: `, h('b', null, `${tien(r.so_tien)} đ`)),
-      truong('Chi từ tài khoản', oChon('tai_khoan_id', tks.map((t) => ({ value: t.id, label: t.ten })), tks[0]?.id, { trong: null })),
-      truong('Ngày chi', oNgay('ngay', homNay(), { max: homNay() })));
-    moModal('Chi tiền', form, { nhanNut: 'Lập phiếu chi', nutChinh: async () => { const d = docForm(form); await api.chiTien(r.id, d.tai_khoan_id, d.ngay); toast('Đã chi.'); await tai(); } });
+      truong('Chi từ tài khoản', oChon('tai_khoan_id', tks.map((t) => ({ value: t.id, label: t.ten })), macDinh?.id, { trong: null })),
+      truong('Ngày chi', oNgay('ngay', homNay(), { max: homNay() })),
+      nguoiChiHo.length ? truong('Chi hộ bởi', chonChiHo, goiYChiHo) : null);
+    moModal('Chi tiền', form, { nhanNut: 'Lập phiếu chi', nutChinh: async () => {
+      const d = docForm(form);
+      await api.chiTien(r.id, d.tai_khoan_id, d.ngay, d.chi_ho_boi ? Number(d.chi_ho_boi) : null);
+      toast(d.chi_ho_boi ? 'Đã ghi phiếu chi và phiếu thu "công ty mượn" đối ứng.' : 'Đã chi.'); await tai();
+    } });
   }
 
   // Các kỳ chi phí chọn được: tháng này, 2 tháng trước

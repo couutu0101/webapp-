@@ -468,7 +468,8 @@ a.o-dem:not(.mo) b { color: var(--muc); }
 .goi-y-hang small { color: var(--muc-phu); }
 @media (max-width: 560px) { .tim-hang { grid-template-columns: 1fr; } }
 /* Ô số tiền lớn: rộng hơn để không bị cắt chữ số */
-.luoi-dem.tien { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.luoi-dem.tien { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.luoi-dem.tien .o-dem b { font-size: 1.9rem; }
 
 /* Việc quá hạn: tô vàng (Việc hôm nay, bảng việc tổ) */
 .nhan.qua-han { background: #ffe08a; color: #6b4a00; margin-left: 8px; }
