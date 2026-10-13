@@ -717,3 +717,11 @@ td .mo, .ts-chi-tiet .mo { color: var(--muc-phu); }
   body.dang-in .bang th, body.dang-in .bang td { border-bottom: 1px solid #999; }
 }
 .dau-tai-san { font-family: var(--chu-hep); font-size: 1.02rem; letter-spacing: .02em; white-space: nowrap; }
+
+/* Dịch vụ nhanh (032): khung thông tin xe cũ khi gõ biển số */
+.thong-tin-xe-nhanh { background: var(--mat-lom); border: 1px solid var(--vien); border-left: 4px solid var(--xanh); border-radius: var(--bo); padding: 12px 14px; }
+.thong-tin-xe-nhanh .txn-dau { margin: 0 0 6px; }
+.thong-tin-xe-nhanh .thong-bao { margin: 8px 0 0; }
+.thong-tin-xe-nhanh .txn-tu-van { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+.thong-tin-xe-nhanh .nhat-ky-ghi { max-height: 7.5em; overflow: auto; }
+.ls-dvn .nhan { margin-left: 0; }

@@ -24,7 +24,7 @@ create table kt.ket_qua (stt serial, ten text, dat boolean, chi_tiet text);
 grant all on kt.ket_qua to authenticated; grant usage, select on sequence kt.ket_qua_stt_seq to authenticated;
 
 create or replace function kt.ghi(p_ten text, p_dat boolean, p_ct text default null) returns void
-language sql security definer as $$ insert into kt.ket_qua (ten, dat, chi_tiet) values (p_ten, p_dat, p_ct) $$;
+language sql security definer as $$ insert into kt.ket_qua (ten, dat, chi_tiet) values (p_ten, coalesce(p_dat, false), p_ct) $$;
 -- Chạy một lệnh và mong đợi lỗi chứa đoạn chữ
 create or replace function kt.mong_loi(p_ten text, p_sql text, p_chua text) returns void
 language plpgsql as $$
@@ -326,6 +326,28 @@ select kt.ghi('Chuyển quỹ cộng vào tiền mặt', (select so_du from publ
 
 select kt.dong_vai('han@gara.vn');
 insert into ctx select 'dvn', public.ghi_dich_vu_nhanh('{"bien_so":"51b70458","dich_vu":"Rửa xe","nguoi_lam":"Quỳnh","so_tien":80000}')::text;
+-- 032: dịch vụ nhanh gắn xe – khách, số km bắt buộc (giao diện mới gửi bat_buoc_km)
+select kt.mong_loi('032 Dịch vụ nhanh thiếu số km bị chặn', $$select public.ghi_dich_vu_nhanh('{"bien_so":"50H92361","dich_vu":"Rửa xe","so_tien":80000,"bat_buoc_km":true}')$$, 'số km');
+select kt.ghi('032 Trưởng nhóm tra xe cũ theo đuôi biển số: có khách, số km lần trước (hồ sơ 45.320)',
+  (select (x->>'ten_khach') = 'Anh Liêm' and (x->'km_truoc'->>'so')::int = 45320 and (x->'lan_cuoi'->>'loai') = 'ho_so'
+   from jsonb_array_elements(public.tra_cuu_xe_nhanh('92361')) x where x->>'bien_so' = '50H-923.61'));
+insert into ctx select 'dvn2', public.ghi_dich_vu_nhanh('{"bien_so":"50H-923.61","dich_vu":"Thay bóng đèn","so_tien":150000,"so_km":46100,"bat_buoc_km":true}')::text;
+select kt.dong_vai(null);
+select kt.ghi('032 Dịch vụ nhanh xe cũ gắn đúng xe – khách, lưu số km',
+  (select d.xe_id = h.xe_id and d.khach_hang_id = h.khach_hang_id and d.so_km = 46100
+   from public.dich_vu_nhanh d, public.ho_so h where d.id = (select v::bigint from ctx where k='dvn2') and h.id = (select v::bigint from ctx where k='hs1')));
+select kt.dong_vai('han@gara.vn');
+select kt.ghi('032 Tra lại: số km lần trước lấy lượt dịch vụ nhanh mới nhất',
+  (select (x->'km_truoc'->>'so')::int = 46100 and (x->'lan_cuoi'->>'loai') = 'dich_vu_nhanh' from jsonb_array_elements(public.tra_cuu_xe_nhanh('50H92361')) x limit 1));
+insert into ctx select 'dvn3', public.ghi_dich_vu_nhanh('{"bien_so":"59C-123.45","ten_khach":"Chị Hoa","dien_thoai":"0909 555 666","dich_vu":"Vá lốp","so_tien":50000,"so_km":12000,"bat_buoc_km":true}')::text;
+select kt.dong_vai(null);
+select kt.ghi('032 Xe mới + SĐT mới: tự tạo xe và khách, tra bằng SĐT ra được',
+  (select x.bien_so = '59C12345' and k.ten = 'Chị Hoa' and k.dien_thoai = '0909555666' and x.khach_hang_id = k.id
+   from public.dich_vu_nhanh d join public.xe x on x.id = d.xe_id join public.khach_hang k on k.id = d.khach_hang_id where d.id = (select v::bigint from ctx where k='dvn3'))
+  and (select count(*) from public.xe where bien_so = '59C12345') = 1);
+select kt.dong_vai('han@gara.vn');
+select kt.ghi('032 Tra bằng SĐT ra xe mới tạo', jsonb_array_length(public.tra_cuu_xe_nhanh('0909555')) = 1);
+select kt.mong_loi('032 SĐT sai bị chặn', $$select public.ghi_dich_vu_nhanh('{"dien_thoai":"12345","dich_vu":"Rửa xe","so_tien":50000,"so_km":1}')$$, '10 số');
 select kt.dong_vai('tien@gara.vn');
 select public.lap_phieu_thu(jsonb_build_object('tai_khoan_id',(select id from public.tai_khoan_quy where ten='Tiền mặt'),
   'muc_id',(select id from public.muc_thu_chi where ten='Thu dịch vụ nhanh'),'so_tien',80000,

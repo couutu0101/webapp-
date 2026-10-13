@@ -42,12 +42,19 @@ export function nhacHetHan(isoThanVo, isoTnds) {
 // Các lần vào gara trước của xe (mới nhất trước), bỏ hồ sơ đang xem
 export async function layLichSu(xeId, boQuaId = null) {
   if (!xeId) return [];
-  const [ds, km] = await Promise.all([
+  const [ds, km, dvn] = await Promise.all([
     api.doc('v_ho_so', (q) => q.eq('xe_id', xeId).order('ngay_vao', { ascending: false }).limit(30)),
     api.doc('ho_so', (q) => q.eq('xe_id', xeId), 'id, so_km').catch(() => []),   // số km chưa có trong v_ho_so (031)
+    // Lượt dịch vụ nhanh của xe (032)
+    api.doc('v_dich_vu_nhanh', (q) => q.eq('xe_id', xeId).eq('trang_thai', 'hieu_luc').order('ngay', { ascending: false }).limit(30)).catch(() => []),
   ]);
   const soKm = new Map(km.map((x) => [x.id, x.so_km]));
-  return ds.filter((x) => String(x.id) !== String(boQuaId)).map((x) => ({ ...x, so_km: soKm.get(x.id) ?? null }));
+  const hoSo = ds.filter((x) => String(x.id) !== String(boQuaId)).map((x) => ({ ...x, so_km: soKm.get(x.id) ?? null }));
+  const nhanh = dvn.map((d) => ({ loai_ls: 'dvn', id: d.id, ngay_vao: `${d.ngay}T12:00:00`, dich_vu: d.dich_vu, so_tien: d.so_tien,
+    so_km: d.so_km, nguoi_lam: d.nguoi_lam, tao_luc: d.tao_luc }));
+  // Mới nhất trước; cùng ngày thì theo lúc ghi
+  return [...hoSo, ...nhanh].sort((a, b) => String(b.ngay_vao).slice(0, 10).localeCompare(String(a.ngay_vao).slice(0, 10))
+    || new Date(b.tao_luc || b.ngay_vao) - new Date(a.tao_luc || a.ngay_vao));
 }
 
 // Bỏ các câu giữ chỗ của dữ liệu chuyển từ Excel
@@ -61,7 +68,11 @@ export function khoiLichSu(ds, { tieuDe = 'Lịch sử các lần trước', moS
   if (!ds.length) return null;
   return h('details', { class: 'lich-su', open: moSan },
     h('summary', null, `${tieuDe} (${ds.length})`),
-    h('ol', { class: 'ls-ds' }, ds.map((x) => h('li', null,
+    h('ol', { class: 'ls-ds' }, ds.map((x) => (x.loai_ls === 'dvn' ? h('li', { class: 'ls-dvn' },
+      h('div', { class: 'ls-dau' }, h('b', null, ngay(x.ngay_vao)), ' ', h('span', { class: 'nhan' }, 'Dịch vụ nhanh'), ' ',
+        h('span', null, `${x.dich_vu} · ${tien(x.so_tien)} đ`), x.nguoi_lam ? h('small', null, ` · ${x.nguoi_lam}`) : null),
+      x.so_km !== null && x.so_km !== undefined ? h('div', { class: 'ls-dong' }, h('span', { class: 'ls-nhan' }, 'Số km'), h('span', { class: 'ls-noi-dung' }, `${tien(x.so_km)} km`)) : null)
+    : h('li', null,
       h('div', { class: 'ls-dau' },
         h('b', null, ngay(x.ngay_vao)), ' ',
         h('a', { href: `#/ho-so/${x.id}` }, x.ma), ' ',
@@ -71,5 +82,5 @@ export function khoiLichSu(ds, { tieuDe = 'Lịch sử các lần trước', moS
       dongNoiDung('Yêu cầu khách hàng', x.tinh_trang_xe, x.ngay_vao),
       dongNoiDung('Tư vấn', x.tu_van, x.ngay_vao),
       dongNoiDung('Phản hồi khi giao xe', x.cam_nhan_khach, x.giao_luc),
-      dongNoiDung('Phản hồi khi gọi chăm sóc', x.cham_soc_ket_qua, x.cham_soc_luc)))));
+      dongNoiDung('Phản hồi khi gọi chăm sóc', x.cham_soc_ket_qua, x.cham_soc_luc))))));
 }

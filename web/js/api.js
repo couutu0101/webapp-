@@ -8,7 +8,7 @@ function loi(error) {
   return e;
 }
 // Cổ đông chỉ xem (030): chặn mọi lệnh ghi ngay ở trình duyệt; máy chủ cũng không cho cổ đông ghi
-const RPC_CHI_DOC = new Set(['bang_viec_to', 'bao_cao_co_dong', 'ket_qua_kinh_doanh', 'tra_cuu_xe', 'da_doi_mat_khau']);
+const RPC_CHI_DOC = new Set(['bang_viec_to', 'bao_cao_co_dong', 'ket_qua_kinh_doanh', 'tra_cuu_xe', 'tra_cuu_xe_nhanh', 'da_doi_mat_khau']);
 export async function rpc(ten, thamSo = {}) {
   if (laCoDong() && !RPC_CHI_DOC.has(ten)) throw new Error('Tài khoản cổ đông chỉ được xem số liệu, không sửa được.');
   const { data, error } = await sb.rpc(ten, thamSo);
@@ -180,6 +180,8 @@ export async function goiYXe(chu) {
 
 // ---------- Dịch vụ nhanh ----------
 export const ghiDichVuNhanh = (p) => rpc('ghi_dich_vu_nhanh', { p });
+// Gợi ý / tra xe theo biển số hoặc SĐT cho Dịch vụ nhanh (032) – trưởng nhóm cũng dùng được
+export const traCuuXeNhanh = (tu) => rpc('tra_cuu_xe_nhanh', { p_tu: tu });
 export const huyDichVuNhanh = (id, lyDo) => rpc('huy_dich_vu_nhanh', { p_id: id, p_ly_do: lyDo });
 
 // ---------- Thu chi ----------
