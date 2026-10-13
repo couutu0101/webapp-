@@ -630,7 +630,7 @@ async function moChiTietNhap(id, veLai) {
   let dongModal = () => noiDung.closest('.modal-nen')?.remove();
   if (['cho_khop', 'treo'].includes(r.trang_thai)) {
     hangNut.append(nutTaiTep('phieu_nhap', r, async () => { dongModal(); await moChiTietNhap(id, veLai); }));
-    if (keToan() && r.tao_boi !== api.toi.id) {
+    if (keToan() && (r.tao_boi !== api.toi.id || api.coVaiTro('giam_doc'))) { // người lập không tự khớp, trừ giám đốc
       hangNut.append(h('button', { class: 'nut chinh', type: 'button', onclick: () => chay(() => api.khopPhieuNhap(id, true), { thanhCong: 'Đã khớp hóa đơn – ghi công nợ nhà cung cấp.' }).then(() => { dongModal(); veLai?.(); }).catch(() => {}) }, 'Khớp hóa đơn'));
       hangNut.append(h('button', { class: 'nut', type: 'button', onclick: () => {
         const form = h('form', null, truong('Chỗ lệch', oVung('ly_do', ''), 'Số lượng, đơn giá, thiếu hóa đơn…', { batBuoc: true }));
