@@ -600,7 +600,17 @@ with sync_playwright() as p:
     duy.click('text=+ Lập đề nghị chi')
     m = modal(duy)
     m.locator('[name=muc_id]').select_option(label='Điện')
-    m.locator('[name=so_tien]').fill('2500000')
+    # Ô tiền: gõ từng phím, tự chèn dấu chấm; Backspace ngay sau dấu chấm vẫn xóa được số đứng trước
+    o = m.locator('[name=so_tien]')
+    o.click(); o.press_sequentially('1234567')
+    expect(o).to_have_value('1.234.567')
+    o.press('ArrowLeft'); o.press('ArrowLeft'); o.press('ArrowLeft')       # con trỏ ngay sau "1.234."
+    o.press('Backspace')
+    expect(o).to_have_value('123.567')
+    o.press('End'); o.press('a')
+    expect(o).to_have_value('123.567')
+    ghi('Ô tiền gõ 1234567 → 1.234.567; Backspace sau dấu chấm xóa số 4 → 123.567; chữ cái bị bỏ qua')
+    o.fill('2500000')
     m.locator('[name=noi_dung]').fill('Tiền điện tháng 10')
     m.locator('text=Gửi đề nghị').click()
     toast_co(duy, 'Đã gửi đề nghị')

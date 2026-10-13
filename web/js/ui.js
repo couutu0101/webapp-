@@ -296,15 +296,51 @@ export function truong(nhan, input, goiY, { batBuoc = false, rong = false } = {}
 export function oChu(name, value = '', attrs = {}) {
   return h('input', { type: 'text', name, value: value ?? '', ...attrs });
 }
+// Ô tiền: tự chèn dấu chấm ngàn, giữ đúng vị trí con trỏ theo SỐ CHỮ SỐ trước con trỏ (không theo ký tự),
+// tự xử lý gõ số / xóa (beforeinput) để bàn phím điện thoại không bị nhân đôi số và Backspace xóa được số đứng trước dấu chấm.
 export function oTien(name, value, attrs = {}) {
   const el = h('input', { type: 'text', inputmode: 'numeric', name, class: 'o-tien', autocomplete: 'off', ...attrs });
   el.value = value === null || value === undefined ? '' : tien(value);
+  const chuSo = (s) => s.replace(/\D/g, '');
+  const am = () => /^[-−]/.test(el.value);
+  // Đặt lại giá trị từ chuỗi chữ số, con trỏ đứng sau n chữ số
+  const dat_ = (so, n, laAm) => {
+    const moi = so === '' ? '' : (laAm ? '−' : '') + tien(Number(so));
+    if (el.value !== moi) el.value = moi;
+    let p = moi.length;
+    if (n <= 0) p = laAm && moi ? 1 : 0;
+    else { let dem = 0; for (let i = 0; i < moi.length; i++) { if (/\d/.test(moi[i])) { dem++; if (dem === n) { p = i + 1; break; } } } }
+    try { el.setSelectionRange(p, p); } catch { /* bỏ qua */ }
+  };
+  // Tự xử lý xong thì vẫn phát 'input' để các chỗ khác (tính tổng…) nghe được
+  const datVaBao = (so, n, laAm) => { dat_(so, n, laAm); el.dispatchEvent(new Event('input', { bubbles: true })); };
+  let tuXuLy = false;
+  el.addEventListener('beforeinput', (e) => {
+    const loai = e.inputType || '';
+    const dau = el.selectionStart ?? el.value.length; const cuoi = el.selectionEnd ?? dau;
+    const truoc = chuSo(el.value.slice(0, dau)); const chon = chuSo(el.value.slice(dau, cuoi)); const sau = chuSo(el.value.slice(cuoi));
+    if (loai === 'insertText' && e.data) {
+      if (!/^\d+$/.test(e.data)) { e.preventDefault(); return; }       // chỉ nhận chữ số
+      e.preventDefault(); tuXuLy = true;
+      datVaBao((truoc + e.data + sau).replace(/^0+(?=\d)/, ''), truoc.length + e.data.length, am());
+    } else if (loai === 'deleteContentBackward') {
+      e.preventDefault(); tuXuLy = true;
+      if (chon) datVaBao(truoc + sau, truoc.length, am());
+      else if (truoc) datVaBao(truoc.slice(0, -1) + sau, truoc.length - 1, am());
+      else if (am()) datVaBao(sau, 0, false);
+      else tuXuLy = false;
+    } else if (loai === 'deleteContentForward') {
+      e.preventDefault(); tuXuLy = true;
+      if (chon) datVaBao(truoc + sau, truoc.length, am());
+      else datVaBao(truoc + sau.slice(1), truoc.length, am());
+    }
+    // dán, kéo thả, bàn phím gõ kiểu ghép (composition): để trình duyệt làm rồi chỉnh lại ở 'input'
+  });
   el.addEventListener('input', () => {
-    const so = docTien(el.value);
-    const viTriCuoi = el.value.length - el.selectionStart;
-    el.value = so === null ? '' : tien(so);
-    const p = Math.max(0, el.value.length - viTriCuoi);
-    el.setSelectionRange(p, p);
+    if (tuXuLy) { tuXuLy = false; return; }
+    const dau = el.selectionStart ?? el.value.length;
+    const n = chuSo(el.value.slice(0, dau)).length;
+    dat_(chuSo(el.value).replace(/^0+(?=\d)/, ''), n, am());
   });
   return el;
 }
