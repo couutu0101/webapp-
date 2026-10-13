@@ -285,10 +285,32 @@ export async function chay(fn, { thanhCong } = {}) {
 }
 
 // ---------- Ô nhập ----------
-export function truong(nhan, input, goiY, { batBuoc = false, rong = false } = {}) {
+// Bề rộng ô trong lưới .luoi-o theo loại dữ liệu (app.css): ngan – biển số, màu, số lượng; vua – SĐT, ngày, tiền; lon – tên, nội dung; rong – cả hàng
+const TEN_NGAN = /^(bien_so|mau|so_luong|sl|don_vi|nam|so_km|km|ty_le|ty_le_vat|ma|ma_hang|so_phieu|so_hoa_don|so_seri|stt)$/;
+const TEN_VUA = /(dien_thoai|sdt|so_tai_khoan|^ngay|_ngay|ngay_|han_|_han$|^gio|tien|gia$|^gia_|thang|ky_chi_phi|^vat|hoa_hong|so_du|phan_tram)/;
+const TEN_LON = /^(ten|ten_khach|ho_ten|ten_dang_nhap|noi_dung|dia_chi|nguoi_nhan|email|nha_cung_cap_id|muc_id|ho_so_id|gdv_id|don_vi_lien_quan_id)$/;
+function coTuDong(input) {
+  if (!input || !input.tagName) return '';
+  if (input.tagName === 'TEXTAREA') return 'rong';
+  const cls = input.classList;
+  if (cls.contains('o-ngay-gio-khung')) return 'ngay-gio';
+  if (cls.contains('chon-tep') || cls.contains('chon-nut')) return 'rong';
+  const o = ['INPUT', 'SELECT'].includes(input.tagName) ? input : input.querySelector?.('input, select, textarea');
+  if (!o) return '';
+  if (o.tagName === 'TEXTAREA') return 'rong';
+  if (o.type === 'checkbox' || o.type === 'radio' || o.type === 'file') return '';
+  const name = o.name || '';
+  if (o.classList.contains('o-tien') || o.type === 'date' || o.type === 'month' || o.classList.contains('o-ngay-vn')) return 'vua';
+  if (TEN_NGAN.test(name)) return 'ngan';
+  if (TEN_VUA.test(name)) return 'vua';
+  if (TEN_LON.test(name)) return 'lon';
+  return '';
+}
+export function truong(nhan, input, goiY, { batBuoc = false, rong = false, co = '' } = {}) {
   // Ô đã là <label> (nút chọn ảnh) thì khung ngoài dùng <div> để không lồng label
   const tag = input?.tagName === 'LABEL' ? 'div' : 'label';
-  return h(tag, { class: `truong ${rong ? 'rong' : ''}` },
+  const be = rong ? 'rong' : (co || coTuDong(input));
+  return h(tag, { class: `truong ${be === 'rong' ? 'rong' : be ? `co-${be}` : ''}` },
     h('span', { class: 'truong-nhan' }, nhan, batBuoc ? h('b', { class: 'bat-buoc', 'aria-hidden': 'true' }, ' *') : null),
     input,
     goiY ? h('small', { class: 'goi-y' }, goiY) : null);
@@ -435,10 +457,10 @@ export function trangThaiTai(el, dangTai = true) {
   dat(el, h('div', { class: 'dang-tai', role: 'status' }, dangTai ? 'Đang tải…' : ''));
 }
 
-export function bang(cot, dong, { trong = 'Chưa có dữ liệu.', onRow, idDong } = {}) {
+export function bang(cot, dong, { trong = 'Chưa có dữ liệu.', onRow, idDong, gon = false } = {}) {
   if (!dong.length) return h('p', { class: 'trong' }, trong);
   return h('div', { class: 'bang-cuon' },
-    h('table', { class: 'bang' },
+    h('table', { class: gon ? 'bang gon' : 'bang' },
       h('thead', null, h('tr', null, cot.map((c) => h('th', { class: c.so ? 'so' : null }, c.nhan)))),
       h('tbody', null, dong.map((d) => h('tr', { class: onRow ? 'bam-duoc' : null, onclick: onRow ? () => onRow(d) : null, 'data-id': idDong ? idDong(d) : null },
         cot.map((c) => h('td', { class: c.so ? 'so' : null, 'data-nhan': c.nhan }, c.lay ? c.lay(d) : d[c.khoa])))))));

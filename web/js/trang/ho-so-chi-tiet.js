@@ -158,25 +158,27 @@ function theBaoGia({ hs, hm, ve }) {
   const duocBaoGia = q('cvdv', 'quan_ly', 'giam_doc');
   const goc = ['tiep_nhan', 'bao_gia'].includes(hs.trang_thai);
   const boSung = ['da_duyet', 'dang_sua', 'cho_kcs'].includes(hs.trang_thai);
-  const cotLan = { nhan: 'Lần', lay: (m) => (m.lan_bao_gia ? `Bổ sung ${m.lan_bao_gia}` : 'Gốc') };
-  const cotTen = { nhan: 'Nội dung sửa chữa', lay: (m) => h('span', null, m.ten, !khach && m.nguoi_tra === 'khach' ? h('small', { class: 'nhan' }, 'khách trả') : null) };
-  const cotNhom = { nhan: 'Nhóm', lay: (m) => NHOM[m.nhom] };
+  // Cột "Lần" chỉ hiện khi có báo giá bổ sung; nhóm (đồng, sơn, phụ tùng…) ghi nhỏ dưới tên để bảng vừa khung
+  const coBoSung = hm.some((m) => m.lan_bao_gia);
+  const cotLan = coBoSung ? { nhan: 'Lần', lay: (m) => (m.lan_bao_gia ? `Bổ sung ${m.lan_bao_gia}` : 'Gốc') } : null;
+  const cotTen = { nhan: 'Nội dung sửa chữa', lay: (m) => h('span', { class: 'ten-hang-muc' }, h('span', null, m.ten, !khach && m.nguoi_tra === 'khach' ? h('small', { class: 'nhan' }, 'khách trả') : null), h('small', null, NHOM[m.nhom])) };
+  const cotNhom = null;
   const cotVat = { nhan: 'VAT', lay: (m) => (!m.xuat_hd ? 'Không' : m.ty_le_vat !== null && m.ty_le_vat !== undefined ? phanTram(m.ty_le_vat) : '') };
   const cotTT = { nhan: 'Trạng thái', lay: (m) => h('span', null, TT_DONG[m.trang_thai], m.ngay_duyet && m.trang_thai !== 'cho_duyet' ? h('small', null, ` ${ngay(m.ngay_duyet)}`) : null,
     m.trang_thai === 'cho_duyet' && duocBaoGia ? h('button', { class: 'nut-chu', type: 'button', onclick: (e) => { e.stopPropagation(); xoaDong(m, ve); } }, 'Xóa') : null) };
-  const cot = khach
+  const cot = (khach
     ? [cotLan, cotNhom, cotTen,
       { nhan: 'Đơn giá (chưa VAT)', so: true, lay: (m) => tien(m.gia_bao) }, cotVat,
       { nhan: 'Khách trả sau VAT', so: true, lay: (m) => tien(sauVatDong(m, m.gia_duyet ?? m.gia_bao)) }, cotTT]
     : [cotLan, cotNhom, cotTen,
       { nhan: 'Đơn giá báo (chưa VAT)', so: true, lay: (m) => tien(m.gia_bao) },
-      { nhan: 'Giá duyệt (chưa VAT)', so: true, lay: (m) => m.gia_duyet === null ? '' : tien(m.gia_duyet) }, cotVat, cotTT];
+      { nhan: 'Giá duyệt (chưa VAT)', so: true, lay: (m) => m.gia_duyet === null ? '' : tien(m.gia_duyet) }, cotVat, cotTT]).filter(Boolean);
   return h('section', { class: 'the' },
     h('div', { class: 'the-dau' }, h('h2', null, khach ? '2. Báo giá (khách ngoài bảo hiểm)' : '2–3. Báo giá và duyệt giá'),
       h('div', { class: 'hang-nut' },
         duocBaoGia && (goc || boSung) ? nut(goc ? '+ Thêm dòng báo giá' : '+ Báo giá bổ sung (phát sinh)', () => moBaoGia(hs, hm, ve, boSung)) : null,
         duocBaoGia && choDuyet.length ? nut(`Nhập kết quả duyệt (${choDuyet.length})`, () => moDuyetGia(hs, choDuyet, ve, hm), true) : null)),
-    bang(cot, hm, { trong: hs.trang_thai === 'tiep_nhan' ? 'Chưa có báo giá.' : 'Chưa có dòng nào.' }),
+    bang(cot, hm, { trong: hs.trang_thai === 'tiep_nhan' ? 'Chưa có báo giá.' : 'Chưa có dòng nào.', gon: true }),
     khach ? h('p', { class: 'goi-y' }, 'Khách ngoài bảo hiểm không qua bước duyệt giá: lưu báo giá là duyệt luôn, lập lệnh sửa chữa được ngay.')
       : hs.trang_thai === 'bao_gia' ? h('p', { class: 'goi-y' }, 'Xe bảo hiểm: quá 3 ngày chưa duyệt thì báo giám đốc làm việc với bảo hiểm.') : null);
 }

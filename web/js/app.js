@@ -55,7 +55,7 @@ let dangDatMatKhau = false;
 // ---------- Đăng nhập ----------
 function manDangNhap() {
   const form = h('form', { class: 'the dang-nhap', novalidate: true },
-    h('div', { class: 'logo' }, 'HS'),
+    h('img', { class: 'logo', src: 'img/logo-day-du.svg', alt: 'Auto Hoàng Sơn', width: 1875, height: 1402 }),
     h('h1', null, TEN_GARA),
     h('p', { class: 'mo-ta' }, 'Phần mềm quản lý gara'),
     truong('Tên đăng nhập hoặc email', h('input', { type: 'text', name: 'email', autocomplete: 'username', autocapitalize: 'none', spellcheck: 'false', required: true }),
@@ -117,8 +117,9 @@ function dungKhung() {
   const menu = MENU.filter((m) => m.ai());
   const chiNhanh = (api.dm.ten('chi_nhanh', toi.chi_nhanh_id) || '').replace(/^.*[–-]\s*/, '');
   const nav = h('nav', { class: 'menu', id: 'menu', 'aria-label': 'Menu chính' },
-    h('a', { class: 'thuong-hieu', href: '#/viec' }, h('span', { class: 'dau-hieu', 'aria-hidden': 'true' }, 'HS'),
-      h('span', null, h('b', null, TEN_GARA), h('small', null, chiNhanh))),
+    h('a', { class: 'thuong-hieu', href: '#/viec', 'aria-label': `${TEN_GARA} – về Việc hôm nay` },
+      h('img', { class: 'logo-ngang', src: 'img/logo-ngang.svg', alt: 'Auto Hoàng Sơn', width: 5662, height: 1323 }),
+      chiNhanh ? h('small', null, /^CN\b/i.test(chiNhanh) ? chiNhanh.replace(/^CN\s*/i, 'Chi nhánh ') : chiNhanh) : null),
     h('div', { class: 'menu-ds' }, menu.map((m) => h('a', { href: `#/${m.duong}`, 'data-duong': m.duong }, icon(m.ic), h('span', null, m.nhan)))),
     h('div', { class: 'menu-chan' },
       h('div', { class: 'ai-dang-dung' }, h('b', null, toi.ho_ten), h('small', null, toi.vai_tro.map((v) => VAI_TRO[v]).join(', '))),
@@ -127,7 +128,8 @@ function dungKhung() {
   const dau = h('header', { class: 'dau' },
     h('button', { class: 'nut-menu', type: 'button', 'aria-label': 'Mở menu', 'aria-controls': 'menu',
       onclick: () => document.body.classList.toggle('mo-menu') }, icon('menu')),
-    h('a', { class: 'ten-gara', href: '#/viec' }, TEN_GARA),
+    h('a', { class: 'ten-gara', href: '#/viec', 'aria-label': `${TEN_GARA} – về Việc hôm nay` },
+      h('img', { class: 'logo-ngang', src: 'img/logo-ngang.svg', alt: 'Auto Hoàng Sơn', width: 5662, height: 1323 })),
     h('span', { class: 'chi-nhanh' }, chiNhanh));
   const noiDung = h('main', { class: 'noi-dung', id: 'noi-dung', tabindex: '-1' });
   khung = { noiDung, nav };

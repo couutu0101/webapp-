@@ -49,7 +49,7 @@ export default async function trangTiepNhan(el) {
   // Xe bảo hiểm: mỗi loại bảo hiểm có dấu tích "Không có" riêng ngay dưới ô ngày (khách ngoài bảo hiểm không có dấu tích)
   const tichThanVo = oCheck('khong_than_vo', false, 'Không có BH thân vỏ');
   const tichTnds = oCheck('khong_tnds', false, 'Không có BH TNDS');
-  const truongNgay = (nhan, o, s, goiY, tich) => h('div', { class: 'truong truong-ngay-bh' },
+  const truongNgay = (nhan, o, s, goiY, tich) => h('div', { class: 'truong truong-ngay-bh co-vua' },
     h('label', null, h('span', { class: 'truong-nhan' }, nhan, s), o), h('small', { class: 'goi-y' }, goiY), tich);
   const oKhongThanVo = tichThanVo.querySelector('input');
   const oKhongTnds = tichTnds.querySelector('input');
@@ -139,7 +139,7 @@ export default async function trangTiepNhan(el) {
               h('span', null, [tenLoaiXe(x.dong_xe_id), x.mau].filter(Boolean).join(' – ') || 'Chưa rõ loại xe'),
               h('small', null, [x.khach && x.khach.ten !== 'Chưa có tên' ? x.khach.ten : null, x.khach?.dien_thoai].filter(Boolean).join(' – ') || 'Chưa có thông tin khách'))),
           chon: (x) => { oBienSo.value = vietBienSo(x.bien_so); traCuu(); },
-        }), 'Gõ vài số của biển số (hoặc SĐT khách) để chọn xe cũ', { batBuoc: true }),
+        }), 'Gõ vài số (hoặc SĐT khách) để chọn xe cũ', { batBuoc: true, co: 'vua' }),
         thongBaoXe,
         truong('Hãng xe', chonHangXe, null, { batBuoc: true }),
         truong('Dòng xe', chonDongXe, null, { batBuoc: true }),
