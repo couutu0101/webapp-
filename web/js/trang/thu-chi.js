@@ -70,6 +70,7 @@ export default async function trangThuChi(el) {
       truong('Nội dung', oChu('noi_dung', ''), null, { rong: true }),
       vungRieng);
     let layPhanBo = () => [];
+    let tachTienBo = () => null;
 
     const hoSoMo = await api.doc('v_ho_so', (q) => q.not('trang_thai', 'in', '(huy)').or('con_no_khach.gt.0,con_no_bh.gt.0,trang_thai.in.(tiep_nhan,bao_gia,da_duyet,dang_sua,cho_kcs,dat_kcs)').order('ngay_vao', { ascending: false }).limit(300));
     const nhanHoSo = (x) => `${x.bien_so_hien_thi || x.ma} – ${x.ten_khach}`;
@@ -88,8 +89,32 @@ export default async function trangThuChi(el) {
           if (x && !form.noi_dung.value) form.noi_dung.value = `${m.tinh_chat === 'thu_coc' ? 'Cọc' : 'Khách trả'} sửa xe ${x.bien_so_hien_thi || x.ma} – ${x.ten_khach}`;
         });
         vungRieng.append(truong('Xe', chon, m.tinh_chat === 'thu_coc' ? 'Tiền cọc trừ vào phần khách trả khi giao xe' : null, { batBuoc: true }));
+        // Khách trả nhiều hơn số còn nợ: hỏi phần dư là tiền bo hay trả dư (sẽ trả lại)
+        const khoiDu = h('div', { class: 'rong khoi-tra-du', hidden: true });
+        vungRieng.append(khoiDu);
+        const capNhatDu = () => {
+          const x = ds.find((y) => String(y.id) === chon.value);
+          const du = x && m.tinh_chat === 'thu_khach' ? (docTien(oSoTien.value) || 0) - Number(x.con_no_khach) : 0;
+          khoiDu.hidden = !(du > 0);
+          if (du > 0) dat(khoiDu, h('div', { class: 'thong-bao canh-bao' },
+            h('b', null, `Khách trả dư ${tien(du)} đ so với số còn nợ ${tien(x.con_no_khach)} đ. Phần dư là:`),
+            h('div', { class: 'chon-nut' },
+              h('label', null, h('input', { type: 'radio', name: 'phan_du', value: 'bo', checked: true }), h('span', null, 'Tiền bo cho thợ')),
+              h('label', null, h('input', { type: 'radio', name: 'phan_du', value: 'tra_lai' }), h('span', null, 'Trả dư – sẽ trả lại khách'))),
+            h('small', { class: 'goi-y' }, 'Tiền bo: ghi thành phiếu thu riêng "Tiền bo của khách", không tính vào xe. Trả dư: hồ sơ ghi khách trả dư, kế toán lập đề nghị chi "Trả lại cọc cho khách" để trả.')));
+        };
+        oSoTien.addEventListener('input', capNhatDu);
+        chon.addEventListener('change', capNhatDu);
         if (hoSoId) chon.dispatchEvent(new Event('change'));
         layPhanBo = () => (chon.value ? [{ ho_so_id: Number(chon.value), so_tien: docTien(oSoTien.value) }] : []);
+        // Tiền bo: tách thành 2 phiếu (xe nhận đúng số nợ, phần dư vào mục Tiền bo)
+        tachTienBo = () => {
+          const x = ds.find((y) => String(y.id) === chon.value);
+          if (!x || m.tinh_chat !== 'thu_khach' || khoiDu.hidden) return null;
+          if (form.querySelector('[name=phan_du]:checked')?.value !== 'bo') return null;
+          const du = (docTien(oSoTien.value) || 0) - Number(x.con_no_khach);
+          return du > 0 ? { du, noNo: Number(x.con_no_khach), hoSoId: x.id, x } : null;
+        };
       } else if (m.tinh_chat === 'thu_bao_hiem') {
         const chonHang = oChon('hang_bh_id', api.dm.hang_bao_hiem.map((x) => ({ value: x.id, label: x.ten })), null);
         const dsXe = h('div', { class: 'ds-phan-bo' });
@@ -139,10 +164,22 @@ export default async function trangThuChi(el) {
       rong: true, nhanNut: 'Lập phiếu thu',
       nutChinh: async () => {
         const d = docForm(form);
-        const p = { tai_khoan_id: d.tai_khoan_id, muc_id: d.muc_id, so_tien: d.so_tien, ngay: d.ngay, noi_dung: d.noi_dung,
-          hang_bh_id: d.hang_bh_id, don_vi_lien_quan_id: d.don_vi_lien_quan_id, phan_bo: layPhanBo() };
-        await api.lapPhieuThu(p);
-        toast('Đã lập phiếu thu.');
+        const bo = tachTienBo();
+        if (bo) {
+          const mucBo = api.dm.muc_thu_chi.find((x) => x.loai === 'thu' && x.ten === 'Tiền bo của khách') || mucThu.find((x) => x.tinh_chat === 'thu_khac');
+          if (!mucBo) { toast('Chưa có mục thu "Tiền bo của khách" trong Danh mục.', 'loi'); return false; }
+          await api.lapPhieuThu({ tai_khoan_id: d.tai_khoan_id, muc_id: d.muc_id, so_tien: bo.noNo, ngay: d.ngay, noi_dung: d.noi_dung,
+            phan_bo: [{ ho_so_id: bo.hoSoId, so_tien: bo.noNo }] });
+          await api.lapPhieuThu({ tai_khoan_id: d.tai_khoan_id, muc_id: mucBo.id, so_tien: bo.du, ngay: d.ngay,
+            noi_dung: `Tiền bo của khách xe ${bo.x.bien_so_hien_thi || bo.x.ma} – ${bo.x.ten_khach}`, phan_bo: [] });
+          toast(`Đã lập 2 phiếu thu: ${tien(bo.noNo)} đ cho xe và ${tien(bo.du)} đ tiền bo.`);
+        } else {
+          const p = { tai_khoan_id: d.tai_khoan_id, muc_id: d.muc_id, so_tien: d.so_tien, ngay: d.ngay, noi_dung: d.noi_dung,
+            hang_bh_id: d.hang_bh_id, don_vi_lien_quan_id: d.don_vi_lien_quan_id, phan_bo: layPhanBo(),
+            cho_tra_du: form.querySelector('[name=phan_du]:checked')?.value === 'tra_lai' };
+          await api.lapPhieuThu(p);
+          toast('Đã lập phiếu thu.');
+        }
         if (hoSoId) { veDanhSachHoSo({ id: hoSoId, ma: hoSoMo.find((y) => String(y.id) === String(hoSoId))?.ma }); return; }
         history.replaceState(null, '', '#/thu-chi');
         await taiLai();

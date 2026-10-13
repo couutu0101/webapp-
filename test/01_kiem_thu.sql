@@ -655,6 +655,18 @@ select kt.dong_vai(null);
 select kt.dong_vai('tien@gara.vn');
 select kt.ghi('021 Kế toán gọi được bảng việc xưởng', jsonb_typeof(public.bang_viec_to()) = 'array');
 select kt.dong_vai(null);
+
+-- ---------- 024: khách trả dư ----------
+select kt.dong_vai('tien@gara.vn');
+select kt.mong_loi('024 Thu vượt nợ khách không cờ trả dư bị chặn', format($$select public.lap_phieu_thu(jsonb_build_object(
+  'tai_khoan_id',(select id from public.tai_khoan_quy where ten='Tiền mặt'),'muc_id',(select id from public.muc_thu_chi where ten='Khách thanh toán sửa chữa'),
+  'so_tien',1000,'phan_bo',jsonb_build_array(jsonb_build_object('ho_so_id',%s,'so_tien',1000))))$$, (select v from ctx where k='hs1')), 'vượt');
+select public.lap_phieu_thu(jsonb_build_object(
+  'tai_khoan_id',(select id from public.tai_khoan_quy where ten='Tiền mặt'),'muc_id',(select id from public.muc_thu_chi where ten='Khách thanh toán sửa chữa'),
+  'so_tien',1000,'cho_tra_du',true,'phan_bo',jsonb_build_array(jsonb_build_object('ho_so_id',(select v::bigint from ctx where k='hs1'),'so_tien',1000))));
+select kt.ghi('024 Có cờ trả dư: nợ khách âm 1.000 (khách trả dư)', (select con_no_khach from public.tien_ho_so((select v::bigint from ctx where k='hs1'))) = -1000);
+select kt.ghi('024 Có mục thu Tiền bo của khách', exists (select 1 from public.muc_thu_chi where ten = 'Tiền bo của khách' and tinh_chat = 'thu_khac'));
+select kt.dong_vai(null);
 \o
 \echo '======== KẾT QUẢ ========'
 select stt, case when dat then 'ĐẠT ' else 'LỖI ' end as kq, ten, left(coalesce(chi_tiet,''), 140) as chi_tiet from kt.ket_qua order by stt;
