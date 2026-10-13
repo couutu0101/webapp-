@@ -268,6 +268,12 @@ select kt.mong_loi('QL không duyệt khoản trên 2 triệu', format($$select 
 insert into ctx select 'dn2', public.lap_de_nghi_chi(jsonb_build_object('muc_id',(select id from public.muc_thu_chi where ten='Cơm'),
   'so_tien',300000,'noi_dung','Cơm khách'))::text;
 select kt.mong_loi('Không tự duyệt phiếu mình lập', format($$select public.duyet_de_nghi_chi(%s, true)$$, (select v from ctx where k='dn2')), 'tự duyệt');
+select kt.dong_vai('thuan@gara.vn');
+insert into ctx select 'dn_gd', public.lap_de_nghi_chi(jsonb_build_object('muc_id',(select id from public.muc_thu_chi where ten='Cơm'),
+  'so_tien',150000,'noi_dung','Nước uống khách'))::text;
+select public.duyet_de_nghi_chi((select v::bigint from ctx where k='dn_gd'), true);
+select kt.ghi('Giám đốc tự duyệt đề nghị chi do mình lập', (select trang_thai from public.de_nghi_chi where id=(select v::bigint from ctx where k='dn_gd')) = 'da_duyet');
+select public.huy_de_nghi_chi((select v::bigint from ctx where k='dn_gd'));
 select kt.dong_vai('tien@gara.vn');
 select kt.mong_loi('Chưa duyệt thì kế toán chưa chi', format($$select public.chi_tien(%s, (select id from public.tai_khoan_quy where ten='Tiền mặt'))$$,
   (select v from ctx where k='dn1')), 'chưa được duyệt');

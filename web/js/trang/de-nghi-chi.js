@@ -54,7 +54,8 @@ export default async function trangDeNghi(el) {
   function nutHanhDong(r) {
     const ra = [];
     const laCuaToi = r.nguoi_de_nghi === api.toi.id;
-    const duocDuyet = nguoiDuyet && !laCuaToi && (!r.can_giam_doc || api.coVaiTro('giam_doc'));
+    // Không tự duyệt phiếu mình lập – trừ giám đốc
+    const duocDuyet = nguoiDuyet && (!laCuaToi || api.coVaiTro('giam_doc')) && (!r.can_giam_doc || api.coVaiTro('giam_doc'));
     if (r.trang_thai === 'cho_duyet' && duocDuyet) {
       ra.push(h('button', { class: 'nut nho chinh', type: 'button', onclick: () => chay(() => api.duyetDeNghi(r.id, true, null), { thanhCong: 'Đã duyệt.' }).then(tai).catch(() => {}) }, 'Duyệt'));
       ra.push(h('button', { class: 'nut nho', type: 'button', onclick: () => moTuChoi(r) }, 'Từ chối'));
