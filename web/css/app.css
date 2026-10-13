@@ -171,6 +171,15 @@ form.the > .hang-nut:last-child { justify-content: flex-end; padding-top: var(--
 input, select, textarea { font: inherit; color: var(--muc); background: var(--mat); border: 1px solid var(--vien-dam); border-radius: var(--bo);
   padding: 10px 12px; min-height: var(--cham); width: 100%; transition: border-color .12s, box-shadow .12s; font-variant-numeric: tabular-nums; }
 input:hover, select:hover, textarea:hover { border-color: var(--muc-phu); }
+/* Ô bắt buộc (*): viền đậm hơn, nền vàng rất nhạt, vạch vàng bên trái – ô không bắt buộc giữ nhạt */
+.truong.bb :is(input:not([type=checkbox]):not([type=radio]):not([type=file]), select, textarea) {
+  border-color: #6b747d; background: #fffcf0; box-shadow: inset 3px 0 0 var(--vang-dam); }
+.truong.bb :is(input, select, textarea):hover { border-color: var(--muc); }
+.truong.bb :is(input, select, textarea):focus { border-color: var(--lien-ket); box-shadow: inset 3px 0 0 var(--vang-dam), 0 0 0 3px rgba(29, 90, 165, .22); }
+.truong.bb :is(input, select, textarea):disabled { background: var(--mat-lom); box-shadow: none; border-color: var(--vien-dam); }
+.truong.bb .chon-nut input:not(:checked) + span { border-color: #6b747d; }
+.truong.bb > .truong-nhan { font-weight: 700; color: var(--muc); }
+.truong:not(.bb) > .truong-nhan { color: #3d4650; }
 input:focus, select:focus, textarea:focus { outline: none; border-color: var(--lien-ket); box-shadow: 0 0 0 3px rgba(29, 90, 165, .22); }
 input::placeholder, textarea::placeholder { color: #7b848c; }
 textarea { resize: vertical; line-height: 1.45; }

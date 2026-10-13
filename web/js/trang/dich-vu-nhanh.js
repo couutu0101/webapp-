@@ -15,9 +15,9 @@ export default async function trangDichVu(el) {
   const oKm = oTien('so_km', null, { placeholder: 'Vd 45.230', 'aria-label': 'Số km (ODO)' });
   const goiYKm = h('span', null, 'Số trên đồng hồ công tơ mét');
   // Người làm: chỉ tổ Điện – máy – gầm hoặc Detailing (034) – doanh thu tính vào đúng tổ
-  const TO_DVN = ['DMG', 'DT'];
+  const TO_DVN = ['DT', 'DMG'];                     // Detailing trước, chọn sẵn
   const chonTo = h('div', { class: 'chon-nut', role: 'radiogroup', 'aria-label': 'Tổ làm' },
-    TO_DVN.map((id) => h('label', null, h('input', { type: 'radio', name: 'to_id', value: id }),
+    TO_DVN.map((id) => h('label', null, h('input', { type: 'radio', name: 'to_id', value: id, checked: id === 'DT' }),
       h('span', null, api.dm.ten('to_thuc_hien', id) || (id === 'DMG' ? 'Điện – máy – gầm' : 'Detailing')))));
   const khungXe = h('div', { class: 'rong thong-tin-xe-nhanh', hidden: true, 'aria-live': 'polite' });
 

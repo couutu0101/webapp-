@@ -373,7 +373,8 @@ export function truong(nhan, input, goiY, { batBuoc = false, rong = false, co = 
   // Ô đã là <label> (nút chọn ảnh) hoặc chứa label (nhóm nút chọn) thì khung ngoài dùng <div> để không lồng label
   const tag = input?.tagName === 'LABEL' || input?.querySelector?.('label') ? 'div' : 'label';
   const be = rong ? 'rong' : (co || coTuDong(input));
-  return h(tag, { class: `truong ${be === 'rong' ? 'rong' : be ? `co-${be}` : ''}` },
+  // Ô bắt buộc (*) gắn lớp bb: viền đậm, nền ấm – nổi hơn ô không bắt buộc
+  return h(tag, { class: `truong ${be === 'rong' ? 'rong' : be ? `co-${be}` : ''}${batBuoc ? ' bb' : ''}` },
     h('span', { class: 'truong-nhan' }, nhan, batBuoc ? h('b', { class: 'bat-buoc', 'aria-hidden': 'true' }, ' *') : null),
     input,
     goiY ? h('small', { class: 'goi-y' }, goiY) : null);
