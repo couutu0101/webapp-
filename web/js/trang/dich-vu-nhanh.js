@@ -14,6 +14,11 @@ export default async function trangDichVu(el) {
   const oSdt = oChu('dien_thoai', '', { inputmode: 'tel', autocomplete: 'off' });
   const oKm = oTien('so_km', null, { placeholder: 'Vd 45.230', 'aria-label': 'Số km (ODO)' });
   const goiYKm = h('span', null, 'Số trên đồng hồ công tơ mét');
+  // Người làm: chỉ tổ Điện – máy – gầm hoặc Detailing (034) – doanh thu tính vào đúng tổ
+  const TO_DVN = ['DMG', 'DT'];
+  const chonTo = h('div', { class: 'chon-nut', role: 'radiogroup', 'aria-label': 'Tổ làm' },
+    TO_DVN.map((id) => h('label', null, h('input', { type: 'radio', name: 'to_id', value: id }),
+      h('span', null, api.dm.ten('to_thuc_hien', id) || (id === 'DMG' ? 'Điện – máy – gầm' : 'Detailing')))));
   const khungXe = h('div', { class: 'rong thong-tin-xe-nhanh', hidden: true, 'aria-live': 'polite' });
 
   const veGoiY = (x) => h('span', { class: 'goi-y-xe' }, bienSo(x.bien_so),
@@ -73,7 +78,7 @@ export default async function trangDichVu(el) {
     khungXe,
     truong('Dịch vụ', oChu('dich_vu', '', { placeholder: 'Rửa xe, vá lốp, thay bóng đèn…', list: 'goi-y-dv' }), null, { batBuoc: true, co: 'lon' }),
     h('datalist', { id: 'goi-y-dv' }, ['Rửa xe', 'Vá lốp', 'Thay bóng đèn', 'Kích bình', 'Bơm lốp', 'Vệ sinh nội thất'].map((x) => h('option', { value: x }))),
-    truong('Người làm', oChu('nguoi_lam', '')),
+    truong('Tổ làm', chonTo, null, { batBuoc: true }),
     truong('Số tiền khách trả', oTien('so_tien', null), null, { batBuoc: true }),
     h('div', { class: 'truong' }, oCheck('xuat_hd', false, 'Có xuất hóa đơn')),
     h('div', { class: 'hang-nut rong' }, h('button', { class: 'nut chinh', type: 'submit' }, 'Ghi dịch vụ')));
@@ -83,6 +88,7 @@ export default async function trangDichVu(el) {
     await traBienSo();
     const d = docForm(form);
     if (d.so_km === null) { oKm.focus(); return toast('Ghi số km (ODO) của xe.', 'loi'); }
+    if (!d.to_id) { chonTo.querySelector('input')?.focus(); return toast('Chọn tổ làm: Điện – máy – gầm hoặc Detailing.', 'loi'); }
     if (d.so_km > 9999999) { oKm.focus(); return toast('Số km (ODO) không đúng.', 'loi'); }
     const kmTruoc = xeChon?.km_truoc;
     if (kmTruoc && d.so_km < Number(kmTruoc.so)
@@ -106,7 +112,7 @@ export default async function trangDichVu(el) {
         { nhan: 'Khách', lay: (r) => [r.ten_khach && r.ten_khach !== 'Chưa có tên' ? r.ten_khach : null, r.dien_thoai].filter(Boolean).join(' – ') },
         { nhan: 'Số km', so: true, lay: (r) => (r.so_km === null || r.so_km === undefined ? '' : tien(r.so_km)) },
         { nhan: 'Dịch vụ', lay: (r) => r.trang_thai === 'huy' ? h('s', null, r.dich_vu) : r.dich_vu },
-        { nhan: 'Người làm', lay: (r) => r.nguoi_lam || '' },
+        { nhan: 'Tổ làm', lay: (r) => r.nguoi_lam || '' },
         { nhan: 'Số tiền', so: true, lay: (r) => tien(r.so_tien) },
         { nhan: 'Đã thu', lay: (r) => r.trang_thai === 'huy' ? 'Đã hủy' : Number(r.da_thu) >= Number(r.so_tien) ? '✓' :
           api.coVaiTro('ke_toan', 'giam_doc') ? h('a', { class: 'nut nho', href: `#/thu-chi?dvn=${r.id}` }, 'Thu tiền') : 'Chưa' },

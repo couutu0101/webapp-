@@ -331,7 +331,7 @@ select kt.mong_loi('032 Dịch vụ nhanh thiếu số km bị chặn', $$select
 select kt.ghi('032 Trưởng nhóm tra xe cũ theo đuôi biển số: có khách, số km lần trước (hồ sơ 45.320)',
   (select (x->>'ten_khach') = 'Anh Liêm' and (x->'km_truoc'->>'so')::int = 45320 and (x->'lan_cuoi'->>'loai') = 'ho_so'
    from jsonb_array_elements(public.tra_cuu_xe_nhanh('92361')) x where x->>'bien_so' = '50H-923.61'));
-insert into ctx select 'dvn2', public.ghi_dich_vu_nhanh('{"bien_so":"50H-923.61","dich_vu":"Thay bóng đèn","so_tien":150000,"so_km":46100,"bat_buoc_km":true}')::text;
+insert into ctx select 'dvn2', public.ghi_dich_vu_nhanh('{"bien_so":"50H-923.61","dich_vu":"Thay bóng đèn","so_tien":150000,"so_km":46100,"to_id":"DT","bat_buoc_km":true}')::text;
 select kt.dong_vai(null);
 select kt.ghi('032 Dịch vụ nhanh xe cũ gắn đúng xe – khách, lưu số km',
   (select d.xe_id = h.xe_id and d.khach_hang_id = h.khach_hang_id and d.so_km = 46100
@@ -339,7 +339,7 @@ select kt.ghi('032 Dịch vụ nhanh xe cũ gắn đúng xe – khách, lưu s�
 select kt.dong_vai('han@gara.vn');
 select kt.ghi('032 Tra lại: số km lần trước lấy lượt dịch vụ nhanh mới nhất',
   (select (x->'km_truoc'->>'so')::int = 46100 and (x->'lan_cuoi'->>'loai') = 'dich_vu_nhanh' from jsonb_array_elements(public.tra_cuu_xe_nhanh('50H92361')) x limit 1));
-insert into ctx select 'dvn3', public.ghi_dich_vu_nhanh('{"bien_so":"59C-123.45","ten_khach":"Chị Hoa","dien_thoai":"0909 555 666","dich_vu":"Vá lốp","so_tien":50000,"so_km":12000,"bat_buoc_km":true}')::text;
+insert into ctx select 'dvn3', public.ghi_dich_vu_nhanh('{"bien_so":"59C-123.45","ten_khach":"Chị Hoa","dien_thoai":"0909 555 666","dich_vu":"Vá lốp","so_tien":50000,"so_km":12000,"to_id":"DT","bat_buoc_km":true}')::text;
 select kt.dong_vai(null);
 select kt.ghi('032 Xe mới + SĐT mới: tự tạo xe và khách, tra bằng SĐT ra được',
   (select x.bien_so = '59C12345' and k.ten = 'Chị Hoa' and k.dien_thoai = '0909555666' and x.khach_hang_id = k.id
@@ -347,6 +347,14 @@ select kt.ghi('032 Xe mới + SĐT mới: tự tạo xe và khách, tra bằng S
   and (select count(*) from public.xe where bien_so = '59C12345') = 1);
 select kt.dong_vai('han@gara.vn');
 select kt.ghi('032 Tra bằng SĐT ra xe mới tạo', jsonb_array_length(public.tra_cuu_xe_nhanh('0909555')) = 1);
+insert into ctx select 'dvn4', public.ghi_dich_vu_nhanh('{"bien_so":"59C-123.45","dich_vu":"Thay bóng đèn","so_tien":120000,"so_km":12100,"to_id":"DMG","bat_buoc_km":true}')::text;
+select kt.mong_loi('034 Dịch vụ nhanh phải chọn tổ (giao diện mới)', $$select public.ghi_dich_vu_nhanh('{"dich_vu":"Rửa xe","so_tien":50000,"so_km":1,"bat_buoc_km":true}')$$, 'Chọn tổ');
+select kt.mong_loi('034 Chỉ tổ ĐMG hoặc Detailing', $$select public.ghi_dich_vu_nhanh('{"dich_vu":"Rửa xe","so_tien":50000,"so_km":1,"to_id":"DS"}')$$, 'chỉ do tổ');
+select kt.dong_vai(null);
+select kt.ghi('034 Tổ làm ghi tên tổ; doanh thu dịch vụ nhanh tính vào tổ ĐMG', (select nguoi_lam = 'Điện – máy – gầm' and to_id = 'DMG' from public.dich_vu_nhanh where id = (select v::bigint from ctx where k='dvn4'))
+  and exists (select 1 from public.v_doanh_thu where nguon = 'dich_vu_nhanh' and nhom = 'dmg' and so_tien = 120000)
+  and exists (select 1 from public.v_doanh_thu where nguon = 'dich_vu_nhanh' and nhom = 'detailing' and so_tien = 80000));
+select kt.dong_vai('han@gara.vn');
 select kt.mong_loi('032 SĐT sai bị chặn', $$select public.ghi_dich_vu_nhanh('{"dien_thoai":"12345","dich_vu":"Rửa xe","so_tien":50000,"so_km":1}')$$, '10 số');
 select kt.dong_vai('tien@gara.vn');
 select public.lap_phieu_thu(jsonb_build_object('tai_khoan_id',(select id from public.tai_khoan_quy where ten='Tiền mặt'),
