@@ -76,7 +76,13 @@ export default async function trangHoSo(el) {
         { nhan: 'Bước', lay: (d) => h('span', null, nhanTrangThai(d.trang_thai), d.co_phat_sinh ? h('span', { class: 'nhan tt-canh-bao' }, 'Phát sinh') : null,
           choPT[d.id] !== undefined ? h('span', { class: 'nhan tt-canh-bao' }, `Chờ phụ tùng ${choPT[d.id]} ngày`) : null) },
         { nhan: 'Việc tiếp theo – Ai làm', lay: oViec },
-        coTien ? { nhan: 'Còn nợ', so: true, lay: (d) => tien(Number(d.con_no_bh) + Number(d.con_no_khach)) || '0' } : null,
+        coTien ? { nhan: 'Còn nợ', so: true, lay: (d) => {
+          const kh = Number(d.con_no_khach) || 0; const bh = Number(d.con_no_bh) || 0;
+          if (d.nguon_tt === 'khach') return h('span', { class: 'con-no' }, h('span', null, h('small', null, 'Khách '), h('b', { class: kh > 0 ? 'chu-loi' : null }, tien(kh) || '0')));
+          return h('span', { class: 'con-no' },
+            h('span', null, h('small', null, 'Khách '), h('b', { class: kh > 0 ? 'chu-loi' : null }, tien(kh) || '0')),
+            h('span', null, h('small', null, 'BH '), h('b', { class: bh > 0 ? 'chu-cam' : null }, tien(bh) || '0')));
+        } } : null,
       ].filter(Boolean), ds, { onRow: (d) => { location.hash = `#/ho-so/${d.id}`; }, idDong: (d) => d.id, trong: 'Không có hồ sơ nào.' }));
     return ds;
   }

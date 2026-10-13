@@ -219,6 +219,12 @@ with sync_playwright() as p:
     ve_ds(duy, id_hs)
     expect(duy.locator('h1 .nhan')).to_contain_text('Đã duyệt giá')
     ghi('Duyệt giá → Đã duyệt giá; tiền BH: ' + duy.locator('.dong-tien').first.inner_text().replace('\n', ' '))
+    lg = mo(b, 'long@gara.vn')
+    ve_trang(lg, '#/ho-so')
+    con_no = lg.locator(f'tr[data-id="{id_hs}"] .con-no').inner_text().replace('\n', ' ')
+    assert 'Khách 0' in con_no and 'BH 5.616.000' in con_no, con_no
+    ghi('Cột Còn nợ ở danh sách tách Khách / BH: ' + con_no)
+    lg.close()
 
     duy.locator('button', has_text='Lập lệnh sửa chữa').click()
     m = modal(duy)

@@ -447,3 +447,8 @@ a.o-dem:not(.mo) b { color: var(--muc); }
 .chia-cong-no { margin-top: var(--k3); padding: 12px 14px; border: 1px solid var(--vien); border-radius: var(--bo); background: var(--vang-nhat); display: grid; gap: 6px; }
 .chia-cong-no h3 { margin: 0 0 4px; font-size: 1rem; }
 .o-dem.canh-bao b { color: var(--loi); }
+
+/* Cột Còn nợ ở danh sách hồ sơ: hai dòng Khách / BH */
+.con-no { display: inline-flex; flex-direction: column; align-items: flex-end; line-height: 1.3; white-space: nowrap; }
+.con-no small { color: var(--muc-phu); }
+.chu-cam { color: var(--cam); }
