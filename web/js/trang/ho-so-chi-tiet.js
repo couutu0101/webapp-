@@ -354,7 +354,12 @@ function moLenh(hs, ds, ve) {
   const dongs = ds.map((m) => {
     const to = oChon('to', api.dm.to_thuc_hien.map((t) => ({ value: t.id, label: t.ten })),
       { dong: 'DS', son: 'DS', dong_son: 'DS', phu_tung: 'DS', dmg: 'DMG', detailing: 'DT' }[m.nhom], { trong: null, 'aria-label': `Tổ làm ${m.ten}` });
-    const nguoi = oChu('nguoi', '', { placeholder: 'Người làm', 'aria-label': `Người làm ${m.ten}` });
+    // Người làm điền sẵn tên trưởng nhóm của tổ đang chọn; sửa được, đổi tổ thì điền lại (nếu chưa tự gõ)
+    const truongNhom = (toId) => (api.dm.nhan_vien || []).find((n) => n.hoat_dong && n.vai_tro.includes('truong_nhom') && n.to_id === toId)?.ho_ten || '';
+    const nguoi = oChu('nguoi', truongNhom(to.value), { placeholder: 'Người làm', 'aria-label': `Người làm ${m.ten}` });
+    let tuGo = false;
+    nguoi.addEventListener('input', () => { tuGo = !!nguoi.value; });
+    to.addEventListener('change', () => { if (!tuGo) nguoi.value = truongNhom(to.value); });
     return { m, to, nguoi, el: h('tr', null, h('td', null, m.ten), h('td', null, to), h('td', null, nguoi)) };
   });
   moModal('Lệnh sửa chữa', h('div', null,
