@@ -21,7 +21,7 @@ export default async function trangViec(el) {
   const [hoSo, canhBao, bangViec, viecCuaToi, kho] = await Promise.all([
     laVanPhong ? api.doc('v_ho_so', (q) => q.not('trang_thai', 'in', '(dong,huy)')) : [],
     laVanPhong ? api.doc('v_canh_bao') : [],
-    api.coVaiTro('truong_nhom', 'quan_ly', 'cvdv', 'giam_doc') ? api.bangViecTo() : [],
+    api.coVaiTro('truong_nhom', 'quan_ly', 'cvdv', 'ke_toan', 'giam_doc') ? api.bangViecTo() : [],
     laVanPhong ? layViecCuaToi() : [],
     laVanPhong ? demKho() : null,
   ]);

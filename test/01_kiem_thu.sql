@@ -652,6 +652,9 @@ select kt.dong_vai('duy@gara.vn');
 select kt.mong_loi('019 CVDV không được xóa danh mục',
   format('select public.xoa_danh_muc(%L, %L)', 'hang_xe', (select id::text from public.hang_xe limit 1)), 'quyền');
 select kt.dong_vai(null);
+select kt.dong_vai('tien@gara.vn');
+select kt.ghi('021 Kế toán gọi được bảng việc xưởng', jsonb_typeof(public.bang_viec_to()) = 'array');
+select kt.dong_vai(null);
 \o
 \echo '======== KẾT QUẢ ========'
 select stt, case when dat then 'ĐẠT ' else 'LỖI ' end as kq, ten, left(coalesce(chi_tiet,''), 140) as chi_tiet from kt.ket_qua order by stt;
