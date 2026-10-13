@@ -605,6 +605,8 @@ with sync_playwright() as p:
     duy.click('text=+ Lập đề nghị chi')
     m = modal(duy)
     m.locator('[name=muc_id]').select_option(label='Điện')
+    expect(m.locator('[name=ky_chi_phi] option')).to_have_count(3)
+    ghi('Đề nghị chi mục Điện có ô "Chi phí của tháng": ' + ' | '.join(m.locator('[name=ky_chi_phi] option').all_inner_texts()))
     # Ô tiền: gõ từng phím, tự chèn dấu chấm; Backspace ngay sau dấu chấm vẫn xóa được số đứng trước
     o = m.locator('[name=so_tien]')
     o.click(); o.press_sequentially('1234567')
@@ -755,6 +757,13 @@ with sync_playwright() as p:
     ve_trang(thuan, '#/doanh-thu')
     thuan.locator('[role=tab]', has_text='Kết quả kinh doanh').click()
     thuan.wait_for_selector('text=LÃI TRƯỚC THUẾ')
+    thuan.wait_for_selector('.bieu-do-svg path', state='attached')
+    assert thuan.locator('.bieu-do-svg path').count() == 3, 'biểu đồ phải có 3 đường'
+    expect(thuan.locator('.cot-thang .nhan').first).to_have_text('Đang mở')
+    thuan.locator('.bieu-do-vung').hover()
+    expect(thuan.locator('.bieu-do-hop')).to_be_visible()
+    ghi('Kết quả kinh doanh: biểu đồ 3 đường, hộp giá trị khi rê chuột: ' + thuan.locator('.bieu-do-hop').inner_text().replace('\n', ' ')[:90]
+        + ' | checklist: ' + thuan.locator('.checklist').first.inner_text().replace('\n', ' | ')[:120])
     chup(thuan, '11c-ket-qua-kinh-doanh')
     thuan.locator('button', has_text='Nhập lương').first.click()
     modal(thuan).locator('[name=tong]').fill('30000000')

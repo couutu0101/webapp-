@@ -23,7 +23,7 @@ export default async function trangDeNghi(el) {
 
   dat(el, 
     h('div', { class: 'tieu-de-trang' }, h('h1', null, 'Đề nghị chi'),
-      h('button', { class: 'nut chinh', type: 'button', onclick: moLap }, '+ Lập đề nghị chi')),
+      h('button', { class: 'nut chinh', type: 'button', onclick: () => moLap() }, '+ Lập đề nghị chi')),
     h('p', { class: 'mo-ta' }, `Mọi khoản chi đều qua đề nghị. Quản lý chung duyệt đến ${tien(hanMuc)} đ, trên mức này giám đốc duyệt. Không ai tự duyệt đề nghị của mình. Kế toán chỉ chi khi đã duyệt.`),
     h('section', { class: 'the' }, tabs, ds));
 
@@ -81,7 +81,18 @@ export default async function trangDeNghi(el) {
     moModal('Chi tiền', form, { nhanNut: 'Lập phiếu chi', nutChinh: async () => { const d = docForm(form); await api.chiTien(r.id, d.tai_khoan_id, d.ngay); toast('Đã chi.'); await tai(); } });
   }
 
-  async function moLap() {
+  // Các kỳ chi phí chọn được: tháng này, 2 tháng trước
+  function cacKy() {
+    const d = new Date(); const ds = [];
+    for (let i = 0; i < 3; i++) {
+      const t = new Date(d.getFullYear(), d.getMonth() - i, 1);
+      const v = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-01`;
+      ds.push({ value: v, label: `${i === 0 ? 'Tháng này' : i === 1 ? 'Tháng trước' : 'Hai tháng trước'} (${String(t.getMonth() + 1).padStart(2, '0')}/${t.getFullYear()})` });
+    }
+    return ds;
+  }
+
+  async function moLap({ mucTen = null, kyMacDinh = null } = {}) {
     const mucChi = api.dm.muc_thu_chi.filter((m) => m.loai === 'chi' && m.hoat_dong);
     const NHOM = { gia_von: 'Giá vốn', co_dinh: 'Chi phí cố định', van_hanh: 'Chi phí vận hành' };
     const chonMuc = h('select', { name: 'muc_id' }, h('option', { value: '' }, '— Chọn —'),
@@ -99,8 +110,14 @@ export default async function trangDeNghi(el) {
       if (m.tinh_chat === 'tra_hoa_hong') vungRieng.append(truong('Giám định viên', oChon('gdv_id', api.dm.giam_dinh_vien.filter((g) => !g.la_cho_them).map((g) => ({ value: g.id, label: `${g.ten}${g.hang_id ? ` (${api.dm.ten('hang_bao_hiem', g.hang_id)})` : ''}` })), null), null, { batBuoc: true }));
       if (m.tinh_chat === 'tra_ncc') vungRieng.append(truong('Nhà cung cấp', oChon('nha_cung_cap_id', api.dm.nha_cung_cap.filter((x) => x.hoat_dong).map((x) => ({ value: x.id, label: x.ten })), null), null, { batBuoc: true }));
       if (m.tinh_chat === 'tra_noi_bo') vungRieng.append(truong('Đơn vị', oChon('don_vi_lien_quan_id', api.dm.don_vi_lien_quan.map((x) => ({ value: x.id, label: x.ten })), null), null, { batBuoc: true }));
-      if (m.tinh_chat === 'chi_phi') vungRieng.append(truong('VAT trên hóa đơn (nếu có)', oTien('vat_dau_vao', null), 'Phần VAT đã nằm trong số tiền, dùng để tính VAT phải nộp'));
+      if (m.tinh_chat === 'chi_phi') {
+        vungRieng.append(truong('VAT trên hóa đơn (nếu có)', oTien('vat_dau_vao', null), 'Phần VAT đã nằm trong số tiền, dùng để tính VAT phải nộp'));
+        // Kỳ chi phí: tiền điện, nước… của tháng trước nhưng chi tháng này thì chọn tháng trước → tính vào lãi lỗ tháng trước
+        const kyChon = oChon('ky_chi_phi', cacKy(), kyMacDinh || cacKy()[0].value, { trong: null, 'aria-label': 'Chi phí của tháng' });
+        vungRieng.append(truong('Chi phí của tháng', kyChon, 'Hóa đơn của tháng trước (điện, nước, mặt bằng…) thì chọn tháng trước để tính đúng kỳ. Tháng đã chốt sổ thì không chọn được.'));
+      }
     });
+    if (mucTen) { const m = mucChi.find((x) => x.ten === mucTen); if (m) { chonMuc.value = String(m.id); chonMuc.dispatchEvent(new Event('change')); } }
     const form = h('form', { class: 'luoi-o', novalidate: true },
       truong('Mục chi', chonMuc, null, { batBuoc: true }),
       truong('Số tiền', oTien('so_tien', null), null, { batBuoc: true }),
@@ -115,4 +132,7 @@ export default async function trangDeNghi(el) {
   }
 
   await tai();
+  // Mở sẵn form từ trang Kết quả kinh doanh: #/de-nghi?lap=1&muc=Điện&ky=2026-10-01
+  const thamSo = new URLSearchParams(location.hash.split('?')[1] || '');
+  if (thamSo.get('lap')) { history.replaceState(null, '', '#/de-nghi'); await moLap({ mucTen: thamSo.get('muc'), kyMacDinh: thamSo.get('ky') }); }
 }

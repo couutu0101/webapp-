@@ -3,6 +3,7 @@
 //  - Công nợ phải thu hiện tại: khách hàng và hãng bảo hiểm, từng hồ sơ đã giao xe còn nợ; nợ nhà cung cấp (phải trả).
 import { h, bienSo, tien, ngay, ngayGio, homNay, bang, taiTepCSV, NHOM_BAO_CAO, nhomBaoCao, nhanTrangThai, dat, nhoPhien, moModal, oTien, oVung, truong, docForm, toast, xacNhan, chay } from '../ui.js';
 import * as api from '../api.js';
+import { bieuDoDuong } from '../bieu-do.js';
 
 const NGUON = { bao_hiem: 'Bảo hiểm trả', khach: 'Khách trả', dich_vu_nhanh: 'Dịch vụ nhanh', giam_gia: 'Giảm giá cho khách' };
 
@@ -183,43 +184,115 @@ export default async function trangDoanhThu(el) {
     veBang();
   }
   // ---------------- Kết quả kinh doanh ----------------
+  //  Mỗi tháng một cột (sang tháng mới tự có cột mới, tháng cũ vẫn còn), biểu đồ tăng giảm, trạng thái từng tháng,
+  //  checklist trước khi chốt (lương, chi phí định kỳ như điện, đề nghị chi chưa chi). Kỳ khóa ở ngày cuối tháng.
   async function veKqkd() {
-    const ds = await api.ketQuaKinhDoanh();
+    const tatCa = await api.ketQuaKinhDoanh();            // tăng dần theo tháng
     const gd = api.coVaiTro('giam_doc'); const kt = api.coVaiTro('ke_toan', 'giam_doc');
     const nhanThang = (d) => `${String(d.thang).slice(5, 7)}/${String(d.thang).slice(0, 4)}`;
+    const namCua = (d) => String(d.thang).slice(0, 4);
+    const cacNam = [...new Set(tatCa.map(namCua))].sort().reverse();
+    let nam = nhoPhien.doc('kqkd_nam') || homNay().slice(0, 4);
+    if (!cacNam.includes(nam)) nam = cacNam[0] || homNay().slice(0, 4);
+    const ds = tatCa.filter((d) => namCua(d) === nam);
+    const so = (v) => Number(v) || 0;
+    const phanTram = (tu, mau) => (mau ? `${((tu / Math.abs(mau)) * 100).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}%` : '—');
+    const tangTruong = (cur, prev) => (prev === null || prev === undefined || !so(prev) ? null : (so(cur) - so(prev)) / Math.abs(so(prev)));
+    const oTang = (tt, { tot = true } = {}) => {
+      if (tt === null) return h('span', { class: 'mo' }, '—');
+      const len = tt >= 0; const lenTot = tot ? len : !len;
+      return h('span', { class: `tang-truong ${lenTot ? 'tot' : 'xau'}` }, `${len ? '▲' : '▼'} ${Math.abs(tt * 100).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}%`);
+    };
+    const NHAN_TT = { dang_mo: ['Đang mở', 'tt-mo'], cho_chot: ['Chờ chốt', 'tt-canh-bao'], da_chot: ['Đã chốt', 'tt-tot'] };
+    const theTT = (d) => h('span', { class: `nhan ${NHAN_TT[d.trang_thai][1]}`, title: d.da_chot ? `Chốt lúc ${ngayGio(d.chot_luc)}` : `Kỳ 01/${nhanThang(d)} – ${ngay(d.ngay_cuoi)}` }, NHAN_TT[d.trang_thai][0]);
+
+    // ----- Ô số tháng gần nhất + lũy kế năm -----
+    const cuoi = ds[ds.length - 1]; const truoc = ds[ds.length - 2];
+    const luyKe = (k) => ds.reduce((t, d) => t + so(d[k]), 0);
+    const oSo = (nhan, giaTri, phu, { tt = null } = {}) => h('div', { class: 'o-dem' }, h('b', null, giaTri), h('span', null, nhan), phu ? h('small', { class: 'o-dem-phu' }, phu) : null);
+    const khoiSo = cuoi ? h('section', { class: 'luoi-dem tien' },
+      oSo(`Doanh thu tháng ${nhanThang(cuoi)}`, tien(cuoi.doanh_thu) || '0', h('span', null, oTang(tangTruong(cuoi.doanh_thu, truoc?.doanh_thu)), truoc ? ` so với ${nhanThang(truoc)}` : '')),
+      oSo(`Lãi gộp tháng ${nhanThang(cuoi)}`, tien(cuoi.lai_gop) || '0', h('span', null, `Tỷ suất ${phanTram(so(cuoi.lai_gop), so(cuoi.doanh_thu))} · `, oTang(tangTruong(cuoi.lai_gop, truoc?.lai_gop)))),
+      h('div', { class: 'o-dem' }, h('b', { class: so(cuoi.lai_truoc_thue) < 0 ? 'chu-loi' : 'chu-tot' }, tien(cuoi.lai_truoc_thue) || '0'), h('span', null, `Lãi trước thuế tháng ${nhanThang(cuoi)}`),
+        h('small', { class: 'o-dem-phu' }, `Tỷ suất ${phanTram(so(cuoi.lai_truoc_thue), so(cuoi.doanh_thu))} · `, oTang(tangTruong(cuoi.lai_truoc_thue, truoc?.lai_truoc_thue)))),
+      h('div', { class: 'o-dem' }, h('b', { class: luyKe('lai_truoc_thue') < 0 ? 'chu-loi' : 'chu-tot' }, tien(luyKe('lai_truoc_thue')) || '0'), h('span', null, `Lãi trước thuế lũy kế năm ${nam}`),
+        h('small', { class: 'o-dem-phu' }, `Doanh thu lũy kế ${tien(luyKe('doanh_thu')) || '0'} đ · ${ds.length} tháng`))) : null;
+
+    // ----- Biểu đồ -----
+    const bieuDo = bieuDoDuong({
+      tieuDe: `Doanh thu – Lãi gộp – Lãi trước thuế theo tháng, năm ${nam}`,
+      phuDe: cuoi ? `Số liệu đến hết ngày ${ngay(cuoi.ngay_cuoi)}${cuoi.trang_thai === 'dang_mo' ? ' (tháng hiện tại chưa đủ, đang cập nhật)' : ''}. Rê chuột hoặc dùng phím ← → để xem từng tháng.` : '',
+      nhan: ds.map(nhanThang),
+      chuoi: [{ ten: 'Doanh thu', giaTri: ds.map((d) => so(d.doanh_thu)) }, { ten: 'Lãi gộp', giaTri: ds.map((d) => so(d.lai_gop)) }, { ten: 'Lãi trước thuế', giaTri: ds.map((d) => so(d.lai_truoc_thue)) }],
+    });
+
+    // ----- Bảng: dòng = khoản mục, cột = tháng tăng dần + Lũy kế năm -----
     const DONG = [
       ['Doanh thu bảo hiểm', 'doanh_thu_bh'], ['Doanh thu khách', 'doanh_thu_khach'], ['Dịch vụ nhanh', 'doanh_thu_dvn'], ['Giảm giá cho khách', 'giam_gia'],
       ['DOANH THU (sau VAT)', 'doanh_thu', 'dam'],
+      ['Tăng trưởng doanh thu so tháng trước', 'tang_dt', 'ty_le'],
       ['Vật tư, phụ tùng xuất cho xe', 'gia_von_xe', 'tru'], ['Vật tư dùng chung xưởng', 'gia_von_dung_chung', 'tru'], ['Chi phí nhóm Giá vốn (sơn, thuê ngoài…)', 'chi_gia_von', 'tru'],
-      ['LÃI GỘP', 'lai_gop', 'dam'],
-      ['Lương (bảng lương tháng)', 'luong', 'tru'], ['Hoa hồng GDV', 'hoa_hong', 'tru'], ['Chi phí vận hành', 'chi_van_hanh', 'tru'], ['Chi phí cố định', 'chi_co_dinh', 'tru'],
-      ['LÃI TRƯỚC THUẾ', 'lai_truoc_thue', 'dam'],
+      ['LÃI GỘP', 'lai_gop', 'dam'], ['Tỷ suất lãi gộp / doanh thu', 'ts_lai_gop', 'ty_le'],
+      ['Lương (bảng lương tháng)', 'luong', 'tru'], ['Hoa hồng GDV', 'hoa_hong', 'tru'], ['Chi phí vận hành', 'chi_van_hanh', 'tru'], ['Chi phí cố định (điện, mặt bằng…)', 'chi_co_dinh', 'tru'],
+      ['LÃI TRƯỚC THUẾ', 'lai_truoc_thue', 'dam'], ['Tỷ suất lãi trước thuế / doanh thu', 'ts_lai', 'ty_le'],
       ['VAT đầu ra (trong doanh thu)', 'vat_ra', 'phu'], ['VAT đầu vào (hóa đơn mua)', 'vat_vao', 'phu'], ['Số xe có doanh thu', 'so_xe', 'phu'],
-    ];
-    const cot = [{ nhan: 'Khoản mục', lay: (r) => h('span', { class: r.kieu === 'dam' ? 'dam' : r.kieu === 'phu' ? 'mo' : '' }, r.nhan), xuat: (r) => r.nhan },
-      ...ds.map((d) => ({ nhan: h('span', null, nhanThang(d), d.da_chot ? h('span', { class: 'nhan tt-tot', title: `Chốt ${ngayGio(d.chot_luc)}` }, 'Đã chốt') : null), so: true,
-        lay: (r) => h('span', { class: `${r.kieu === 'dam' ? 'dam' : ''} ${r.kieu === 'tru' ? 'mo' : ''} ${r.khoa === 'lai_truoc_thue' ? (Number(d[r.khoa]) < 0 ? 'chu-loi' : 'chu-tot') : ''}` },
-          r.khoa === 'so_xe' ? d[r.khoa] : (r.kieu === 'tru' && Number(d[r.khoa]) ? `− ${tien(d[r.khoa])}` : tien(d[r.khoa]) || '0')),
-        xuat: (r) => Number(d[r.khoa]) }))];
-    const dong = DONG.map(([nhan, khoa, kieu]) => ({ nhan, khoa, kieu }));
-    const nutThang = (d) => {
-      const thangNay = String(d.thang).slice(0, 7) >= homNay().slice(0, 7);
-      return h('span', { class: 'hang-nut' },
-        kt && !d.da_chot ? h('button', { class: 'nut nho', type: 'button', onclick: () => moLuong(d) }, 'Nhập lương') : null,
-        gd && !d.da_chot && !thangNay ? h('button', { class: 'nut nho chinh', type: 'button', 'data-chot': String(d.thang), onclick: async () => {
-          if (!(await xacNhan(`Chốt tháng ${nhanThang(d)}? Sau khi chốt không ghi hay sửa được phiếu, hồ sơ của tháng này; cổ đông sẽ xem được số tổng.`, 'Chốt tháng'))) return;
-          await chay(() => api.chotThang(d.thang), { thanhCong: `Đã chốt tháng ${nhanThang(d)}.` }).then(ve, ve);
-        } }, 'Chốt tháng') : null,
-        gd && d.da_chot ? h('button', { class: 'nut nho', type: 'button', onclick: () => moMoLai(d) }, 'Mở lại') : null);
+    ].map(([nhan, khoa, kieu]) => ({ nhan, khoa, kieu }));
+    const giaTriO = (r, d, dTruoc) => {
+      if (r.khoa === 'tang_dt') return oTang(tangTruong(d.doanh_thu, dTruoc?.doanh_thu));
+      if (r.khoa === 'ts_lai_gop') return h('span', { class: 'mo' }, phanTram(so(d.lai_gop), so(d.doanh_thu)));
+      if (r.khoa === 'ts_lai') return h('span', { class: 'mo' }, phanTram(so(d.lai_truoc_thue), so(d.doanh_thu)));
+      if (r.khoa === 'so_xe') return h('span', { class: 'mo' }, d.so_xe);
+      const v = so(d[r.khoa]);
+      return h('span', { class: `${r.kieu === 'dam' ? 'dam' : ''} ${r.kieu === 'tru' || r.kieu === 'phu' ? 'mo' : ''} ${r.khoa === 'lai_truoc_thue' || r.khoa === 'lai_gop' ? (v < 0 ? 'chu-loi' : '') : ''}` },
+        r.kieu === 'tru' && v ? `− ${tien(v)}` : tien(v) || '0');
     };
+    const xuatO = (r, d, dTruoc) => {
+      if (r.khoa === 'tang_dt') { const t = tangTruong(d.doanh_thu, dTruoc?.doanh_thu); return t === null ? '' : Math.round(t * 1000) / 10; }
+      if (r.khoa === 'ts_lai_gop') return so(d.doanh_thu) ? Math.round((so(d.lai_gop) / so(d.doanh_thu)) * 1000) / 10 : '';
+      if (r.khoa === 'ts_lai') return so(d.doanh_thu) ? Math.round((so(d.lai_truoc_thue) / so(d.doanh_thu)) * 1000) / 10 : '';
+      return so(d[r.khoa]);
+    };
+    const tong = { thang: null };
+    for (const r of DONG) tong[r.khoa] = ['tang_dt', 'ts_lai_gop', 'ts_lai'].includes(r.khoa) ? null : ds.reduce((t, d) => t + so(d[r.khoa]), 0);
+    const cot = [{ nhan: 'Khoản mục', lay: (r) => h('span', { class: r.kieu === 'dam' ? 'dam' : r.kieu === 'phu' || r.kieu === 'ty_le' ? 'mo' : '' }, r.nhan), xuat: (r) => r.nhan },
+      ...ds.map((d, i) => ({ nhan: h('span', { class: 'cot-thang' }, nhanThang(d), h('br'), theTT(d)), so: true, lay: (r) => giaTriO(r, d, ds[i - 1]), xuat: (r) => xuatO(r, d, ds[i - 1]) })),
+      { nhan: h('span', { class: 'cot-thang' }, `Lũy kế ${nam}`, h('br'), h('small', { class: 'mo' }, `${ds.length} tháng`)), so: true,
+        lay: (r) => (r.khoa === 'tang_dt' ? '' : giaTriO(r, { ...tong, so_xe: tong.so_xe }, null)), xuat: (r) => (r.khoa === 'tang_dt' ? '' : xuatO(r, tong, null)) }];
+    const chonNam = cacNam.length > 1 ? h('select', { 'aria-label': 'Năm', onchange: (e) => { nhoPhien.ghi('kqkd_nam', e.target.value); ve(); } },
+      cacNam.map((n) => h('option', { value: n, selected: n === nam }, `Năm ${n}`))) : null;
+
+    // ----- Khóa sổ từng tháng -----
+    const dongThang = (d) => {
+      const thieu = d.thieu_dinh_ky || [];
+      const nutLap = (ten) => h('a', { class: 'nut nho', href: `#/de-nghi?lap=1&muc=${encodeURIComponent(ten)}&ky=${String(d.thang).slice(0, 10)}` }, `+ ${ten}`);
+      return h('div', { class: `dong-thang ${d.trang_thai}` },
+        h('div', { class: 'dong-thang-dau' }, h('b', null, `Tháng ${nhanThang(d)}`), h('small', null, ` kỳ 01/${nhanThang(d)} – ${ngay(d.ngay_cuoi)}`), theTT(d),
+          d.da_chot ? h('small', null, ` · chốt lúc ${ngayGio(d.chot_luc)}`) : null),
+        d.da_chot ? null : h('ul', { class: 'checklist' },
+          h('li', { class: d.luong_da_nhap ? 'xong' : 'thieu' }, d.luong_da_nhap ? `✓ Lương tháng: ${tien(d.luong)} đ` : '✗ Chưa nhập bảng lương tháng',
+            kt ? h('button', { class: 'nut nho', type: 'button', onclick: () => moLuong(d) }, d.luong_da_nhap ? 'Sửa lương' : 'Nhập lương') : null),
+          h('li', { class: thieu.length ? 'thieu' : 'xong' }, thieu.length ? ['✗ Chi phí định kỳ chưa có: ', thieu.map((t) => nutLap(t))] : '✓ Chi phí định kỳ (điện, nước, mặt bằng…) đã có đủ'),
+          h('li', { class: so(d.de_nghi_cho_chi) ? 'thieu' : 'xong' }, so(d.de_nghi_cho_chi) ? ['✗ ', h('a', { href: '#/de-nghi' }, `${d.de_nghi_cho_chi} đề nghị chi của kỳ chưa chi`)] : '✓ Không còn đề nghị chi chờ của kỳ')),
+        h('div', { class: 'hang-nut' },
+          gd && d.trang_thai === 'cho_chot' ? h('button', { class: 'nut nho chinh', type: 'button', 'data-chot': String(d.thang), onclick: async () => {
+            if (!(await xacNhan(`Chốt tháng ${nhanThang(d)} (kỳ 01/${nhanThang(d)} – ${ngay(d.ngay_cuoi)})? Sau khi chốt không ghi hay sửa được phiếu, hồ sơ, chi phí của tháng này; cổ đông sẽ xem được số tổng.`, 'Chốt tháng'))) return;
+            await chay((boQua) => api.chotThang(d.thang, boQua), { thanhCong: `Đã chốt tháng ${nhanThang(d)}.` }).then(ve, () => {});
+          } }, 'Chốt tháng') : null,
+          d.trang_thai === 'dang_mo' ? h('small', { class: 'mo' }, `Chốt được từ ngày ${ngay(new Date(new Date(d.ngay_cuoi).getTime() + 864e5).toISOString())}; tiền điện, lương của tháng nhập sau ngày đó vẫn tính vào tháng này (chọn "Chi phí của tháng" khi lập đề nghị chi).`) : null,
+          gd && d.da_chot ? h('button', { class: 'nut nho', type: 'button', onclick: () => moMoLai(d) }, 'Mở lại') : null));
+    };
+
     dat(ketQua,
-      ds.length ? h('section', { class: 'the' },
+      khoiSo,
+      h('section', { class: 'the' }, bieuDo),
+      h('section', { class: 'the' },
         h('div', { class: 'the-dau' }, h('h2', null, 'Kết quả kinh doanh theo tháng'),
-          gd ? h('button', { class: 'nut', type: 'button', onclick: () => taiTepCSV('ket-qua-kinh-doanh.csv', cot, dong) }, 'Tải file CSV') : null),
-        h('div', { class: 'bang-cuon' }, bang(cot, dong)),
-        h('div', { class: 'ds-thang-kqkd' }, ds.map((d) => h('div', { class: 'dong-thang' }, h('b', null, nhanThang(d)),
-          d.da_chot ? h('small', null, ` đã chốt ${ngayGio(d.chot_luc)}`) : h('small', null, ' đang mở'), nutThang(d)))))
-        : h('section', { class: 'the' }, h('p', { class: 'trong' }, 'Chưa có số liệu tháng nào.')));
+          h('div', { class: 'hang-nut' }, chonNam, gd ? h('button', { class: 'nut', type: 'button', onclick: () => taiTepCSV(`ket-qua-kinh-doanh-${nam}.csv`, cot, DONG) }, 'Tải file CSV') : null)),
+        ds.length ? bang(cot, DONG) : h('p', { class: 'trong' }, 'Chưa có số liệu.')),
+      h('section', { class: 'the' },
+        h('h2', null, 'Khóa sổ tháng'),
+        h('p', { class: 'goi-y' }, 'Kỳ báo cáo khóa ở ngày cuối tháng. Các khoản nhập sau (tiền điện, lương…) chọn đúng tháng là vẫn tính vào tháng đó. Chốt xong thì không ghi, sửa gì vào tháng đó nữa; cổ đông chỉ xem tháng đã chốt.'),
+        h('div', { class: 'ds-thang-kqkd' }, [...ds].reverse().map(dongThang))));
 
     function moLuong(d) {
       const form = h('form', null, truong(`Tổng lương tháng ${nhanThang(d)}`, oTien('tong', Number(d.luong) || null), 'Nhập một số tổng; phiếu chi trả lương chỉ là chi tiền, không tính hai lần.', { batBuoc: true }));

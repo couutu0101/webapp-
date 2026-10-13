@@ -465,3 +465,39 @@ a.o-dem:not(.mo) b { color: var(--muc); }
 .ds-thang-kqkd .dong-thang small { color: var(--muc-phu); flex: 1; }
 td .dam, th .dam { font-weight: 700; } td .mo { color: var(--muc-phu); }
 .nhan.tt-tot { background: var(--tot-nhat); color: var(--tot); margin-left: 6px; }
+
+/* Biểu đồ đường (bieu-do.js) – màu theo bảng dataviz đã kiểm, chữ dùng màu chữ, không dùng màu chuỗi */
+.bieu-do { position: relative; }
+.bieu-do-dau h3 { margin: 0 0 2px; font-size: 1.05rem; }
+.bieu-do-dau .mo-ta { margin: 0 0 8px; }
+.bieu-do-chu-giai { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-bottom: 6px; font-size: .9rem; color: var(--muc-phu); }
+.bieu-do-chu-giai span, .bieu-do-hop-dong { display: inline-flex; align-items: center; gap: 8px; }
+.khoa-duong { display: inline-block; width: 16px; height: 2px; border-radius: 2px; }
+.bieu-do-vung { position: relative; outline: none; border-radius: var(--bo); }
+.bieu-do-vung:focus-visible { box-shadow: 0 0 0 2px var(--vang); }
+.bieu-do-svg { display: block; width: 100%; height: auto; font-family: inherit; }
+.bd-luoi { stroke: #e1e0d9; stroke-width: 1; }
+.bd-goc { stroke: #c3c2b7; stroke-width: 1; }
+.bd-truc { fill: #898781; font-size: 12px; font-variant-numeric: tabular-nums; }
+.bd-nhan-cuoi { fill: #52514e; font-size: 12px; font-weight: 600; }
+.bd-dan { stroke: #c3c2b7; stroke-width: 1; }
+.bd-chu-thap { stroke: #898781; stroke-width: 1; }
+.bieu-do-hop { position: absolute; z-index: 2; background: var(--mat); border: 1px solid var(--vien); border-radius: var(--bo); box-shadow: 0 6px 20px rgba(0,0,0,.12); padding: 8px 12px; font-size: .9rem; pointer-events: none; min-width: 200px; }
+.bieu-do-hop-dau { font-weight: 700; margin-bottom: 4px; }
+.bieu-do-hop-dong { display: flex; gap: 8px; padding: 2px 0; }
+.bieu-do-hop-dong b { font-variant-numeric: tabular-nums; min-width: 92px; text-align: right; }
+.bieu-do-hop-dong span { color: var(--muc-phu); }
+
+/* Kết quả kinh doanh */
+.o-dem .o-dem-phu { font-size: .82rem; color: var(--muc-phu); margin-top: 4px; }
+.tang-truong { font-weight: 700; } .tang-truong.tot { color: #006300; } .tang-truong.xau { color: var(--loi); }
+.cot-thang { white-space: nowrap; }
+.cot-thang .nhan { margin: 2px 0 0; display: inline-block; }
+.nhan.tt-mo { background: var(--xanh-nhat); color: var(--xanh); }
+.ds-thang-kqkd .dong-thang { display: block; padding: 10px 0; border-top: 1px solid var(--vien); }
+.ds-thang-kqkd .dong-thang-dau { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.ds-thang-kqkd .dong-thang-dau small { color: var(--muc-phu); }
+.checklist { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.checklist li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.checklist li.xong { color: var(--tot); } .checklist li.thieu { color: var(--cam); }
+.checklist li .nut { color: var(--muc); }

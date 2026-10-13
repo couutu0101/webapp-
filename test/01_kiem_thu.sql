@@ -668,19 +668,49 @@ select kt.ghi('024 Có cờ trả dư: nợ khách âm 1.000 (khách trả dư)'
 select kt.ghi('024 Có mục thu Tiền bo của khách', exists (select 1 from public.muc_thu_chi where ten = 'Tiền bo của khách' and tinh_chat = 'thu_khac'));
 select kt.dong_vai(null);
 
--- ---------- 025: kết quả kinh doanh, chốt tháng ----------
+-- ---------- 025 + 026: kết quả kinh doanh, kỳ chi phí, chốt tháng ----------
 select kt.dong_vai('thuan@gara.vn');
 select kt.ghi('025 Kết quả kinh doanh có tháng hiện tại, doanh thu = tổng v_doanh_thu',
   (select doanh_thu from public.ket_qua_kinh_doanh() where thang = date_trunc('month', current_date)::date)
   = (select coalesce(sum(so_tien),0) from public.v_doanh_thu where ngay >= date_trunc('month', current_date)::date),
   (select doanh_thu::text || ' / ' || gia_von_xe::text || ' / ' || lai_truoc_thue::text from public.ket_qua_kinh_doanh() where thang = date_trunc('month', current_date)::date));
 select kt.ghi('025 Lãi gộp = doanh thu − giá vốn', (select bool_and(lai_gop = doanh_thu - gia_von_xe - gia_von_dung_chung - chi_gia_von) from public.ket_qua_kinh_doanh()));
+select kt.ghi('026 Có đủ các tháng liên tục đến tháng hiện tại, tháng hiện tại = Đang mở',
+  (select trang_thai from public.ket_qua_kinh_doanh() where thang = date_trunc('month', current_date)::date) = 'dang_mo'
+  and (select count(*) from public.ket_qua_kinh_doanh()) = (select (extract(year from age(date_trunc('month', current_date), min(thang))) * 12 + extract(month from age(date_trunc('month', current_date), min(thang))) + 1) from public.ket_qua_kinh_doanh()));
 select kt.mong_loi('025 Không chốt được tháng hiện tại', 'select public.chot_thang(current_date)', 'đã qua');
 select public.mo_lai_thang((date_trunc('month', current_date) - interval '1 month')::date, 'Mở lại tháng đã khóa ở bài thử trước');
 select kt.ghi('025 Mở lại tháng đã chốt (giám đốc, có lý do)', (select count(*) from public.chot_thang) = 0);
+select kt.ghi('026 Tháng chưa có gì thì chưa có trong báo cáo', not exists (select 1 from public.ket_qua_kinh_doanh() where thang = (date_trunc('month', current_date) - interval '1 month')::date));
 select public.nhap_bang_luong((date_trunc('month', current_date) - interval '1 month')::date, 30000000);
-select kt.ghi('025 Chốt tháng trước được, có số liệu lương', (select (public.chot_thang((date_trunc('month', current_date) - interval '1 month')::date)->>'luong')::numeric) = 30000000);
+select kt.ghi('026 Nhập lương tháng trước → tháng trước = Chờ chốt, lương đã nhập, còn thiếu chi phí định kỳ (Điện...)',
+  (select trang_thai = 'cho_chot' and luong_da_nhap and 'Điện' = any(thieu_dinh_ky) from public.ket_qua_kinh_doanh() where thang = (date_trunc('month', current_date) - interval '1 month')::date),
+  (select array_to_string(thieu_dinh_ky, ', ') from public.ket_qua_kinh_doanh() where thang = (date_trunc('month', current_date) - interval '1 month')::date));
+select kt.mong_loi('026 Chốt khi còn thiếu → cảnh báo CANH_BAO', format('select public.chot_thang(%L)', (date_trunc('month', current_date) - interval '1 month')::date), 'CANH_BAO');
+select kt.dong_vai(null);
+-- Tiền điện tháng trước, lập đề nghị chi trong tháng này với kỳ chi phí = tháng trước
+select kt.dong_vai('duy@gara.vn');
+insert into ctx select 'dn_dien', public.lap_de_nghi_chi(jsonb_build_object('muc_id',(select id from public.muc_thu_chi where ten='Điện'),
+  'so_tien',1500000,'noi_dung','Tiền điện','ky_chi_phi',(date_trunc('month', current_date) - interval '1 month')::date))::text;
+select kt.ghi('026 Đề nghị chi ghi rõ kỳ vào nội dung', (select noi_dung like '%chi phí tháng %' from public.de_nghi_chi where id = (select v::bigint from ctx where k='dn_dien')),
+  (select noi_dung from public.de_nghi_chi where id = (select v::bigint from ctx where k='dn_dien')));
+select kt.mong_loi('026 Kỳ chi phí sau tháng hiện tại bị chặn', format($$select public.lap_de_nghi_chi(jsonb_build_object('muc_id',(select id from public.muc_thu_chi where ten='Điện'),'so_tien',1,'noi_dung','x','ky_chi_phi',%L))$$, (date_trunc('month', current_date) + interval '1 month')::date), 'sau tháng');
+select kt.dong_vai(null);
+select kt.dong_vai('thuan@gara.vn');
+select kt.ghi('026 Có đề nghị Điện → hết thiếu Điện, kỳ có 1 đề nghị chưa chi',
+  (select not ('Điện' = any(thieu_dinh_ky)) and de_nghi_cho_chi = 1 from public.ket_qua_kinh_doanh() where thang = (date_trunc('month', current_date) - interval '1 month')::date));
+select public.duyet_de_nghi_chi((select v::bigint from ctx where k='dn_dien'), true);
+select kt.dong_vai(null);
+select kt.dong_vai('tien@gara.vn');
+select public.chi_tien((select v::bigint from ctx where k='dn_dien'), (select id from public.tai_khoan_quy where ten='Tiền mặt'));
+select kt.dong_vai(null);
+select kt.dong_vai('thuan@gara.vn');
+select kt.ghi('026 Chi tiền tháng này nhưng tính vào chi phí cố định tháng trước',
+  (select chi_co_dinh from public.ket_qua_kinh_doanh() where thang = (date_trunc('month', current_date) - interval '1 month')::date) = 1500000
+  and (select ky_chi_phi from public.phieu_thu_chi where de_nghi_chi_id = (select v::bigint from ctx where k='dn_dien')) = (date_trunc('month', current_date) - interval '1 month')::date);
+select kt.ghi('025 Chốt tháng trước (bỏ qua cảnh báo), có số liệu lương', (select (public.chot_thang((date_trunc('month', current_date) - interval '1 month')::date, true)->>'luong')::numeric) = 30000000);
 select kt.mong_loi('025 Tháng đã chốt không ghi được phiếu', format($$select public.lap_phieu_thu(jsonb_build_object('tai_khoan_id',(select id from public.tai_khoan_quy where ten='Tiền mặt'),'muc_id',(select id from public.muc_thu_chi where ten='Thu khác'),'so_tien',1000,'ngay',%L))$$, (date_trunc('month', current_date) - interval '1 day')::date), 'đã chốt');
+select kt.mong_loi('026 Kỳ chi phí đã chốt không lập đề nghị được', format($$select public.lap_de_nghi_chi(jsonb_build_object('muc_id',(select id from public.muc_thu_chi where ten='Nước'),'so_tien',1,'noi_dung','x','ky_chi_phi',%L))$$, (date_trunc('month', current_date) - interval '1 month')::date), 'đã chốt');
 select kt.ghi('025 Cổ đông xem được tháng đã chốt', (select count(*) from public.bao_cao_co_dong()) = 1);
 select kt.mong_loi('025 Mở lại tháng phải có lý do', 'select public.mo_lai_thang(current_date - 31, null)', 'lý do');
 select public.mo_lai_thang((date_trunc('month', current_date) - interval '1 month')::date, 'Thử');
