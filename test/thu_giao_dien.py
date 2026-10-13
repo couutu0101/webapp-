@@ -228,6 +228,11 @@ with sync_playwright() as p:
 
     duy.locator('button', has_text='Lập lệnh sửa chữa').click()
     m = modal(duy)
+    import datetime as _dt
+    mac_dinh = (_dt.date.today() + _dt.timedelta(days=3)).strftime('%d/%m/%Y')
+    expect(m.locator('.o-ngay-gio-khung [data-phan=ngay]')).to_have_value(mac_dinh)
+    expect(m.locator('.o-ngay-gio-khung [data-phan=gio]')).to_have_value('17')
+    ghi('Giờ hẹn giao mặc định sau 3 ngày 17:00: ' + mac_dinh)
     m.locator('.o-ngay-gio-khung [data-phan=ngay]').fill('14/10/2026')
     m.locator('.o-ngay-gio-khung [data-phan=gio]').select_option('17')
     m.locator('.o-ngay-gio-khung [data-phan=phut]').select_option('00')

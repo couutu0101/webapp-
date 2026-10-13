@@ -350,7 +350,9 @@ function theSuaChua({ hs, hm, ps, ve }) {
 }
 
 function moLenh(hs, ds, ve) {
-  const oHenKhung = oNgayGioVN('hen_giao', hs.hen_giao, { batBuoc: !hs.hen_giao });
+  // Chưa có giờ hẹn: mặc định sau N ngày (cài đặt so_ngay_hen_giao, 3) lúc 17:00; người lập lệnh sửa lại nếu khác
+  const henMacDinh = () => { const d = new Date(); d.setDate(d.getDate() + api.caiDat('so_ngay_hen_giao', 3)); d.setHours(17, 0, 0, 0); return d; };
+  const oHenKhung = oNgayGioVN('hen_giao', hs.hen_giao || henMacDinh(), { batBuoc: !hs.hen_giao });
   const oHen = oHenKhung.querySelector('input[name=hen_giao]');
   const dongs = ds.map((m) => {
     const to = oChon('to', api.dm.to_thuc_hien.map((t) => ({ value: t.id, label: t.ten })),
@@ -364,7 +366,7 @@ function moLenh(hs, ds, ve) {
     return { m, to, nguoi, el: h('tr', null, h('td', null, m.ten), h('td', null, to), h('td', null, nguoi)) };
   });
   moModal('Lệnh sửa chữa', h('div', null,
-    truong('Giờ hẹn giao xe', oHenKhung, 'Ngày dd/mm/yyyy · giờ 24h', { batBuoc: !hs.hen_giao }),
+    truong('Giờ hẹn giao xe', oHenKhung, hs.hen_giao ? 'Ngày dd/mm/yyyy · giờ 24h' : `Mặc định sau ${api.caiDat('so_ngay_hen_giao', 3)} ngày, 17:00 – sửa lại nếu khác`, { batBuoc: !hs.hen_giao }),
     h('div', { class: 'bang-cuon' }, h('table', { class: 'bang' },
       h('thead', null, h('tr', null, h('th', null, 'Hạng mục'), h('th', null, 'Tổ'), h('th', null, 'Người làm'))),
       h('tbody', null, dongs.map((d) => d.el))))), {
