@@ -667,6 +667,28 @@ select public.lap_phieu_thu(jsonb_build_object(
 select kt.ghi('024 Có cờ trả dư: nợ khách âm 1.000 (khách trả dư)', (select con_no_khach from public.tien_ho_so((select v::bigint from ctx where k='hs1'))) = -1000);
 select kt.ghi('024 Có mục thu Tiền bo của khách', exists (select 1 from public.muc_thu_chi where ten = 'Tiền bo của khách' and tinh_chat = 'thu_khac'));
 select kt.dong_vai(null);
+
+-- ---------- 025: kết quả kinh doanh, chốt tháng ----------
+select kt.dong_vai('thuan@gara.vn');
+select kt.ghi('025 Kết quả kinh doanh có tháng hiện tại, doanh thu = tổng v_doanh_thu',
+  (select doanh_thu from public.ket_qua_kinh_doanh() where thang = date_trunc('month', current_date)::date)
+  = (select coalesce(sum(so_tien),0) from public.v_doanh_thu where ngay >= date_trunc('month', current_date)::date),
+  (select doanh_thu::text || ' / ' || gia_von_xe::text || ' / ' || lai_truoc_thue::text from public.ket_qua_kinh_doanh() where thang = date_trunc('month', current_date)::date));
+select kt.ghi('025 Lãi gộp = doanh thu − giá vốn', (select bool_and(lai_gop = doanh_thu - gia_von_xe - gia_von_dung_chung - chi_gia_von) from public.ket_qua_kinh_doanh()));
+select kt.mong_loi('025 Không chốt được tháng hiện tại', 'select public.chot_thang(current_date)', 'đã qua');
+select public.mo_lai_thang((date_trunc('month', current_date) - interval '1 month')::date, 'Mở lại tháng đã khóa ở bài thử trước');
+select kt.ghi('025 Mở lại tháng đã chốt (giám đốc, có lý do)', (select count(*) from public.chot_thang) = 0);
+select public.nhap_bang_luong((date_trunc('month', current_date) - interval '1 month')::date, 30000000);
+select kt.ghi('025 Chốt tháng trước được, có số liệu lương', (select (public.chot_thang((date_trunc('month', current_date) - interval '1 month')::date)->>'luong')::numeric) = 30000000);
+select kt.mong_loi('025 Tháng đã chốt không ghi được phiếu', format($$select public.lap_phieu_thu(jsonb_build_object('tai_khoan_id',(select id from public.tai_khoan_quy where ten='Tiền mặt'),'muc_id',(select id from public.muc_thu_chi where ten='Thu khác'),'so_tien',1000,'ngay',%L))$$, (date_trunc('month', current_date) - interval '1 day')::date), 'đã chốt');
+select kt.ghi('025 Cổ đông xem được tháng đã chốt', (select count(*) from public.bao_cao_co_dong()) = 1);
+select kt.mong_loi('025 Mở lại tháng phải có lý do', 'select public.mo_lai_thang(current_date - 31, null)', 'lý do');
+select public.mo_lai_thang((date_trunc('month', current_date) - interval '1 month')::date, 'Thử');
+select kt.ghi('025 Mở lại xong hết chốt', (select count(*) from public.chot_thang) = 0);
+select kt.dong_vai(null);
+select kt.dong_vai('duy@gara.vn');
+select kt.mong_loi('025 CVDV không xem được kết quả kinh doanh', 'select * from public.ket_qua_kinh_doanh()', 'quyền');
+select kt.dong_vai(null);
 \o
 \echo '======== KẾT QUẢ ========'
 select stt, case when dat then 'ĐẠT ' else 'LỖI ' end as kq, ten, left(coalesce(chi_tiet,''), 140) as chi_tiet from kt.ket_qua order by stt;

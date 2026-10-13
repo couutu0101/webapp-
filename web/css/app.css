@@ -458,3 +458,10 @@ a.o-dem:not(.mo) b { color: var(--muc); }
 .o-ngay-gio-khung .hai-cham { font-weight: 700; }
 .o-ngay-gio-khung select { width: 62px; min-width: 0; padding-left: 8px; padding-right: 2px; }
 .o-ngay-gio-khung input[type=text] { min-width: 0; padding-left: 7px; padding-right: 4px; letter-spacing: -.01em; }
+
+/* Kết quả kinh doanh */
+.ds-thang-kqkd { display: flex; flex-direction: column; gap: 6px; margin-top: var(--k3); }
+.ds-thang-kqkd .dong-thang { display: flex; align-items: center; gap: var(--k3); flex-wrap: wrap; padding: 6px 0; border-top: 1px solid var(--vien); }
+.ds-thang-kqkd .dong-thang small { color: var(--muc-phu); flex: 1; }
+td .dam, th .dam { font-weight: 700; } td .mo { color: var(--muc-phu); }
+.nhan.tt-tot { background: var(--tot-nhat); color: var(--tot); margin-left: 6px; }

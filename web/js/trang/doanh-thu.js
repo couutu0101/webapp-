@@ -1,7 +1,7 @@
 // Doanh thu và công nợ
 //  - Doanh thu theo ngày duyệt giá (thay file BC DOANH THU THEO NGÀY). Tính sau VAT.
 //  - Công nợ phải thu hiện tại: khách hàng và hãng bảo hiểm, từng hồ sơ đã giao xe còn nợ; nợ nhà cung cấp (phải trả).
-import { h, bienSo, tien, ngay, homNay, bang, taiTepCSV, NHOM_BAO_CAO, nhomBaoCao, nhanTrangThai, dat, nhoPhien } from '../ui.js';
+import { h, bienSo, tien, ngay, ngayGio, homNay, bang, taiTepCSV, NHOM_BAO_CAO, nhomBaoCao, nhanTrangThai, dat, nhoPhien, moModal, oTien, oVung, truong, docForm, toast, xacNhan, chay } from '../ui.js';
 import * as api from '../api.js';
 
 const NGUON = { bao_hiem: 'Bảo hiểm trả', khach: 'Khách trả', dich_vu_nhanh: 'Dịch vụ nhanh', giam_gia: 'Giảm giá cho khách' };
@@ -14,7 +14,7 @@ export default async function trangDoanhThu(el) {
   const khungLoc = h('div', { class: 'hang-nut' }, h('span', { class: 'mo-ta' }, 'Lọc theo tháng:'), oThang, nutTatCa);
   const ketQua = h('div');
   oThang.addEventListener('change', () => { thang = oThang.value; ve(); });
-  const tabs = h('div', { class: 'tabs', role: 'tablist' }, [['doanh_thu', 'Doanh thu'], ['cong_no', 'Công nợ']].map(([ma, nhan]) => h('button', {
+  const tabs = h('div', { class: 'tabs', role: 'tablist' }, [['doanh_thu', 'Doanh thu'], ['cong_no', 'Công nợ'], ['kqkd', 'Kết quả kinh doanh']].map(([ma, nhan]) => h('button', {
     type: 'button', role: 'tab', 'data-ma': ma, 'aria-selected': String(ma === the),
     onclick: () => { the = ma; nhoPhien.ghi('dt_the', ma); for (const b of tabs.children) b.setAttribute('aria-selected', String(b.dataset.ma === the)); ve(); },
   }, nhan)));
@@ -31,6 +31,9 @@ export default async function trangDoanhThu(el) {
       moTa.textContent = (thang ? `Doanh thu tháng ${thang.slice(5, 7)}/${thang.slice(0, 4)}` : 'Doanh thu từ trước đến nay')
         + ' – ghi vào ngày duyệt giá (xe bảo hiểm) hoặc ngày khách đồng ý báo giá (khách lẻ), tính sau VAT. Không gồm xe bảo hành và hồ sơ chuyển từ Excel.';
       await veDoanhThu();
+    } else if (the === 'kqkd') {
+      moTa.textContent = 'Lãi lỗ từng tháng: doanh thu (sau VAT, theo ngày duyệt giá) − giá vốn (vật tư xuất kho theo tháng xuất, chi phí nhóm Giá vốn) = lãi gộp − lương (bảng lương tháng) − hoa hồng GDV (theo tháng duyệt giá của xe) − chi phí vận hành, cố định = lãi trước thuế. Giám đốc chốt tháng để khóa sổ; cổ đông chỉ xem tháng đã chốt.';
+      await veKqkd();
     } else {
       moTa.textContent = 'Công nợ phải thu tính đến hôm nay theo giá đã duyệt: cả xe đã giao lẫn xe còn trong xưởng, khách hoặc hãng bảo hiểm chưa trả đủ (gồm nợ cũ chuyển từ Excel). Nợ nhà cung cấp lấy từ Kho → Công nợ NCC.';
       await veCongNo();
@@ -178,6 +181,60 @@ export default async function trangDoanhThu(el) {
           api.coVaiTro('giam_doc') ? h('button', { class: 'nut', type: 'button', onclick: () => taiTepCSV(`cong-no_${homNay()}.csv`, cot, dsLoc()) }, 'Tải file CSV') : null),
         tabsCon, kq));
     veBang();
+  }
+  // ---------------- Kết quả kinh doanh ----------------
+  async function veKqkd() {
+    const ds = await api.ketQuaKinhDoanh();
+    const gd = api.coVaiTro('giam_doc'); const kt = api.coVaiTro('ke_toan', 'giam_doc');
+    const nhanThang = (d) => `${String(d.thang).slice(5, 7)}/${String(d.thang).slice(0, 4)}`;
+    const DONG = [
+      ['Doanh thu bảo hiểm', 'doanh_thu_bh'], ['Doanh thu khách', 'doanh_thu_khach'], ['Dịch vụ nhanh', 'doanh_thu_dvn'], ['Giảm giá cho khách', 'giam_gia'],
+      ['DOANH THU (sau VAT)', 'doanh_thu', 'dam'],
+      ['Vật tư, phụ tùng xuất cho xe', 'gia_von_xe', 'tru'], ['Vật tư dùng chung xưởng', 'gia_von_dung_chung', 'tru'], ['Chi phí nhóm Giá vốn (sơn, thuê ngoài…)', 'chi_gia_von', 'tru'],
+      ['LÃI GỘP', 'lai_gop', 'dam'],
+      ['Lương (bảng lương tháng)', 'luong', 'tru'], ['Hoa hồng GDV', 'hoa_hong', 'tru'], ['Chi phí vận hành', 'chi_van_hanh', 'tru'], ['Chi phí cố định', 'chi_co_dinh', 'tru'],
+      ['LÃI TRƯỚC THUẾ', 'lai_truoc_thue', 'dam'],
+      ['VAT đầu ra (trong doanh thu)', 'vat_ra', 'phu'], ['VAT đầu vào (hóa đơn mua)', 'vat_vao', 'phu'], ['Số xe có doanh thu', 'so_xe', 'phu'],
+    ];
+    const cot = [{ nhan: 'Khoản mục', lay: (r) => h('span', { class: r.kieu === 'dam' ? 'dam' : r.kieu === 'phu' ? 'mo' : '' }, r.nhan), xuat: (r) => r.nhan },
+      ...ds.map((d) => ({ nhan: h('span', null, nhanThang(d), d.da_chot ? h('span', { class: 'nhan tt-tot', title: `Chốt ${ngayGio(d.chot_luc)}` }, 'Đã chốt') : null), so: true,
+        lay: (r) => h('span', { class: `${r.kieu === 'dam' ? 'dam' : ''} ${r.kieu === 'tru' ? 'mo' : ''} ${r.khoa === 'lai_truoc_thue' ? (Number(d[r.khoa]) < 0 ? 'chu-loi' : 'chu-tot') : ''}` },
+          r.khoa === 'so_xe' ? d[r.khoa] : (r.kieu === 'tru' && Number(d[r.khoa]) ? `− ${tien(d[r.khoa])}` : tien(d[r.khoa]) || '0')),
+        xuat: (r) => Number(d[r.khoa]) }))];
+    const dong = DONG.map(([nhan, khoa, kieu]) => ({ nhan, khoa, kieu }));
+    const nutThang = (d) => {
+      const thangNay = String(d.thang).slice(0, 7) >= homNay().slice(0, 7);
+      return h('span', { class: 'hang-nut' },
+        kt && !d.da_chot ? h('button', { class: 'nut nho', type: 'button', onclick: () => moLuong(d) }, 'Nhập lương') : null,
+        gd && !d.da_chot && !thangNay ? h('button', { class: 'nut nho chinh', type: 'button', 'data-chot': String(d.thang), onclick: async () => {
+          if (!(await xacNhan(`Chốt tháng ${nhanThang(d)}? Sau khi chốt không ghi hay sửa được phiếu, hồ sơ của tháng này; cổ đông sẽ xem được số tổng.`, 'Chốt tháng'))) return;
+          await chay(() => api.chotThang(d.thang), { thanhCong: `Đã chốt tháng ${nhanThang(d)}.` }).then(ve, ve);
+        } }, 'Chốt tháng') : null,
+        gd && d.da_chot ? h('button', { class: 'nut nho', type: 'button', onclick: () => moMoLai(d) }, 'Mở lại') : null);
+    };
+    dat(ketQua,
+      ds.length ? h('section', { class: 'the' },
+        h('div', { class: 'the-dau' }, h('h2', null, 'Kết quả kinh doanh theo tháng'),
+          gd ? h('button', { class: 'nut', type: 'button', onclick: () => taiTepCSV('ket-qua-kinh-doanh.csv', cot, dong) }, 'Tải file CSV') : null),
+        h('div', { class: 'bang-cuon' }, bang(cot, dong)),
+        h('div', { class: 'ds-thang-kqkd' }, ds.map((d) => h('div', { class: 'dong-thang' }, h('b', null, nhanThang(d)),
+          d.da_chot ? h('small', null, ` đã chốt ${ngayGio(d.chot_luc)}`) : h('small', null, ' đang mở'), nutThang(d)))))
+        : h('section', { class: 'the' }, h('p', { class: 'trong' }, 'Chưa có số liệu tháng nào.')));
+
+    function moLuong(d) {
+      const form = h('form', null, truong(`Tổng lương tháng ${nhanThang(d)}`, oTien('tong', Number(d.luong) || null), 'Nhập một số tổng; phiếu chi trả lương chỉ là chi tiền, không tính hai lần.', { batBuoc: true }));
+      moModal('Bảng lương tháng', form, { nhanNut: 'Lưu', nutChinh: async () => {
+        const t = docForm(form).tong; if (t === null) { toast('Nhập số tiền.', 'loi'); return false; }
+        await api.nhapBangLuong(d.thang, t); toast('Đã lưu lương tháng.'); await ve();
+      } });
+    }
+    function moMoLai(d) {
+      const form = h('form', null, truong('Lý do mở lại', oVung('ly_do', ''), 'Mở lại để sửa số liệu; sửa xong nhớ chốt lại.', { batBuoc: true }));
+      moModal(`Mở lại tháng ${nhanThang(d)}`, form, { nhanNut: 'Mở lại', nutChinh: async () => {
+        const l = docForm(form).ly_do; if (!l) { toast('Ghi lý do.', 'loi'); return false; }
+        await api.moLaiThang(d.thang, l); toast('Đã mở lại tháng.'); await ve();
+      } });
+    }
   }
   await ve();
 }

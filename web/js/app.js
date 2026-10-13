@@ -150,8 +150,8 @@ async function dieuHuong() {
     a.classList.toggle('dang-chon', duong === a.dataset.duong || duong.startsWith(a.dataset.duong + '/'));
   }
   if (duong === 'co-dong') {
-    dat(khung.noiDung, h('section', { class: 'the' }, h('h1', null, 'Báo cáo cổ đông'),
-      h('p', null, 'Trang báo cáo cho cổ đông sẽ mở ở đợt 2 (giữa tháng 11/2026). Anh/chị chỉ xem được số tổng của những tháng giám đốc đã chốt.')));
+    dat(khung.noiDung, h('div', { class: 'dang-tai' }, 'Đang tải…'));
+    import('./trang/co-dong.js').then((m) => m.default(khung.noiDung)).catch((e) => baoLoi(e));
     return;
   }
   const tim = TUYEN.find(([re]) => re.test(duong));

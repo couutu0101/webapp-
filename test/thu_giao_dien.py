@@ -750,7 +750,23 @@ with sync_playwright() as p:
     ghi('File khách hàng: các trang ' + ', '.join(wb.sheetnames) + f' | Data: {ws.max_row - 5} dòng, cột: '
         + ', '.join(str(c.value) for c in ws[4][:4]) + ' … ' + ', '.join(str(c.value) for c in ws[4][19:23]))
 
+    # Kết quả kinh doanh (giám đốc)
+    thuan.evaluate("sessionStorage.removeItem('dt_the')")
+    ve_trang(thuan, '#/doanh-thu')
+    thuan.locator('[role=tab]', has_text='Kết quả kinh doanh').click()
+    thuan.wait_for_selector('text=LÃI TRƯỚC THUẾ')
+    chup(thuan, '11c-ket-qua-kinh-doanh')
+    thuan.locator('button', has_text='Nhập lương').first.click()
+    modal(thuan).locator('[name=tong]').fill('30000000')
+    modal(thuan).locator('text=Lưu').click()
+    toast_co(thuan, 'Đã lưu lương')
+    thuan.wait_for_selector('text=LÃI TRƯỚC THUẾ')
+    expect(thuan.locator('tbody tr', has_text='Lương (bảng lương tháng)')).to_contain_text('30.000.000')
+    ghi('Kết quả kinh doanh tháng: ' + ' · '.join(thuan.locator('tbody tr', has_text='LÃI TRƯỚC THUẾ').first.all_inner_texts())[:80].replace('\n', ' ')
+        + ' | nhập lương 30.000.000 → trừ vào lãi')
+
     codong = mo(b, 'codong@gara.vn')
+    codong.wait_for_selector('text=Báo cáo cổ đông')
     ghi('Cổ đông menu: ' + (', '.join(codong.locator('.menu-ds a').all_inner_texts()) or '(trống)') + ' | ' + codong.locator('#noi-dung').inner_text()[:60].replace('\n', ' '))
 
     # Điện thoại: chi tiết hồ sơ

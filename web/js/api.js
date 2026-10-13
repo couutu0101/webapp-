@@ -184,6 +184,11 @@ export const chiTien = (id, taiKhoan, ngay) => rpc('chi_tien', { p_de_nghi: id, 
 // ---------- Nhân viên ----------
 export const luuNhanVien = (id, p) => rpc('luu_nhan_vien', { p_id: id, p });
 export const nhapBangLuong = (thang, tong) => rpc('nhap_bang_luong', { p_thang: thang, p_tong: tong });
+// Kết quả kinh doanh tháng, chốt / mở lại tháng, báo cáo cổ đông (025)
+export const ketQuaKinhDoanh = () => rpc('ket_qua_kinh_doanh');
+export const chotThang = (thang) => rpc('chot_thang', { p_thang: thang });
+export const moLaiThang = (thang, lyDo) => rpc('mo_lai_thang', { p_thang: thang, p_ly_do: lyDo });
+export const baoCaoCoDong = () => rpc('bao_cao_co_dong');
 export const ghiKiemQuy = (taiKhoan, soDem, ghiChu) => rpc('ghi_kiem_quy', { p_tai_khoan: taiKhoan, p_so_dem: soDem, p_ghi_chu: ghiChu });
 
 // ---------- Kho (012) ----------
