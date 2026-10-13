@@ -433,3 +433,5 @@ a.o-dem:not(.mo) b { color: var(--muc); }
 .goi-y-hang b { font-family: var(--chu-so, inherit); letter-spacing: .02em; }
 .goi-y-hang small { color: var(--muc-phu); }
 @media (max-width: 560px) { .tim-hang { grid-template-columns: 1fr; } }
+/* Ô số tiền lớn: rộng hơn để không bị cắt chữ số */
+.luoi-dem.tien { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }

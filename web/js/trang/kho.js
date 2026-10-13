@@ -269,19 +269,33 @@ export default async function trangKho(el) {
 
   // ---------------- Công nợ NCC ----------------
   async function veCongNo() {
-    const ds = (await api.doc('v_cong_no_ncc', (q) => q.order('ten'))).filter((r) => Number(r.da_nhap) || Number(r.cho_khop) || Number(r.da_tra));
+    const [dsNcc, dangDN] = await Promise.all([
+      api.doc('v_cong_no_ncc', (q) => q.order('ten')),
+      // Đề nghị chi trả NCC đang chờ duyệt / chờ chi – để không lập trùng
+      api.doc('de_nghi_chi', (q) => q.not('nha_cung_cap_id', 'is', null).in('trang_thai', ['cho_duyet', 'da_duyet'])).catch(() => []),
+    ]);
+    const ds = dsNcc.filter((r) => Number(r.da_nhap) || Number(r.cho_khop) || Number(r.da_tra));
     const conNo = (r) => Number(r.da_nhap) - Number(r.da_tra);
+    const dangDeNghi = (r) => dangDN.filter((d) => d.nha_cung_cap_id === r.nha_cung_cap_id && d.chi_nhanh_id === r.chi_nhanh_id)
+      .reduce((s, d) => s + Number(d.so_tien), 0);
+    const conLapDuoc = (r) => conNo(r) - dangDeNghi(r);
     dat(vung, h('section', { class: 'the' },
-      h('p', { class: 'mo-ta' }, 'Công nợ = phiếu nhập đã khớp hóa đơn − tiền đã trả. Trả nợ: lập Đề nghị chi, mục "Trả NCC – …", chọn đúng nhà cung cấp; kế toán chi thì công nợ tự giảm.'),
-      h('section', { class: 'luoi-dem' },
+      h('p', { class: 'mo-ta' }, 'Công nợ = phiếu nhập đã khớp hóa đơn − tiền đã trả. Trả nợ: bấm "Đề nghị chi trả" ở dòng nhà cung cấp; duyệt xong kế toán chi thì công nợ tự giảm.'),
+      h('section', { class: 'luoi-dem tien' },
         h('div', { class: 'o-dem' }, h('b', null, tien(ds.reduce((s, r) => s + conNo(r), 0))), h('span', null, 'Tổng còn nợ nhà cung cấp')),
+        h('div', { class: 'o-dem' }, h('b', null, tien(ds.reduce((s, r) => s + dangDeNghi(r), 0))), h('span', null, 'Đã lập đề nghị chi, chờ duyệt / chờ chi')),
         h('div', { class: 'o-dem' }, h('b', null, tien(ds.reduce((s, r) => s + Number(r.cho_khop), 0))), h('span', null, 'Hàng đã nhập, chờ khớp hóa đơn'))),
       bang([
         { nhan: 'Nhà cung cấp', lay: (r) => h('b', null, r.ten) },
         { nhan: 'Đã nhập (đã khớp)', so: true, lay: (r) => tien(r.da_nhap) },
         { nhan: 'Đã trả', so: true, lay: (r) => tien(r.da_tra) },
         { nhan: 'Còn nợ', so: true, lay: (r) => h('b', { class: conNo(r) < 0 ? 'chu-loi' : null }, tien(conNo(r))) },
+        { nhan: 'Đang đề nghị chi', so: true, lay: (r) => (dangDeNghi(r) ? tien(dangDeNghi(r)) : '') },
         { nhan: 'Chờ khớp / treo', so: true, lay: (r) => (Number(r.cho_khop) ? tien(r.cho_khop) : '') },
+        { nhan: '', lay: (r) => (conLapDuoc(r) > 0 && (api.laNhanVien())
+          ? h('button', { class: 'nut nho chinh', type: 'button', 'data-de-nghi-tra': r.nha_cung_cap_id,
+            onclick: () => moDeNghiTraNcc(r, conLapDuoc(r), ve) }, 'Đề nghị chi trả')
+          : (conNo(r) > 0 ? h('small', { class: 'goi-y' }, 'Đã đề nghị đủ') : '')) },
       ], ds, { trong: 'Chưa có công nợ nhà cung cấp.' })));
   }
 
@@ -743,6 +757,36 @@ async function moChiTietMua(id, veLai) {
     } }, 'Hủy đề nghị'));
   }
   dongModal = moModal(`Đề nghị mua ${r.ma} – ${TT_MUA[r.trang_thai]}`, noiDung, { rong: true });
+}
+
+// Đề nghị chi trả nhà cung cấp: điền sẵn mục "Trả NCC – …", nhà cung cấp, số tiền còn nợ (trừ phần đã đề nghị)
+function moDeNghiTraNcc(r, toiDa, veLai) {
+  const mucs = (api.dm.muc_thu_chi || []).filter((m) => m.loai === 'chi' && m.hoat_dong && m.tinh_chat === 'tra_ncc');
+  if (!mucs.length) { toast('Chưa có mục chi "Trả NCC" trong Danh mục.', 'loi'); return; }
+  const khop = mucs.find((m) => m.ten.toLowerCase().includes(String(r.ten).toLowerCase())) || mucs[0];
+  const chonMuc = oChon('muc_id', mucs.map((m) => ({ value: m.id, label: m.ten })), khop.id, { trong: null });
+  const oSoTien = oTien('so_tien', toiDa);
+  const form = h('form', { class: 'luoi-o', novalidate: true },
+    h('p', { class: 'mo-ta rong' }, `${r.ten} · còn nợ ${tien(Number(r.da_nhap) - Number(r.da_tra))} đ`,
+      toiDa < Number(r.da_nhap) - Number(r.da_tra) ? ` · đã đề nghị chi ${tien(Number(r.da_nhap) - Number(r.da_tra) - toiDa)} đ` : '',
+      ` · lập được tối đa ${tien(toiDa)} đ`),
+    truong('Mục chi', chonMuc, null, { batBuoc: true }),
+    truong('Số tiền trả', oSoTien, 'Trả một phần thì sửa số tiền', { batBuoc: true }),
+    truong('Nội dung', oChu('noi_dung', `Trả nợ ${r.ten}`), null, { batBuoc: true, rong: true }),
+    truong('Người nhận tiền', oChu('nguoi_nhan', r.ten)),
+    truong('Ngày', oNgay('ngay', homNay())));
+  moModal(`Đề nghị chi trả ${r.ten}`, form, {
+    rong: true, nhanNut: 'Gửi đề nghị chi',
+    nutChinh: async () => {
+      const soTien = docTien(oSoTien.value);
+      if (!(soTien > 0)) { toast('Nhập số tiền trả.', 'loi'); return false; }
+      if (soTien > toiDa) { toast(`Số tiền vượt phần còn nợ chưa đề nghị (${tien(toiDa)} đ).`, 'loi'); return false; }
+      await api.lapDeNghiChi({ muc_id: Number(chonMuc.value), nha_cung_cap_id: r.nha_cung_cap_id, so_tien: soTien,
+        noi_dung: form.noi_dung.value, nguoi_nhan: form.nguoi_nhan.value, ngay: form.ngay.value, chi_nhanh_id: r.chi_nhanh_id });
+      toast(`Đã gửi đề nghị chi trả ${r.ten} ${tien(soTien)} đ – chờ duyệt rồi kế toán chi.`);
+      await veLai?.();
+    },
+  });
 }
 
 // Ảnh / tệp đính kèm: lưới ảnh nhỏ bấm mở ảnh lớn
