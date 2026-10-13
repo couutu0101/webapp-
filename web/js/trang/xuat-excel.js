@@ -62,12 +62,12 @@ export async function xuatExcelKhachHang() {
     {
       ten: 'Khách – xe', tieuDe: 'DANH SÁCH KHÁCH HÀNG – XE', phuDe: pd,
       cot: [{ nhan: 'STT', kieu: 'tien', rong: 6 }, { nhan: 'Biển số', rong: 13 }, { nhan: 'Khách hàng', rong: 26 }, { nhan: 'Điện thoại', rong: 13 },
-        { nhan: 'Xe', rong: 22 }, { nhan: 'Màu', rong: 10 }, { nhan: 'Hạn BH thân vỏ', kieu: 'ngay', rong: 13 }, { nhan: 'Hạn BH TNDS', kieu: 'ngay', rong: 13 },
+        { nhan: 'Xe', rong: 22 }, { nhan: 'Màu', rong: 10 }, { nhan: 'Đơn vị bảo hiểm', rong: 18 }, { nhan: 'Hạn BH thân vỏ', kieu: 'ngay', rong: 13 }, { nhan: 'Hạn BH TNDS', kieu: 'ngay', rong: 13 },
         { nhan: 'Số lần vào xưởng', kieu: 'tien', rong: 10 }, { nhan: 'Lần vào gần nhất', kieu: 'ngay', rong: 13 },
         { nhan: 'Khách còn nợ (đ)', kieu: 'tien', rong: 15 }, { nhan: 'Bảo hiểm còn nợ (đ)', kieu: 'tien', rong: 15 }],
-      dong: xe.map((x, i) => [i + 1, x.bien_so, x.khach, x.dien_thoai, x.xe, x.mau, x.han_than_vo, x.han_tnds, x.so_lan_vao, x.lan_vao_cuoi,
+      dong: xe.map((x, i) => [i + 1, x.bien_so, x.khach, x.dien_thoai, x.xe, x.mau, x.hang_bh || '', x.han_than_vo, x.han_tnds, x.so_lan_vao, x.lan_vao_cuoi,
         so(x.con_no_khach) || null, so(x.con_no_bh) || null]),
-      tong: ['', 'Tổng cộng', `${xe.length} xe`, null, null, null, null, null, 'SUM', null, 'SUM', 'SUM'],
+      tong: ['', 'Tổng cộng', `${xe.length} xe`, null, null, null, null, null, null, 'SUM', null, 'SUM', 'SUM'],
     },
     {
       ten: 'Công nợ', tieuDe: 'CÔNG NỢ – XE ĐÃ GIAO CÒN NỢ', phuDe: `${pd} · Nợ khách và nợ bảo hiểm tách riêng`,

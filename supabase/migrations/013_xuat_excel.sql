@@ -1,7 +1,7 @@
 -- =====================================================================
 -- 013 (13/10/2026): XUẤT EXCEL – chỉ giám đốc
 --   - xuat_du_lieu_kho(): tồn kho hiện tại từng mã (giao diện chia mỗi nhóm một trang).
---   - xuat_du_lieu_khach(): khách – xe và công nợ (xe đã giao còn nợ; nợ khách, nợ bảo hiểm tách riêng).
+--   - xuat_du_lieu_khach(): khách – xe (kèm đơn vị bảo hiểm lần gần nhất) và công nợ (xe đã giao còn nợ; nợ khách, nợ bảo hiểm tách riêng).
 --   - Mỗi lần xuất ghi vào nhat_ky_xuat_file (ai, lúc nào, xuất gì, bao nhiêu dòng).
 --   Tương thích ngược: chỉ thêm bảng và hàm mới.
 -- =====================================================================
@@ -69,7 +69,7 @@ begin
 
   select coalesce(jsonb_agg(jsonb_build_object(
       'bien_so', public.bien_so_hien_thi(x.bien_so), 'khach', k.ten, 'dien_thoai', k.dien_thoai,
-      'xe', nullif(concat_ws(' ', hx.ten, dx.ten), ''), 'mau', x.mau,
+      'xe', nullif(concat_ws(' ', hx.ten, dx.ten), ''), 'mau', x.mau, 'hang_bh', bh.ten,
       'han_than_vo', x.han_bh_than_vo, 'han_tnds', x.han_bao_hiem,
       'so_lan_vao', coalesce(hs.so_lan, 0), 'lan_vao_cuoi', hs.lan_cuoi,
       'con_no_khach', coalesce(no.khach, 0), 'con_no_bh', coalesce(no.bh, 0))
@@ -82,6 +82,10 @@ begin
   left join lateral (select count(*) as so_lan, max(h.ngay_vao) as lan_cuoi from public.ho_so h
                      where h.xe_id = x.id and h.trang_thai <> 'huy') hs on true
   left join lateral (select sum(n.con_no_khach) as khach, sum(n.con_no_bh) as bh from _no n where n.xe_id = x.id) no on true
+  -- Đơn vị bảo hiểm: hãng BH của lần vào xưởng gần nhất có bảo hiểm
+  left join lateral (select b.ten from public.ho_so h join public.hang_bao_hiem b on b.id = h.hang_bh_id
+                     where h.xe_id = x.id and h.trang_thai <> 'huy' and h.nguon_tt <> 'khach'
+                     order by h.ngay_vao desc, h.id desc limit 1) bh on true
   where exists (select 1 from public.ho_so h where h.xe_id = x.id and app.duoc_xem_chi_nhanh(h.chi_nhanh_id))
      or not exists (select 1 from public.ho_so h where h.xe_id = x.id);
 

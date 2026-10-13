@@ -528,6 +528,9 @@ select kt.ghi('Giám đốc xuất file kho: đủ mã, có giá trị tồn và
 insert into ctx select 'xkh', public.xuat_du_lieu_khach()::text;
 select kt.ghi('Giám đốc xuất file khách hàng: có danh sách xe và công nợ',
   jsonb_array_length((select v::jsonb from ctx where k='xkh')->'xe') > 0 and jsonb_typeof((select v::jsonb from ctx where k='xkh')->'cong_no') = 'array');
+select kt.ghi('File khách hàng có đơn vị bảo hiểm của lần vào gần nhất',
+  exists (select 1 from jsonb_array_elements((select v::jsonb from ctx where k='xkh')->'xe') x where coalesce(x->>'hang_bh','') <> ''),
+  (select v::jsonb->'xe'->0 from ctx where k='xkh')::text);
 select kt.ghi('Công nợ trong file khớp v_ho_so (xe đã giao còn nợ)',
   coalesce((select sum((x->>'con_no_khach')::numeric + (x->>'con_no_bh')::numeric) from jsonb_array_elements((select v::jsonb from ctx where k='xkh')->'cong_no') x), 0)
   = coalesce((select sum(con_no_khach + con_no_bh) from public.v_ho_so where not tu_excel and trang_thai in ('da_giao','da_gui_hs','dong')
