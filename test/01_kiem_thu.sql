@@ -807,7 +807,13 @@ select kt.ghi('025 Kết quả kinh doanh có tháng hiện tại, doanh thu = t
   (select doanh_thu from public.ket_qua_kinh_doanh() where thang = date_trunc('month', current_date)::date)
   = (select coalesce(sum(so_tien),0) from public.v_doanh_thu where ngay >= date_trunc('month', current_date)::date),
   (select doanh_thu::text || ' / ' || gia_von_xe::text || ' / ' || lai_truoc_thue::text from public.ket_qua_kinh_doanh() where thang = date_trunc('month', current_date)::date));
-select kt.ghi('025 Lãi gộp = doanh thu − giá vốn', (select bool_and(lai_gop = doanh_thu - gia_von_xe - gia_von_dung_chung - chi_gia_von) from public.ket_qua_kinh_doanh()));
+select kt.ghi('042 Lãi gộp = doanh thu − tổng giá vốn (vật tư xe + dùng chung + hao hụt kiểm kê + chi phí nhóm giá vốn)',
+  (select bool_and(lai_gop = doanh_thu - tong_gia_von and tong_gia_von = gia_von_xe + gia_von_dung_chung + hao_hut + chi_gia_von) from public.ket_qua_kinh_doanh()));
+select kt.ghi('042 Lãi trước thuế = lãi gộp − tổng chi phí hoạt động + thu nhập khác; lãi không gồm VAT = lãi trước thuế − VAT đầu ra + VAT trong giá vốn đã xuất + VAT trong chi phí',
+  (select bool_and(lai_truoc_thue = lai_gop - tong_chi_phi + thu_khac and tong_chi_phi = luong + hoa_hong + chi_van_hanh + chi_co_dinh
+     and vat_phai_nop = vat_ra - vat_vao_hang - vat_vao_chi_phi and vat_vao = vat_vao_hang + vat_vao_chi_phi
+     and lai_sau_vat = lai_truoc_thue - vat_ra + vat_trong_gia_von + vat_vao_chi_phi)
+   from public.ket_qua_kinh_doanh()));
 select kt.ghi('026 Có đủ các tháng liên tục đến tháng hiện tại, tháng hiện tại = Đang mở',
   (select trang_thai from public.ket_qua_kinh_doanh() where thang = date_trunc('month', current_date)::date) = 'dang_mo'
   and (select count(*) from public.ket_qua_kinh_doanh()) = (select (extract(year from age(date_trunc('month', current_date), min(thang))) * 12 + extract(month from age(date_trunc('month', current_date), min(thang))) + 1) from public.ket_qua_kinh_doanh()));
@@ -1332,6 +1338,88 @@ select kt.ghi('041 Đặt tài khoản mặc định mới → tài khoản mặ
   (select count(*) from public.tai_khoan_quy where chi_nhanh_id='TK' and mac_dinh) = 1
   and (select mac_dinh from public.tai_khoan_quy where ten='Quỹ thử 041'));
 update public.tai_khoan_quy set mac_dinh = true where ten = 'Tiền mặt';
+-- ===================== 042: kết quả kinh doanh chuyên nghiệp =====================
+select kt.dong_vai('thuan@gara.vn');
+-- Thu nhập khác: trạm sạc vào lãi lỗ, tiền bo của thợ thì không
+select kt.ghi('042 Mặc định: Trạm sạc / Thu khác tính vào lãi lỗ; Tiền bo, Khách mua bảo hiểm thì không',
+  (select bool_and(vao_lai_lo) from public.muc_thu_chi where loai='thu' and ten in ('Trạm sạc','Thu khác'))
+  and not (select bool_or(vao_lai_lo) from public.muc_thu_chi where loai='thu' and ten in ('Tiền bo của khách','Khách mua bảo hiểm')));
+insert into ctx select 'tk_042_truoc', (select thu_khac from public.ket_qua_kinh_doanh() where thang = date_trunc('month', current_date)::date)::text;
+select public.lap_phieu_thu(jsonb_build_object('tai_khoan_id',(select id from public.tai_khoan_quy where ten='Tiền mặt'),'muc_id',(select id from public.muc_thu_chi where loai='thu' and ten='Trạm sạc'),
+  'so_tien',300000,'noi_dung','Trạm sạc tuần 2'));
+select public.lap_phieu_thu(jsonb_build_object('tai_khoan_id',(select id from public.tai_khoan_quy where ten='Tiền mặt'),'muc_id',(select id from public.muc_thu_chi where loai='thu' and ten='Tiền bo của khách'),
+  'so_tien',40000,'noi_dung','Khách bo thợ'));
+select kt.ghi('042 Thu nhập khác tháng này tăng đúng 300.000 (trạm sạc), tiền bo không tính',
+  (select thu_khac from public.ket_qua_kinh_doanh() where thang = date_trunc('month', current_date)::date) = (select v::numeric from ctx where k='tk_042_truoc') + 300000);
+-- Hao hụt kiểm kê, VAT đầu vào hàng nhập
+select kt.ghi('042 Hao hụt kiểm kê = giá vốn phiếu xuất kiểm kê thiếu − giá trị lô kiểm kê thừa của tháng',
+  (select hao_hut from public.ket_qua_kinh_doanh() where thang = date_trunc('month', current_date)::date)
+  = coalesce((select sum(pd.gia_von) from public.phieu_xuat px join public.phieu_xuat_dong pd on pd.phieu_id = px.id
+              where px.loai = 'kiem_ke' and px.trang_thai = 'hieu_luc' and px.ngay >= date_trunc('month', current_date)), 0)
+    - coalesce((select round(sum(so_luong * don_gia_von)) from public.lo_kho where kiem_ke_id is not null and ngay >= date_trunc('month', current_date)), 0));
+select kt.ghi('042 VAT đầu vào gồm VAT hàng nhập kho (phiếu nhập) của tháng',
+  (select vat_vao_hang from public.ket_qua_kinh_doanh() where thang = date_trunc('month', current_date)::date)
+  = (select coalesce(sum(tien_vat), 0) from public.phieu_nhap where trang_thai <> 'huy' and ngay >= date_trunc('month', current_date))
+  and (select vat_vao_hang from public.ket_qua_kinh_doanh() where thang = date_trunc('month', current_date)::date) > 0);
+select kt.ghi('042 Giảm giá giảm cả VAT đầu ra (theo tỷ lệ VAT của hồ sơ)',
+  (select vat_ra from public.v_doanh_thu where nguon='giam_gia' and ho_so_id=(select v::bigint from ctx where k='hs_b9')) = -round(80000 * 80000.0 / 1080000));
+-- Chi tiết từng ô khớp số báo cáo
+select kt.ghi('042 Chi tiết ô (chi phí cố định, doanh thu khách, hao hụt, thu khác) cộng lại đúng số báo cáo',
+  (select coalesce(sum(so_tien),0) from public.chi_tiet_kqkd(current_date, 'chi_co_dinh')) = (select chi_co_dinh from public.ket_qua_kinh_doanh() where thang = date_trunc('month', current_date)::date)
+  and (select coalesce(sum(so_tien),0) from public.chi_tiet_kqkd(current_date, 'doanh_thu_khach')) = (select doanh_thu_khach from public.ket_qua_kinh_doanh() where thang = date_trunc('month', current_date)::date)
+  and (select coalesce(sum(so_tien),0) from public.chi_tiet_kqkd(current_date, 'hao_hut')) = (select hao_hut from public.ket_qua_kinh_doanh() where thang = date_trunc('month', current_date)::date)
+  and (select coalesce(sum(so_tien),0) from public.chi_tiet_kqkd(current_date, 'thu_khac')) = (select thu_khac from public.ket_qua_kinh_doanh() where thang = date_trunc('month', current_date)::date));
+select kt.ghi('042 VAT trong giá vốn = VAT của các lô (phiếu nhập có VAT) đã xuất trong tháng; chi tiết VAT đầu ra, VAT trong giá vốn, danh sách xe khớp báo cáo',
+  (select vat_trong_gia_von from public.ket_qua_kinh_doanh() where thang = date_trunc('month', current_date)::date)
+    = (select coalesce(sum(so_tien),0) from public.chi_tiet_kqkd(current_date, 'vat_trong_gia_von'))
+  and (select vat_trong_gia_von from public.ket_qua_kinh_doanh() where thang = date_trunc('month', current_date)::date) > 0
+  and abs((select vat_trong_gia_von from public.ket_qua_kinh_doanh() where thang = date_trunc('month', current_date)::date)
+          - (select round(sum(xl.so_luong * xl.don_gia_von * pnd.ty_le_vat / (1 + pnd.ty_le_vat)))
+             from public.phieu_xuat px join public.phieu_xuat_dong pd on pd.phieu_id = px.id join public.xuat_lo xl on xl.phieu_xuat_dong_id = pd.id
+             join public.lo_kho l on l.id = xl.lo_id join public.phieu_nhap_dong pnd on pnd.id = l.phieu_nhap_dong_id
+             where px.trang_thai = 'hieu_luc' and px.ngay >= date_trunc('month', current_date))) <= 5
+  and (select coalesce(sum(so_tien),0) from public.chi_tiet_kqkd(current_date, 'vat_ra')) = (select vat_ra from public.ket_qua_kinh_doanh() where thang = date_trunc('month', current_date)::date)
+  and (select count(*) from public.chi_tiet_kqkd(current_date, 'so_xe')) = (select so_xe from public.ket_qua_kinh_doanh() where thang = date_trunc('month', current_date)::date),
+  (select vat_trong_gia_von::text || ' / ' || vat_ra::text || ' / ' || so_xe::text from public.ket_qua_kinh_doanh() where thang = date_trunc('month', current_date)::date));
+select kt.ghi('042 Lãi gộp theo tổ cộng lại đúng lãi gộp tháng; chi phí theo mục cộng lại đúng tổng chi phí',
+  (select sum(doanh_thu - gia_von) from public.lai_gop_theo_to(date_trunc('month', current_date)::date, current_date)) = (select lai_gop from public.ket_qua_kinh_doanh() where thang = date_trunc('month', current_date)::date)
+  and (select sum(so_tien) from public.chi_phi_theo_muc(date_trunc('month', current_date)::date, current_date))
+      = (select chi_gia_von + chi_van_hanh + chi_co_dinh from public.ket_qua_kinh_doanh() where thang = date_trunc('month', current_date)::date));
+select kt.ghi('042 Doanh thu theo tháng (máy chủ cộng) khớp doanh thu báo cáo',
+  (select tong from public.doanh_thu_theo_thang() where thang = date_trunc('month', current_date)::date) = (select doanh_thu from public.ket_qua_kinh_doanh() where thang = date_trunc('month', current_date)::date));
+select kt.ghi('042 Tiền – công nợ – tồn kho hôm nay khớp sổ quỹ, tồn kho, công nợ hồ sơ',
+  ((public.so_du_cuoi_thang(current_date))->>'ton_kho')::numeric = (select sum(gia_tri) from public.v_ton_kho where chi_nhanh_id='TK')
+  and ((public.so_du_cuoi_thang(current_date))->>'so_du_quy')::numeric = (select sum(so_du) from public.v_so_du_quy where chi_nhanh_id='TK')
+  and ((public.so_du_cuoi_thang(current_date))->>'phai_thu_khach')::numeric = (select sum(greatest(con_no_khach, 0)) from public.v_ho_so where chi_nhanh_id='TK' and trang_thai <> 'huy')
+  and ((public.so_du_cuoi_thang(current_date))->>'phai_thu_bh')::numeric = (select sum(greatest(con_no_bh, 0)) from public.v_ho_so where chi_nhanh_id='TK' and trang_thai <> 'huy'),
+  (public.so_du_cuoi_thang(current_date))::text);
+-- Chốt lần lượt, mở lại từ tháng sau cùng, lịch sử mở lại, số chốt cố định
+insert into ctx select 'dn_042', public.lap_de_nghi_chi(jsonb_build_object('muc_id',(select id from public.muc_thu_chi where ten='Rác'),'so_tien',150000,
+  'noi_dung','Rác 2 tháng trước','ky_chi_phi',(date_trunc('month', current_date) - interval '2 month')::date))::text;
+select public.duyet_de_nghi_chi((select v::bigint from ctx where k='dn_042'), true);
+select public.chi_tien((select v::bigint from ctx where k='dn_042'), (select id from public.tai_khoan_quy where ten='Tiền mặt'));
+select kt.mong_loi('042 Chốt tháng trước khi tháng trước đó (có số liệu) chưa chốt bị chặn',
+  $$select public.chot_thang((date_trunc('month', current_date) - interval '1 month')::date, true)$$, 'trước');
+select public.chot_thang((date_trunc('month', current_date) - interval '2 month')::date, true);
+insert into ctx select 'chot_042', public.chot_thang((date_trunc('month', current_date) - interval '1 month')::date, true)::text;
+select kt.ghi('042 Số chốt có phiên bản 2 và tiền – công nợ – tồn kho cuối tháng',
+  (select v::jsonb->>'phien_ban' from ctx where k='chot_042') = '2' and (select v::jsonb->'so_du' ? 'ton_kho' from ctx where k='chot_042'));
+select kt.ghi('042 Vừa chốt: báo cáo hiện số chốt, không lệch',
+  (select not lech_chot and trang_thai = 'da_chot' from public.ket_qua_kinh_doanh() where thang = (date_trunc('month', current_date) - interval '1 month')::date));
+select kt.dong_vai(null);
+update public.bang_luong_thang set tong_luong = tong_luong + 1000 where thang = (date_trunc('month', current_date) - interval '1 month')::date;
+insert into public.bang_luong_thang (chi_nhanh_id, thang, tong_luong)
+select 'TK', (date_trunc('month', current_date) - interval '1 month')::date, 1000
+where not exists (select 1 from public.bang_luong_thang where thang = (date_trunc('month', current_date) - interval '1 month')::date);
+select kt.dong_vai('thuan@gara.vn');
+select kt.ghi('042 Số liệu tháng đã chốt bị đổi (sửa thẳng CSDL): báo cáo vẫn hiện số chốt và báo lệch',
+  (select lech_chot and lai_truoc_thue_song <> lai_truoc_thue from public.ket_qua_kinh_doanh() where thang = (date_trunc('month', current_date) - interval '1 month')::date));
+select kt.mong_loi('042 Mở lại tháng trước khi mở tháng sau bị chặn',
+  $$select public.mo_lai_thang((date_trunc('month', current_date) - interval '2 month')::date, 'thử')$$, 'mở lại tháng đó trước');
+select public.mo_lai_thang((date_trunc('month', current_date) - interval '1 month')::date, 'Sửa lương');
+select public.mo_lai_thang((date_trunc('month', current_date) - interval '2 month')::date, 'Thử 042');
+select kt.ghi('042 Mở lại lưu lịch sử (ai, lý do, số cũ)',
+  (select count(*) from public.chot_thang_lich_su where ly_do in ('Sửa lương','Thử 042') and mo_lai_boi is not null and so_lieu is not null) = 2);
 select kt.dong_vai(null);
 \o
 \echo '======== KẾT QUẢ ========'

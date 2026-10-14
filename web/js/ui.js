@@ -585,13 +585,16 @@ export function khoaKhiGui(form, xuLy, { chuDangGui = null } = {}) {
   });
 }
 
+// Nhãn cột có thể là chữ hoặc phần tử (vd tháng + trạng thái): ô trên điện thoại và file CSV dùng phần chữ
+const chuNhan = (n) => (n instanceof Node ? [...n.childNodes].map((c) => c.textContent).join(' ').replace(/\s+/g, ' ').trim() : n);
 export function bang(cot, dong, { trong = 'Chưa có dữ liệu.', onRow, idDong, gon = false } = {}) {
   if (!dong.length) return h('p', { class: 'trong' }, trong);
+  const nhanO = cot.map((c) => chuNhan(c.nhan));
   return h('div', { class: 'bang-cuon' },
     h('table', { class: gon ? 'bang gon' : 'bang' },
-      h('thead', null, h('tr', null, cot.map((c) => h('th', { class: c.so ? 'so' : null }, c.nhan)))),
+      h('thead', null, h('tr', null, cot.map((c) => h('th', { class: c.so ? 'so' : null }, c.nhan instanceof Node ? c.nhan.cloneNode(true) : c.nhan)))),
       h('tbody', null, dong.map((d) => h('tr', { class: onRow ? 'bam-duoc' : null, onclick: onRow ? () => onRow(d) : null, 'data-id': idDong ? idDong(d) : null },
-        cot.map((c) => h('td', { class: c.so ? 'so' : null, 'data-nhan': c.nhan }, c.lay ? c.lay(d) : d[c.khoa])))))));
+        cot.map((c, i) => h('td', { class: c.so ? 'so' : null, 'data-nhan': nhanO[i] }, c.lay ? c.lay(d) : d[c.khoa])))))));
 }
 
 // Nén ảnh điện thoại trước khi tải lên (cạnh dài tối đa 1600px)
@@ -625,7 +628,7 @@ export const duongDanAnhNho = (duongDan) => `${duongDan}.nho.jpg`;
 
 export function taiTepCSV(tenTep, cot, dong) {
   const thoat = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  const noiDung = '﻿' + [cot.map((c) => thoat(c.nhan)).join(','),
+  const noiDung = '﻿' + [cot.map((c) => thoat(chuNhan(c.nhan))).join(','),
     ...dong.map((d) => cot.map((c) => thoat(c.xuat ? c.xuat(d) : d[c.khoa])).join(','))].join('\r\n');
   const url = URL.createObjectURL(new Blob([noiDung], { type: 'text/csv;charset=utf-8' }));
   const a = h('a', { href: url, download: tenTep });

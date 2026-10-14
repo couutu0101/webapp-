@@ -23,8 +23,11 @@ const DANH_MUC = [
   { bang: 'muc_thu_chi', ten: 'Mục thu chi', cot: [
     { k: 'loai', nhan: 'Loại', loai: 'chon', ds: { thu: 'Thu', chi: 'Chi' }, batBuoc: true }, { k: 'ten', nhan: 'Tên', batBuoc: true },
     { k: 'nhom', nhan: 'Nhóm chi phí', loai: 'chon', ds: NHOM_CHI }, { k: 'tinh_chat', nhan: 'Tính chất', loai: 'chon', ds: TINH_CHAT, batBuoc: true },
-    { k: 'can_ho_so', nhan: 'Bắt buộc gắn xe', loai: 'bool', macDinh: false }, { k: 'dinh_ky', nhan: 'Định kỳ hàng tháng (nhắc trước khi chốt)', loai: 'bool', macDinh: false }, { k: 'hoat_dong', nhan: 'Đang dùng', loai: 'bool' }],
-    ghiChu: '"Tính chất" quyết định khoản đó có vào lãi lỗ hay không: chỉ "Chi phí" vào lãi lỗ; trả nhà cung cấp, tạm ứng, trả nội bộ chỉ trừ công nợ.' },
+    { k: 'can_ho_so', nhan: 'Bắt buộc gắn xe', loai: 'bool', macDinh: false }, { k: 'dinh_ky', nhan: 'Định kỳ hàng tháng (nhắc trước khi chốt)', loai: 'bool', macDinh: false },
+    { k: 'vao_lai_lo', nhan: 'Mục thu vào lãi lỗ (thu nhập khác)', loai: 'bool', macDinh: false }, { k: 'hoat_dong', nhan: 'Đang dùng', loai: 'bool' }],
+    ghiChu: '"Tính chất" quyết định khoản đó có vào lãi lỗ hay không: mục chi chỉ "Chi phí" vào lãi lỗ; trả nhà cung cấp, tạm ứng, trả nội bộ chỉ trừ công nợ. '
+      + 'Mục thu tích "vào lãi lỗ" (trạm sạc, thu khác…) được cộng vào Thu nhập khác của Kết quả kinh doanh; tiền bo của thợ, phí bảo hiểm thu hộ thì không tích. '
+      + 'Mục đã có phiếu trong tháng đã chốt thì không đổi loại, tính chất, nhóm hay "vào lãi lỗ" được – tạo mục mới.' },
   { bang: 'nha_cung_cap', ten: 'Nhà cung cấp', cot: [{ k: 'ten', nhan: 'Tên', batBuoc: true }, { k: 'hoat_dong', nhan: 'Đang dùng', loai: 'bool' }] },
   { bang: 'don_vi_lien_quan', ten: 'Đơn vị liên quan & cá nhân', cot: [
     { k: 'ten', nhan: 'Tên', batBuoc: true },

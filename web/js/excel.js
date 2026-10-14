@@ -1,9 +1,11 @@
 // Tạo file Excel (.xlsx) ngay trên trình duyệt, không cần thư viện ngoài.
 // File .xlsx là một gói zip gồm vài tệp XML; ở đây gói zip "không nén" (đủ nhỏ với vài nghìn dòng).
 //
-// taoXlsx([{ ten, tieuDe, phuDe, cot: [{ nhan, rong, kieu }], dong: [[...]], tong: [...] }]) → Uint8Array
+// taoXlsx([{ ten, tieuDe, phuDe, cot: [{ nhan, rong, kieu }], dong: [[...]], tong: [...], giuCot, khongLoc }]) → Uint8Array
 //   kieu: 'chu' | 'so' (tự 0 hoặc 2 số lẻ) | 'tien' (số nguyên) | 'ngay' (chuỗi yyyy-mm-dd) | 'phan_tram'
 //   tong: dòng tổng cuối bảng; phần tử 'SUM' = cộng cả cột, chuỗi khác = chữ, null = trống
+//   Một ô có thể là { v, kieu, dam, nen }: đổi kiểu riêng ô đó (vd dòng tỷ suất trong cột tiền), chữ đậm, nền xám
+//   (dòng tiêu đề phần, dòng cộng của báo cáo). giuCot: số cột đứng yên bên trái khi cuộn ngang; khongLoc: bỏ nút lọc.
 
 const enc = new TextEncoder();
 
@@ -59,15 +61,16 @@ const tenCot = (i) => { let s = ''; i += 1; while (i > 0) { const m = (i - 1) % 
 const soNgay = (iso) => { const [y, m, d] = String(iso).slice(0, 10).split('-').map(Number); return (Date.UTC(y, m - 1, d) - Date.UTC(1899, 11, 30)) / 86400000; };
 
 // Kiểu ô (thứ tự khớp cellXfs trong styles.xml)
-const S = { thuong: 0, dauCot: 1, soNguyen: 2, soLe: 3, ngay: 4, tieuDe: 5, tongSo: 6, phuDe: 7, tongChu: 8, phanTram: 9, tongSoLe: 10 };
+const S = { thuong: 0, dauCot: 1, soNguyen: 2, soLe: 3, ngay: 4, tieuDe: 5, tongSo: 6, phuDe: 7, tongChu: 8, phanTram: 9, tongSoLe: 10,
+  chuDam: 11, soDam: 12, phanTramDam: 13, phanTramNen: 14, phanTramNghieng: 15 };
 const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
 <numFmts count="3"><numFmt numFmtId="164" formatCode="#,##0"/><numFmt numFmtId="165" formatCode="#,##0.00"/><numFmt numFmtId="166" formatCode="dd/mm/yyyy"/></numFmts>
-<fonts count="4"><font><sz val="11"/><name val="Arial"/></font><font><b/><sz val="11"/><name val="Arial"/></font><font><b/><sz val="14"/><name val="Arial"/></font><font><i/><sz val="10"/><color rgb="FF555555"/><name val="Arial"/></font></fonts>
+<fonts count="5"><font><sz val="11"/><name val="Arial"/></font><font><b/><sz val="11"/><name val="Arial"/></font><font><b/><sz val="14"/><name val="Arial"/></font><font><i/><sz val="10"/><color rgb="FF555555"/><name val="Arial"/></font><font><i/><sz val="10"/><color rgb="FF555555"/><name val="Arial"/></font></fonts>
 <fills count="4"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF2B705"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF1F1EC"/><bgColor indexed="64"/></patternFill></fill></fills>
 <borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color rgb="FFBBBBBB"/></left><right style="thin"><color rgb="FFBBBBBB"/></right><top style="thin"><color rgb="FFBBBBBB"/></top><bottom style="thin"><color rgb="FFBBBBBB"/></bottom><diagonal/></border></borders>
 <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
-<cellXfs count="11">
+<cellXfs count="16">
 <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1"/>
 <xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment wrapText="1" vertical="center"/></xf>
 <xf numFmtId="164" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1"/>
@@ -79,6 +82,11 @@ const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <xf numFmtId="0" fontId="1" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>
 <xf numFmtId="10" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1"/>
 <xf numFmtId="165" fontId="1" fillId="3" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1"/>
+<xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1"/>
+<xf numFmtId="164" fontId="1" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyBorder="1"/>
+<xf numFmtId="10" fontId="1" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyBorder="1"/>
+<xf numFmtId="10" fontId="1" fillId="3" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1"/>
+<xf numFmtId="10" fontId="4" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyBorder="1"/>
 </cellXfs>
 <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
 </styleSheet>`;
@@ -86,7 +94,17 @@ const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 function oChu(ref, v, s) { return v === null || v === undefined || v === '' ? `<c r="${ref}" s="${s}"/>` : `<c r="${ref}" s="${s}" t="inlineStr"><is><t xml:space="preserve">${xml(v)}</t></is></c>`; }
 function oSo(ref, v, s) { return v === null || v === undefined || v === '' || !Number.isFinite(Number(v)) ? `<c r="${ref}" s="${s}"/>` : `<c r="${ref}" s="${s}"><v>${Number(v)}</v></c>`; }
 
+// Kiểu riêng của ô { v, kieu, dam, nen }: đậm và/hoặc nền xám
+function oRieng(ref, x, kieuCot) {
+  const kieu = x.kieu || kieuCot; const v = x.v;
+  if (!x.dam && !x.nen) return kieu === 'phan_tram' && x.nghieng ? oSo(ref, v, S.phanTramNghieng) : o(ref, v, kieu);
+  if (kieu === 'tien' || kieu === 'so') return oSo(ref, v === null || v === undefined || v === '' ? v : Math.round(Number(v)), x.nen ? S.tongSo : S.soDam);
+  if (kieu === 'phan_tram') return oSo(ref, v, x.nen ? S.phanTramNen : S.phanTramDam);
+  return oChu(ref, v, x.nen ? S.tongChu : S.chuDam);
+}
+
 function o(ref, v, kieu) {
+  if (v !== null && typeof v === 'object' && 'v' in v) return oRieng(ref, v, kieu);
   switch (kieu) {
     case 'tien': return oSo(ref, v === null || v === undefined || v === '' ? v : Math.round(Number(v)), S.soNguyen);
     case 'so': return oSo(ref, v, Number.isInteger(Number(v)) ? S.soNguyen : S.soLe);
@@ -113,7 +131,7 @@ function trangTinh(t) {
     const oTong = t.tong.map((v, i) => {
       const ref = `${tenCot(i)}${r}`;
       if (v === 'SUM') {
-        const tong = t.dong.reduce((s, d) => s + (Number(d[i]) || 0), 0);
+        const tong = t.dong.reduce((s, d) => s + (Number(d[i] !== null && typeof d[i] === 'object' ? d[i].v : d[i]) || 0), 0);
         const le = t.cot[i].kieu === 'so' && !Number.isInteger(Math.round(tong * 1000) / 1000);
         const s = le ? S.tongSoLe : S.tongSo;
         return t.dong.length ? `<c r="${ref}" s="${s}"><f>SUM(${tenCot(i)}${batDau}:${tenCot(i)}${ketThuc})</f><v>${Math.round(tong * 1000) / 1000}</v></c>` : `<c r="${ref}" s="${s}"><v>0</v></c>`;
@@ -123,11 +141,15 @@ function trangTinh(t) {
     dongXml.push(`<row r="${r}">${oTong.join('')}</row>`); r++;
   }
   const cols = t.cot.map((c, i) => `<col min="${i + 1}" max="${i + 1}" width="${c.rong || 14}" customWidth="1"/>`).join('');
-  const loc = t.dong.length ? `<autoFilter ref="A${dongDau}:${cotCuoi}${ketThuc}"/>` : '';
+  const loc = t.dong.length && !t.khongLoc ? `<autoFilter ref="A${dongDau}:${cotCuoi}${ketThuc}"/>` : '';
+  const giu = Number(t.giuCot) || 0;
+  const pane = giu
+    ? `<pane xSplit="${giu}" ySplit="${dongDau}" topLeftCell="${tenCot(giu)}${dongDau + 1}" activePane="bottomRight" state="frozen"/>`
+    : `<pane ySplit="${dongDau}" topLeftCell="A${dongDau + 1}" activePane="bottomLeft" state="frozen"/>`;
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
 <sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>
-<sheetViews><sheetView workbookViewId="0"><pane ySplit="${dongDau}" topLeftCell="A${dongDau + 1}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
+<sheetViews><sheetView workbookViewId="0">${pane}</sheetView></sheetViews>
 <sheetFormatPr defaultRowHeight="15"/><cols>${cols}</cols>
 <sheetData>${dongXml.join('')}</sheetData>${loc}
 <pageMargins left="0.4" right="0.4" top="0.5" bottom="0.5" header="0.3" footer="0.3"/>

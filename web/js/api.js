@@ -9,7 +9,7 @@ function loi(error) {
 }
 // Cổ đông chỉ xem (030): chặn mọi lệnh ghi ngay ở trình duyệt; máy chủ cũng không cho cổ đông ghi
 const RPC_CHI_DOC = new Set(['bang_viec_to', 'bao_cao_co_dong', 'ket_qua_kinh_doanh', 'tra_cuu_xe', 'tra_cuu_xe_nhanh', 'da_doi_mat_khau',
-  'nhap_xuat_ton']);
+  'nhap_xuat_ton', 'doanh_thu_theo_thang', 'chi_tiet_kqkd', 'chi_phi_theo_muc', 'lai_gop_theo_to', 'so_du_cuoi_thang']);
 // Đếm số lần ghi thành công trong phiên: bộ nhớ tạm (vd danh sách hàng kho) biết khi nào phải tải lại
 let soGhi = 0;
 export const soLanGhi = () => soGhi;
@@ -248,6 +248,13 @@ export const ketQuaKinhDoanh = () => rpc('ket_qua_kinh_doanh');
 export const chotThang = (thang, boQua = false) => rpc('chot_thang', { p_thang: thang, p_bo_qua_canh_bao: !!boQua });
 export const moLaiThang = (thang, lyDo) => rpc('mo_lai_thang', { p_thang: thang, p_ly_do: lyDo });
 export const baoCaoCoDong = () => rpc('bao_cao_co_dong');
+// 042: báo cáo chuyên nghiệp – xem chi tiết một ô, chi phí theo mục, lãi gộp theo tổ, doanh thu theo tháng (máy chủ cộng),
+// tiền – công nợ – tồn kho tại ngày cuối tháng. Tham số tháng/ngày dạng 'YYYY-MM-DD'.
+export const chiTietKqkd = (thang, khoan) => rpc('chi_tiet_kqkd', { p_thang: thang, p_khoan: khoan });
+export const chiPhiTheoMuc = (tu, den) => rpc('chi_phi_theo_muc', { p_tu: tu, p_den: den });
+export const laiGopTheoTo = (tu, den) => rpc('lai_gop_theo_to', { p_tu: tu, p_den: den });
+export const doanhThuTheoThang = () => rpc('doanh_thu_theo_thang');
+export const soDuCuoiThang = (thang) => rpc('so_du_cuoi_thang', { p_thang: thang });
 export const ghiKiemQuy = (taiKhoan, soDem, ghiChu) => rpc('ghi_kiem_quy', { p_tai_khoan: taiKhoan, p_so_dem: soDem, p_ghi_chu: ghiChu });
 
 // ---------- Kho (012) ----------

@@ -70,8 +70,12 @@ export function bieuDoDuong({ nhan, chuoi, tieuDe, phuDe, cao = 280 }) {
       svg.append(svgEl('line', { x1: trai, x2: W - phai, y1: yy, y2: yy, class: v === 0 ? 'bd-goc' : 'bd-luoi' }));
       svg.append(svgEl('text', { x: trai - 8, y: yy + 4, class: 'bd-truc', 'text-anchor': 'end' }, soGon(v)));
     }
-    // Nhãn trục ngang
-    nhan.forEach((t, i) => svg.append(svgEl('text', { x: x(i), y: H - 8, class: 'bd-truc', 'text-anchor': i === 0 && nhan.length > 1 ? 'start' : i === nhan.length - 1 && nhan.length > 1 ? 'end' : 'middle' }, t)));
+    // Nhãn trục ngang: màn hình hẹp / nhiều tháng thì cách quãng (mỗi nhãn cần ~56px), luôn giữ nhãn cuối (tháng mới nhất)
+    const buocNhan = Math.max(1, Math.ceil((nhan.length * 56) / Math.max(w, 1)));
+    nhan.forEach((t, i) => {
+      if ((nhan.length - 1 - i) % buocNhan) return;
+      svg.append(svgEl('text', { x: x(i), y: H - 8, class: 'bd-truc', 'text-anchor': i === 0 && nhan.length > 1 ? 'start' : i === nhan.length - 1 && nhan.length > 1 ? 'end' : 'middle' }, t));
+    });
     // Chữ thập (vẽ dưới đường)
     const chuThap = svgEl('line', { class: 'bd-chu-thap', y1: tren, y2: tren + hh, x1: x(chon), x2: x(chon) });
     svg.append(chuThap);
