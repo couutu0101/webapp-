@@ -1,5 +1,5 @@
 // Thu chi: số dư quỹ, sổ thu chi, phiếu thu (gắn vào xe), chuyển quỹ, kiểm quỹ
-import { h, tien, ngay, homNay, truong, oChu, oTien, oChon, oNgay, oVung, docForm, docTien, chay, bang, moModal, toast, dat } from '../ui.js';
+import { h, tien, ngay, homNay, cuoiThang, truong, oChu, oTien, oChon, oNgay, oVung, docForm, docTien, chay, bang, moModal, toast, dat } from '../ui.js';
 import * as api from '../api.js';
 
 export default async function trangThuChi(el) {
@@ -32,7 +32,7 @@ export default async function trangThuChi(el) {
 
   async function taiSo() {
     dat(so, h('div', { class: 'dang-tai' }, 'Đang tải…'));
-    const den = new Date(Number(thang.slice(0, 4)), Number(thang.slice(5, 7)), 0).toISOString().slice(0, 10);
+    const den = cuoiThang(thang);   // 038: toISOString() lùi 1 ngày theo UTC → mất ngày 31
     const ds = await api.doc('v_phieu_thu_chi', (q) => q.gte('ngay', `${thang}-01`).lte('ngay', den).order('ngay', { ascending: false }).order('id', { ascending: false }));
     const hl = ds.filter((p) => p.trang_thai === 'hieu_luc');
     const tong = (loai) => hl.filter((p) => p.loai === loai).reduce((s, p) => s + Number(p.so_tien), 0);
@@ -166,12 +166,10 @@ export default async function trangThuChi(el) {
         const d = docForm(form);
         const bo = tachTienBo();
         if (bo) {
-          const mucBo = api.dm.muc_thu_chi.find((x) => x.loai === 'thu' && x.ten === 'Tiền bo của khách') || mucThu.find((x) => x.tinh_chat === 'thu_khac');
-          if (!mucBo) { toast('Chưa có mục thu "Tiền bo của khách" trong Danh mục.', 'loi'); return false; }
-          await api.lapPhieuThu({ tai_khoan_id: d.tai_khoan_id, muc_id: d.muc_id, so_tien: bo.noNo, ngay: d.ngay, noi_dung: d.noi_dung,
+          // 038: máy chủ tách 2 phiếu trong MỘT giao dịch (trước đây gọi 2 lần, lỗi giữa chừng thì thiếu phiếu tiền bo)
+          await api.lapPhieuThu({ tai_khoan_id: d.tai_khoan_id, muc_id: d.muc_id, so_tien: bo.noNo + bo.du, tien_bo: bo.du, ngay: d.ngay,
+            noi_dung: d.noi_dung || `Khách trả sửa xe ${bo.x.bien_so_hien_thi || bo.x.ma} – ${bo.x.ten_khach}`,
             phan_bo: [{ ho_so_id: bo.hoSoId, so_tien: bo.noNo }] });
-          await api.lapPhieuThu({ tai_khoan_id: d.tai_khoan_id, muc_id: mucBo.id, so_tien: bo.du, ngay: d.ngay,
-            noi_dung: `Tiền bo của khách xe ${bo.x.bien_so_hien_thi || bo.x.ma} – ${bo.x.ten_khach}`, phan_bo: [] });
           toast(`Đã lập 2 phiếu thu: ${tien(bo.noNo)} đ cho xe và ${tien(bo.du)} đ tiền bo.`);
         } else {
           const p = { tai_khoan_id: d.tai_khoan_id, muc_id: d.muc_id, so_tien: d.so_tien, ngay: d.ngay, noi_dung: d.noi_dung,

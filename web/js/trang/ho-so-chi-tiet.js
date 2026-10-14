@@ -672,8 +672,10 @@ function theTien({ hs, hm, giaVon, ve }) {
     bh && Number(hs.khau_tru_giam_tru) ? d('+ Khấu trừ – giảm trừ', hs.khau_tru_giam_tru) : null,
     Number(hs.giam_gia) ? d('− Giảm giá đã duyệt', hs.giam_gia) : null,
     d('Khách phải trả', hs.phai_thu_khach), d('Khách đã trả (gồm cọc)', hs.da_thu_khach),
-    Number(hs.con_no_khach) < 0 ? d('Khách trả dư – cần trả lại', -Number(hs.con_no_khach), true) : d('Khách còn nợ', hs.con_no_khach, true),
-    Number(hs.con_no_khach) < 0 ? h('p', { class: 'goi-y' }, 'Trả lại khách: lập Đề nghị chi, mục "Trả lại cọc cho khách", chọn xe này.') : null,
+    Number(hs.con_no_khach) < 0 ? d(hs.giao_luc ? 'Khách trả dư – cần trả lại' : 'Khách đã cọc / ứng trước', -Number(hs.con_no_khach), true) : d('Khách còn nợ', hs.con_no_khach, true),
+    Number(hs.con_no_khach) < 0 ? h('p', { class: 'goi-y' }, hs.giao_luc
+      ? 'Hồ sơ chưa đóng khi còn tiền dư. Trả lại khách: lập Đề nghị chi, mục "Trả lại cọc cho khách", chọn xe này. Khách cho thợ: kế toán lập phiếu thu "Tiền bo của khách" rồi hủy phần dư ở phiếu đã thu.'
+      : 'Tiền cọc sẽ trừ vào phần khách trả khi giao xe.') : null,
     // Giá vốn phụ tùng, vật tư đã xuất cho xe và lãi gộp (doanh thu sau VAT − giá vốn)
     api.duocXem('giam_doc', 'quan_ly', 'ke_toan') && (giaVon || Number(hs.bh_duyet) || Number(hs.khach_duyet)) ? [h('hr'),
       d('Phụ tùng, vật tư đã xuất (giá vốn)', giaVon),

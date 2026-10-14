@@ -114,7 +114,13 @@ $$;
 revoke execute on function app.duyet_theo_ho_so(), app.da_thu_theo_ho_so() from public, anon;
 grant execute on function app.duyet_theo_ho_so(), app.da_thu_theo_ho_so() to authenticated;
 
-create or replace view public.v_ho_so with (security_invoker = true) as
+-- Bản thật đang dùng v_ho_so của 006 (còn 2 cột văn phòng bảo hiểm đã bỏ) → phải drop rồi tạo lại,
+-- kéo theo v_canh_bao (phụ thuộc v_ho_so) tạo lại y nguyên bản 036. Giao diện bản thật chỉ hiển thị
+-- van_phong_bh nếu có nên không lỗi khi thiếu cột.
+drop view if exists public.v_canh_bao;
+drop view if exists public.v_ho_so;
+
+create view public.v_ho_so with (security_invoker = true) as
 select
   h.id, h.ma, h.chi_nhanh_id, h.loai, h.ho_so_goc_id, h.trang_thai, h.ngay_vao, h.hen_giao, h.giao_luc,
   h.nguon_tt, h.tinh_trang_xe, h.tu_van, h.han_bao_hiem, h.khau_tru_giam_tru, h.giam_gia,
@@ -149,6 +155,82 @@ left join (select p.ho_so_id, bool_or(not p.da_xu_ly) as co_phat_sinh from publi
 left join app.da_thu_theo_ho_so() t on t.ho_so_id = h.id;
 
 grant select on public.v_ho_so to authenticated;
+revoke all on public.v_ho_so from anon;
+
+-- v_canh_bao: tạo lại y nguyên bản 036
+create or replace view public.v_canh_bao with (security_invoker = true) as
+with hs as (select * from public.v_ho_so where trang_thai not in ('huy')),
+homnay as (select (now() at time zone 'Asia/Ho_Chi_Minh')::date as d)
+select 'cho_duyet_qua_han' as loai, 'cao' as muc_do, hs.id as ho_so_id, hs.ma, hs.bien_so_hien_thi as bien_so,
+  'Xe bảo hiểm chờ duyệt giá ' || (homnay.d - hs.ngay_vao::date) || ' ngày – báo giám đốc' as noi_dung, hs.chi_nhanh_id
+from hs, homnay
+where hs.nguon_tt <> 'khach' and hs.trang_thai in ('tiep_nhan','bao_gia')
+  and homnay.d - hs.ngay_vao::date > app.cai_dat_so('so_ngay_cho_duyet', 3)
+union all
+select 'chua_gui_ho_so', 'cao', hs.id, hs.ma, hs.bien_so_hien_thi,
+  'Đã giao xe ' || (homnay.d - hs.giao_luc::date) || ' ngày, chưa gửi hồ sơ bảo hiểm', hs.chi_nhanh_id
+from hs, homnay
+where hs.nguon_tt <> 'khach' and hs.trang_thai = 'da_giao'
+  and homnay.d - hs.giao_luc::date > app.cai_dat_so('so_ngay_gui_ho_so', 3)
+union all
+select case when homnay.d - hs.gui_hs_ngay > app.cai_dat_so('so_ngay_no_giam_doc', 30) then 'no_bh_30' else 'no_bh_15' end,
+  case when homnay.d - hs.gui_hs_ngay > app.cai_dat_so('so_ngay_no_giam_doc', 30) then 'cao' else 'vua' end,
+  hs.id, hs.ma, hs.bien_so_hien_thi,
+  coalesce(hs.hang_bh, 'Bảo hiểm') || ' còn nợ ' || app.vnd(hs.con_no_bh) || ' đ, đã gửi hồ sơ '
+    || (homnay.d - hs.gui_hs_ngay) || ' ngày'
+    || case when homnay.d - hs.gui_hs_ngay > app.cai_dat_so('so_ngay_no_giam_doc', 30) then ' – giám đốc làm việc với bảo hiểm' else ' – nhắc nợ' end,
+  hs.chi_nhanh_id
+from hs, homnay
+where hs.trang_thai = 'da_gui_hs' and hs.con_no_bh > 0
+  and homnay.d - hs.gui_hs_ngay > app.cai_dat_so('so_ngay_nhac_no', 15)
+union all
+select 'khach_no', 'vua', hs.id, hs.ma, hs.bien_so_hien_thi,
+  hs.ten_khach || ' còn nợ ' || app.vnd(hs.con_no_khach) || ' đ', hs.chi_nhanh_id
+from hs where hs.giao_luc is not null and hs.con_no_khach > 0
+union all
+select 'thieu_hoa_hong', 'thap', hs.id, hs.ma, hs.bien_so_hien_thi,
+  'Chưa nhập hoa hồng cho GDV ' || coalesce(hs.gdv, ''), hs.chi_nhanh_id
+from hs where hs.gdv_id is not null and hs.giao_luc is not null and hs.hoa_hong_gdv is null and not hs.tu_excel
+union all
+select 'gdv_cho_them', 'thap', hs.id, hs.ma, hs.bien_so_hien_thi,
+  'GDV "' || coalesce(hs.gdv, '') || '" chưa có trong danh sách – kế toán thêm vào Cài đặt rồi gắn lại', hs.chi_nhanh_id
+from hs where hs.gdv_cho_them
+union all
+select 'thieu_gdv', 'vua', hs.id, hs.ma, hs.bien_so_hien_thi,
+  'Xe bảo hiểm chưa có giám định viên – ghi GDV (Sửa ở Thông tin xe và khách) trước khi nhập kết quả duyệt giá', hs.chi_nhanh_id
+from hs where hs.nguon_tt <> 'khach' and hs.gdv_id is null and not hs.tu_excel and hs.loai <> 'bao_hanh'
+  and hs.trang_thai in ('tiep_nhan','bao_gia','da_duyet','dang_sua','cho_kcs','dat_kcs')
+union all
+select 'can_goi_cham_soc', 'vua', hs.id, hs.ma, hs.bien_so_hien_thi,
+  'Gọi hỏi thăm ' || hs.ten_khach || ' (giao xe ' || to_char(hs.giao_luc, 'DD/MM') || ')', hs.chi_nhanh_id
+from hs, homnay
+where hs.giao_luc is not null and hs.cham_soc_luc is null
+  and homnay.d - hs.giao_luc::date >= app.cai_dat_so('so_ngay_goi_cham_soc', 3)
+union all
+select 'phat_sinh', 'cao', hs.id, hs.ma, hs.bien_so_hien_thi, 'Có hư hỏng phát sinh chờ lập báo giá bổ sung', hs.chi_nhanh_id
+from hs where hs.co_phat_sinh
+union all
+select 'tre_hen', 'vua', hs.id, hs.ma, hs.bien_so_hien_thi,
+  'Quá giờ hẹn giao ' || to_char(hs.hen_giao at time zone 'Asia/Ho_Chi_Minh', 'HH24:MI DD/MM'), hs.chi_nhanh_id
+from hs where hs.hen_giao < now() and hs.trang_thai in ('dang_sua','cho_kcs','dat_kcs')
+union all
+select 'thu_chua_phan_bo', 'vua', null, null, null,
+  'Phiếu thu ' || to_char(p.ngay, 'DD/MM') || ' của ' || coalesce(p.hang_bh, p.muc) || ' còn '
+    || app.vnd(p.so_tien - p.da_phan_bo) || ' đ chưa chia vào xe', p.chi_nhanh_id
+from public.v_phieu_thu_chi p
+where p.loai = 'thu' and p.trang_thai = 'hieu_luc' and p.tinh_chat = 'thu_bao_hiem' and p.da_phan_bo < p.so_tien
+union all
+select 'de_nghi_cho_duyet', case when d.nghi_tach_phieu then 'cao' else 'vua' end, d.ho_so_id, d.ho_so_ma, null,
+  'Đề nghị chi ' || app.vnd(d.so_tien) || ' đ – ' || d.noi_dung || ' (' || coalesce(d.nguoi_de_nghi_ten,'') || ')'
+    || case when d.can_giam_doc then ' – cần giám đốc duyệt' else '' end
+    || case when d.nghi_tach_phieu then ' – nghi tách nhỏ phiếu' else '' end,
+  d.chi_nhanh_id
+from public.v_de_nghi_chi d
+where d.trang_thai = 'cho_duyet' and app.co_vai_tro('giam_doc','quan_ly')
+  and d.nguoi_de_nghi <> auth.uid() and (not d.can_giam_doc or app.co_vai_tro('giam_doc'));
+
+grant select on public.v_canh_bao to authenticated;
+revoke all on public.v_canh_bao from anon;
 
 analyze;
 notify pgrst, 'reload schema';

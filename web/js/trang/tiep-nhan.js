@@ -211,7 +211,8 @@ export default async function trangTiepNhan(el) {
         for (const r of form.querySelectorAll('input[name=nguon_tt]')) r.checked = r.value === (g.nguon_tt === 'khach' ? 'khach' : 'bao_hiem');
         hienBH();
       }
-      if (g && g.nguon_tt !== 'khach' && g.hang_bh_id) { chonHangBH.value = g.hang_bh_id; capNhatBH(g.gdv_id); }
+      // 038: chỉ gợi ý hãng BH; GDV do hãng cử theo từng vụ nên không điền sẵn của lần trước
+      if (g && g.nguon_tt !== 'khach' && g.hang_bh_id) { chonHangBH.value = g.hang_bh_id; capNhatBH(null); }
       capNhatNhac();
       layLichSu(x.xe_id).then((ds) => {
         dat(khungLichSu, khoiLichSu(ds));

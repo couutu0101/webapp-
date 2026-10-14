@@ -1,7 +1,7 @@
 // Doanh thu và công nợ
 //  - Doanh thu theo ngày duyệt giá (thay file BC DOANH THU THEO NGÀY). Tính sau VAT.
 //  - Công nợ phải thu hiện tại: khách hàng và hãng bảo hiểm, từng hồ sơ đã giao xe còn nợ; nợ nhà cung cấp (phải trả).
-import { h, bienSo, tien, ngay, ngayGio, homNay, bang, taiTepCSV, NHOM_BAO_CAO, nhomBaoCao, nhanTrangThai, dat, nhoPhien, moModal, oTien, oVung, truong, docForm, toast, xacNhan, chay } from '../ui.js';
+import { h, bienSo, tien, ngay, ngayGio, homNay, cuoiThang, bang, taiTepCSV, NHOM_BAO_CAO, nhomBaoCao, nhanTrangThai, dat, nhoPhien, moModal, oTien, oVung, truong, docForm, toast, xacNhan, chay } from '../ui.js';
 import * as api from '../api.js';
 import { bieuDoDuong } from '../bieu-do.js';
 
@@ -43,7 +43,7 @@ export default async function trangDoanhThu(el) {
 
   // ---------------- Doanh thu ----------------
   async function veDoanhThu() {
-    const den = thang ? new Date(Number(thang.slice(0, 4)), Number(thang.slice(5, 7)), 0).toISOString().slice(0, 10) : null;
+    const den = thang ? cuoiThang(thang) : null;   // 038: toISOString() lùi 1 ngày theo UTC → mất ngày cuối tháng
     const rows = await api.doc('v_doanh_thu', (q) => (thang ? q.gte('ngay', `${thang}-01`).lte('ngay', den) : q).order('ngay').order('ma').limit(5000));
     const tong = (loc) => rows.filter(loc).reduce((s, r) => s + Number(r.so_tien), 0);
     const tongVat = rows.reduce((s, r) => s + Number(r.vat_ra), 0);

@@ -42,14 +42,12 @@ export function nhacHetHan(isoThanVo, isoTnds) {
 // Các lần vào gara trước của xe (mới nhất trước), bỏ hồ sơ đang xem
 export async function layLichSu(xeId, boQuaId = null) {
   if (!xeId) return [];
-  const [ds, km, dvn] = await Promise.all([
-    api.doc('v_ho_so', (q) => q.eq('xe_id', xeId).order('ngay_vao', { ascending: false }).limit(30)),
-    api.doc('ho_so', (q) => q.eq('xe_id', xeId), 'id, so_km').catch(() => []),   // số km chưa có trong v_ho_so (031)
+  const [ds, dvn] = await Promise.all([
+    api.doc('v_ho_so', (q) => q.eq('xe_id', xeId).order('ngay_vao', { ascending: false }).limit(30)),   // so_km có trong v_ho_so (037)
     // Lượt dịch vụ nhanh của xe (032)
-    api.doc('v_dich_vu_nhanh', (q) => q.eq('xe_id', xeId).eq('trang_thai', 'hieu_luc').order('ngay', { ascending: false }).limit(30)).catch(() => []),
+    api.doc('v_dich_vu_nhanh', (q) => q.eq('xe_id', xeId).eq('trang_thai', 'hieu_luc').order('ngay', { ascending: false }).limit(30)),
   ]);
-  const soKm = new Map(km.map((x) => [x.id, x.so_km]));
-  const hoSo = ds.filter((x) => String(x.id) !== String(boQuaId)).map((x) => ({ ...x, so_km: soKm.get(x.id) ?? null }));
+  const hoSo = ds.filter((x) => String(x.id) !== String(boQuaId));
   const nhanh = dvn.map((d) => ({ loai_ls: 'dvn', id: d.id, ngay_vao: `${d.ngay}T12:00:00`, dich_vu: d.dich_vu, so_tien: d.so_tien,
     so_km: d.so_km, nguoi_lam: d.nguoi_lam, tao_luc: d.tao_luc }));
   // Mới nhất trước; cùng ngày thì theo lúc ghi
@@ -77,7 +75,8 @@ export function khoiLichSu(ds, { tieuDe = 'Lịch sử các lần trước', moS
         h('b', null, ngay(x.ngay_vao)), ' ',
         h('a', { href: `#/ho-so/${x.id}` }, x.ma), ' ',
         h('small', null, x.loai === 'bao_hanh' ? 'Bảo hành (làm lại miễn phí)' : x.nguon_tt === 'khach' ? NGUON.khach : (x.hang_bh || NGUON[x.nguon_tt])),
-        x.tu_excel ? h('span', { class: 'nhan' }, 'Từ Excel') : null),
+        x.tu_excel ? h('span', { class: 'nhan' }, 'Từ Excel') : null,
+        x.trang_thai === 'huy' ? h('span', { class: 'nhan tt-huy' }, 'Đã hủy') : null),
       x.so_km !== null && x.so_km !== undefined ? h('div', { class: 'ls-dong' }, h('span', { class: 'ls-nhan' }, 'Số km'), h('span', { class: 'ls-noi-dung' }, `${tien(x.so_km)} km`)) : null,
       dongNoiDung('Yêu cầu khách hàng', x.tinh_trang_xe, x.ngay_vao),
       dongNoiDung('Tư vấn', x.tu_van, x.ngay_vao),
