@@ -734,3 +734,13 @@ td .mo, .ts-chi-tiet .mo { color: var(--muc-phu); }
 .thong-tin-xe-nhanh .txn-tu-van { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
 .thong-tin-xe-nhanh .nhat-ky-ghi { max-height: 7.5em; overflow: auto; }
 .ls-dvn .nhan { margin-left: 0; }
+
+/* 036: dịch vụ nhanh thu tiền ngay (kế toán): ô tích + tài khoản nhận trên một hàng */
+.khung-thu-ngay { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.khung-thu-ngay .o-check { margin-right: 0; }
+.khung-thu-ngay select { flex: 1 1 160px; }
+.khung-thu-ngay .goi-y { flex-basis: 100%; }
+/* 036: hạng mục bảo hành chọn từ hồ sơ gốc */
+.ds-hm-bao-hanh { display: grid; gap: 4px 18px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin-bottom: var(--k3); }
+.ds-hm-bao-hanh .o-check { margin-right: 0; }
+.khung-bao-hanh { border-left: 4px solid var(--vang); }

@@ -103,10 +103,12 @@ export function nhanTrangThai(tt) {
 // ---------- 9 bước của xe ----------
 export const BUOC_XE = ['Tiếp nhận', 'Báo giá', 'Duyệt giá', 'Lệnh sửa chữa', 'Cấp phụ tùng – Sửa chữa', 'KCS', 'Giao xe', 'Hồ sơ BH', 'Chăm sóc'];
 // Bước xe ĐANG CHỜ làm (1–9, khớp "Bước tiếp theo"); 0 = đã xong cả 9 bước; null = hồ sơ hủy.
-// boQua: bước không áp dụng (khách ngoài bảo hiểm không có hồ sơ BH). Chăm sóc làm trước khi gửi hồ sơ BH vẫn tính xong.
+// boQua: bước không áp dụng (khách ngoài bảo hiểm không có hồ sơ BH; hồ sơ bảo hành không báo giá, không duyệt giá – 036).
+// Chăm sóc làm trước khi gửi hồ sơ BH vẫn tính xong.
 export function buocXe(hs) {
   if (!hs || hs.trang_thai === 'huy') return { dang: null, boQua: [], xong: () => false };
   const boQua = hs.nguon_tt === 'khach' ? [8] : [];
+  if (hs.loai === 'bao_hanh' && !['tiep_nhan', 'bao_gia'].includes(hs.trang_thai)) boQua.unshift(2, 3);
   const chamSoc = !!hs.cham_soc_luc;
   let dang;
   if (hs.tu_excel) dang = 0;

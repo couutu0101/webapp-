@@ -33,7 +33,7 @@ begin
   return r;
 end $$;
 
--- v_canh_bao dựa trên v_ho_so: xóa cả hai rồi tạo lại (v_canh_bao giữ nguyên như tệp 004)
+-- v_canh_bao dựa trên v_ho_so: xóa cả hai rồi tạo lại (v_canh_bao như tệp 004 + dòng "thiếu GDV" của 036)
 drop view public.v_canh_bao;
 drop view public.v_ho_so;
 create view public.v_ho_so with (security_invoker = true) as
@@ -99,6 +99,11 @@ union all
 select 'gdv_cho_them', 'thap', hs.id, hs.ma, hs.bien_so_hien_thi,
   'GDV "' || coalesce(hs.gdv, '') || '" chưa có trong danh sách – kế toán thêm vào Cài đặt rồi gắn lại', hs.chi_nhanh_id
 from hs where hs.gdv_cho_them
+union all
+select 'thieu_gdv', 'vua', hs.id, hs.ma, hs.bien_so_hien_thi,
+  'Xe bảo hiểm chưa có giám định viên – ghi GDV (Sửa ở Thông tin xe và khách) trước khi nhập kết quả duyệt giá', hs.chi_nhanh_id
+from hs where hs.nguon_tt <> 'khach' and hs.gdv_id is null and not hs.tu_excel and hs.loai <> 'bao_hanh'
+  and hs.trang_thai in ('tiep_nhan','bao_gia','da_duyet','dang_sua','cho_kcs','dat_kcs')
 union all
 select 'can_goi_cham_soc', 'vua', hs.id, hs.ma, hs.bien_so_hien_thi,
   'Gọi hỏi thăm ' || hs.ten_khach || ' (giao xe ' || to_char(hs.giao_luc, 'DD/MM') || ')', hs.chi_nhanh_id

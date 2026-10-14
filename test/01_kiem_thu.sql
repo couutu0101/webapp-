@@ -72,10 +72,24 @@ select kt.mong_loi('Thiếu SĐT bị chặn', $$select public.tiep_nhan_xe(json
   'gdv_id',(select id from public.giam_dinh_vien where ten='Hảo'),'han_bao_hiem','2027-03-01',
   'tinh_trang_xe','Móp cửa trước trái','tu_van','Bảo dưỡng 20.000 km'))$$, 'Số điện thoại');
 
-select kt.mong_loi('Xe BH thiếu GDV bị chặn', $$select public.tiep_nhan_xe(jsonb_build_object(
-  'bien_so','50H92361','ten_khach','Anh Liêm','dien_thoai','0567248565','dong_xe_id',(select id from public.dong_xe where ten='VF6 Plus'),
+-- 036: giám định viên không bắt buộc lúc tiếp nhận (hãng cử sau); bắt buộc trước khi nhập kết quả duyệt giá
+insert into ctx select 'hs_nogdv', (public.tiep_nhan_xe(jsonb_build_object(
+  'bien_so','51K-333.44','ten_khach','Khách chờ GDV','dien_thoai','0909000334','dong_xe_id',(select id from public.dong_xe where ten='VF3'),
   'nguon_tt','bao_hiem','hang_bh_id',(select id from public.hang_bao_hiem where ten='Tasco'),'han_bao_hiem','2027-03-01',
-  'tinh_trang_xe','Móp cửa','tu_van','Không'))$$, 'giám định viên');
+  'tinh_trang_xe','Móp cửa','tu_van','Không')))->>'id';
+select kt.ghi('036 Xe BH chưa có GDV vẫn tiếp nhận được; Việc cần xử lý báo thiếu GDV',
+  (select gdv_id is null and trang_thai = 'tiep_nhan' from public.ho_so where id=(select v::bigint from ctx where k='hs_nogdv'))
+  and exists (select 1 from public.v_canh_bao where loai='thieu_gdv' and ho_so_id=(select v::bigint from ctx where k='hs_nogdv')));
+select public.lap_bao_gia((select v::bigint from ctx where k='hs_nogdv'), '[{"ten":"Gò cửa","nhom":"dong","gia_bao":1000000}]', 0.08);
+select kt.mong_loi('036 Chưa có GDV thì chưa nhập kết quả duyệt giá được', format($$select public.duyet_gia_chia(%s, current_date,
+  (select jsonb_agg(jsonb_build_object('id',id,'dong_y',true,'gia_duyet',1000000)) from public.hang_muc where ho_so_id=%s), null)$$,
+  (select v from ctx where k='hs_nogdv'), (select v from ctx where k='hs_nogdv')), 'giám định viên');
+select public.sua_thong_tin_ho_so((select v::bigint from ctx where k='hs_nogdv'), jsonb_build_object('gdv_id',(select id from public.giam_dinh_vien where ten='Hảo')));
+select public.duyet_gia((select v::bigint from ctx where k='hs_nogdv'), current_date,
+  (select jsonb_agg(jsonb_build_object('id',id,'dong_y',true,'gia_duyet',1000000)) from public.hang_muc where ho_so_id=(select v::bigint from ctx where k='hs_nogdv')));
+select kt.ghi('036 Ghi GDV ở Sửa thông tin → duyệt giá được, hết cảnh báo thiếu GDV',
+  (select trang_thai from public.ho_so where id=(select v::bigint from ctx where k='hs_nogdv')) = 'da_duyet'
+  and not exists (select 1 from public.v_canh_bao where loai='thieu_gdv' and ho_so_id=(select v::bigint from ctx where k='hs_nogdv')));
 
 select kt.mong_loi('GDV chờ thêm phải ghi tên', $$select public.tiep_nhan_xe(jsonb_build_object(
   'bien_so','50H92361','ten_khach','Anh Liêm','dien_thoai','0567248565','dong_xe_id',(select id from public.dong_xe where ten='VF6 Plus'),
@@ -391,6 +405,17 @@ select kt.ghi('Duy thấy cảnh báo', true, (select string_agg(loai || ': ' ||
 select kt.dong_vai('tien@gara.vn');
 select kt.mong_loi('Kiểm quỹ lệch phải ghi lý do', $$select public.ghi_kiem_quy((select id from public.tai_khoan_quy where ten='Tiền mặt'), 3400000)$$, 'Lệch');
 select kt.ghi('Kiểm quỹ khớp', (public.ghi_kiem_quy((select id from public.tai_khoan_quy where ten='Tiền mặt'), 3580000)->>'chenh_lech')::numeric = 0);
+-- 036: kế toán ghi dịch vụ nhanh thu tiền ngay → phiếu thu gắn lượt dịch vụ; trưởng nhóm không thu ngay được
+insert into ctx select 'dvn5', public.ghi_dich_vu_nhanh(jsonb_build_object('bien_so','59C-123.45','dich_vu','Rửa xe','so_tien',70000,'so_km',12200,'to_id','DT','bat_buoc_km',true,
+  'thu_ngay',true,'tai_khoan_id',(select id from public.tai_khoan_quy where ten='Tiền mặt')))::text;
+select kt.ghi('036 Dịch vụ nhanh thu tiền ngay: đã thu đủ, phiếu thu mục Thu dịch vụ nhanh, tiền mặt tăng 70.000',
+  (select da_thu from public.v_dich_vu_nhanh where id=(select v::bigint from ctx where k='dvn5')) = 70000
+  and exists (select 1 from public.phan_bo pb join public.phieu_thu_chi p on p.id = pb.phieu_id join public.muc_thu_chi m on m.id = p.muc_id
+              where pb.dich_vu_nhanh_id = (select v::bigint from ctx where k='dvn5') and m.tinh_chat = 'thu_dich_vu_nhanh' and p.trang_thai = 'hieu_luc')
+  and (select so_du from public.v_so_du_quy where ten='Tiền mặt') = 3650000);
+select kt.dong_vai('han@gara.vn');
+select kt.mong_loi('036 Trưởng nhóm không thu tiền ngay được (kế toán thu ở Thu chi)', $$select public.ghi_dich_vu_nhanh('{"dich_vu":"Rửa xe","so_tien":50000,"so_km":1,"to_id":"DT","thu_ngay":true}')$$, 'kế toán');
+select kt.dong_vai('tien@gara.vn');
 -- ---------------------------------------------------------------------
 -- 009: Báo giá theo nguồn + VAT riêng từng báo giá
 -- ---------------------------------------------------------------------
@@ -466,6 +491,48 @@ update public.nhan_vien set hoat_dong = false where email = 'tien@gara.vn';
 select kt.ghi('Chưa có kế toán thì giao cho giám đốc', app.nhan_vien_dau('ke_toan', 'TK') = (select id from public.nhan_vien where email='thuan@gara.vn'));
 update public.nhan_vien set hoat_dong = true where email = 'tien@gara.vn';
 select kt.ghi('Hồ sơ từ Excel không giao ai', not exists (select 1 from public.ho_so where tu_excel and nguoi_tiep_theo is not null));
+-- ---------------------------------------------------------------------
+-- 036: chia lại công nợ sau duyệt; thu tiền & giao xe một lần; hồ sơ bảo hành
+-- ---------------------------------------------------------------------
+select kt.dong_vai('tien@gara.vn');
+insert into ctx select 'chia_b', public.sua_chia_cong_no((select v::bigint from ctx where k='hs_b'), 216000)::text;
+select kt.ghi('036 Sửa chia công nợ sau duyệt: khách chi trả 216.000 → BH 1.800.000, khách 216.000',
+  ((select v from ctx where k='chia_b')::jsonb->>'bao_hiem')::numeric = 1800000
+  and (select con_no_khach = 216000 and con_no_bh = 1800000 from public.tien_ho_so((select v::bigint from ctx where k='hs_b'))),
+  (select v from ctx where k='chia_b'));
+select kt.mong_loi('036 Thu & giao: thu ít hơn nợ mà chưa duyệt giao còn nợ thì chặn', format($$select public.thu_tien_giao_xe(%s, jsonb_build_object('so_tien',100000,'tai_khoan_id',(select id from public.tai_khoan_quy where ten='Tiền mặt')))$$,
+  (select v from ctx where k='hs_b')), 'còn nợ');
+select kt.ghi('036 Giao lỗi thì phiếu thu cũng không ghi (cùng một giao dịch)',
+  not exists (select 1 from public.phan_bo pb join public.phieu_thu_chi p on p.id=pb.phieu_id where pb.ho_so_id=(select v::bigint from ctx where k='hs_b') and p.trang_thai='hieu_luc')
+  and (select trang_thai from public.ho_so where id=(select v::bigint from ctx where k='hs_b')) = 'dat_kcs');
+select kt.mong_loi('036 Thu & giao: thu nhiều hơn nợ bị chặn, nhắc lập ở Thu chi', format($$select public.thu_tien_giao_xe(%s, jsonb_build_object('so_tien',300000,'tai_khoan_id',(select id from public.tai_khoan_quy where ten='Tiền mặt')))$$,
+  (select v from ctx where k='hs_b')), 'nhiều hơn số còn nợ');
+insert into ctx select 'tg_b', public.thu_tien_giao_xe((select v::bigint from ctx where k='hs_b'), jsonb_build_object('so_tien',216000,'tai_khoan_id',(select id from public.tai_khoan_quy where ten='Tiền mặt'),'so_hd_bao_hiem','HD0002','khau_tru_giam_tru',999))::text;
+select kt.ghi('036 Thu đủ & giao xe một lần: đã giao, khách hết nợ, có phiếu thu, số HĐ lưu, khấu trừ không đổi theo giao xe',
+  (select trang_thai = 'da_giao' and so_hd_bao_hiem = 'HD0002' and khau_tru_giam_tru = 216000 from public.ho_so where id=(select v::bigint from ctx where k='hs_b'))
+  and ((select v from ctx where k='tg_b')::jsonb->>'con_no_khach')::numeric = 0 and ((select v from ctx where k='tg_b')::jsonb->>'phieu_id') is not null,
+  (select v from ctx where k='tg_b'));
+select kt.dong_vai('han@gara.vn');
+select kt.mong_loi('036 Trưởng nhóm không thu & giao xe được', format($$select public.thu_tien_giao_xe(%s, '{}')$$, (select v from ctx where k='hs_b')), 'quyền');
+-- Hồ sơ bảo hành: không báo giá, không duyệt giá, không hãng BH / GDV; hạng mục giá 0 đã duyệt → lập lệnh ngay
+select kt.dong_vai('duy@gara.vn');
+insert into ctx select 'hs_bh', (public.tiep_nhan_xe(jsonb_build_object(
+  'bien_so','51G-444.55','ten_khach','Khách BH','dien_thoai','0909000444','dong_xe_id',(select id from public.dong_xe where ten='VF3'),
+  'nguon_tt','bao_hiem','loai','bao_hanh','ho_so_goc_id',(select v::bigint from ctx where k='hs_b'),
+  'tinh_trang_xe','Sơn cửa bị rộp','tu_van','Không','so_km',30000,'bat_buoc_km',true,'bo_qua_canh_bao',true,
+  'hang_muc',jsonb_build_array(jsonb_build_object('ten','Sơn lại cửa (bảo hành)','nhom','son')))))->>'id';
+select kt.ghi('036 Bảo hành: nguồn khách, không hãng BH / GDV, hạng mục giá 0 đã duyệt, hồ sơ Đã duyệt giá, không doanh thu, không nợ',
+  (select nguon_tt = 'khach' and hang_bh_id is null and gdv_id is null and trang_thai = 'da_duyet' and loai = 'bao_hanh' from public.ho_so where id=(select v::bigint from ctx where k='hs_bh'))
+  and (select bool_and(trang_thai = 'duyet' and gia_duyet = 0 and nguoi_tra = 'khach') from public.hang_muc where ho_so_id=(select v::bigint from ctx where k='hs_bh'))
+  and not exists (select 1 from public.v_doanh_thu where ho_so_id=(select v::bigint from ctx where k='hs_bh'))
+  and (select phai_thu_khach = 0 from public.tien_ho_so((select v::bigint from ctx where k='hs_bh'))));
+select public.lap_lenh_sua_chua((select v::bigint from ctx where k='hs_bh'), now() + interval '1 day',
+  (select jsonb_agg(jsonb_build_object('id',id,'to_id','DS')) from public.hang_muc where ho_so_id=(select v::bigint from ctx where k='hs_bh')));
+select kt.ghi('036 Bảo hành lập lệnh sửa chữa được ngay', (select trang_thai from public.ho_so where id=(select v::bigint from ctx where k='hs_bh')) = 'dang_sua');
+select kt.mong_loi('036 Bảo hành: hạng mục thiếu nội dung bị chặn', format($$select public.tiep_nhan_xe(jsonb_build_object(
+  'bien_so','51G-444.55','ten_khach','Khách BH','dien_thoai','0909000444','dong_xe_id',(select id from public.dong_xe where ten='VF3'),
+  'loai','bao_hanh','ho_so_goc_id',%s,'tinh_trang_xe','x','tu_van','Không','bo_qua_canh_bao',true,'hang_muc',jsonb_build_array(jsonb_build_object('ten',''))))$$,
+  (select v from ctx where k='hs_b')), 'thiếu nội dung');
 -- ---------------------------------------------------------------------
 -- 012: KHO
 -- ---------------------------------------------------------------------

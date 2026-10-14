@@ -1,5 +1,5 @@
 // Thu chi: số dư quỹ, sổ thu chi, phiếu thu (gắn vào xe), chuyển quỹ, kiểm quỹ
-import { h, tien, ngay, homNay, truong, oChu, oTien, oChon, oNgay, oVung, docForm, docTien, chay, bang, moModal, toast, dat, veDanhSachHoSo } from '../ui.js';
+import { h, tien, ngay, homNay, truong, oChu, oTien, oChon, oNgay, oVung, docForm, docTien, chay, bang, moModal, toast, dat } from '../ui.js';
 import * as api from '../api.js';
 
 export default async function trangThuChi(el) {
@@ -180,7 +180,8 @@ export default async function trangThuChi(el) {
           await api.lapPhieuThu(p);
           toast('Đã lập phiếu thu.');
         }
-        if (hoSoId) { veDanhSachHoSo({ id: hoSoId, ma: hoSoMo.find((y) => String(y.id) === String(hoSoId))?.ma }); return; }
+        // Phiếu thu lập từ hồ sơ xe (036): quay về đúng hồ sơ đó để làm tiếp (giao xe…), không về danh sách
+        if (hoSoId) { location.hash = `#/ho-so/${hoSoId}`; return; }
         history.replaceState(null, '', '#/thu-chi');
         await taiLai();
       },

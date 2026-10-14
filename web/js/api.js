@@ -113,6 +113,10 @@ export const kcs = (id, dat, loi, lamLai) => rpc('kcs', { p_ho_so: id, p_dat: da
 export const duyetGiamGia = (id, soTien, lyDo) => rpc('duyet_giam_gia', { p_ho_so: id, p_so_tien: soTien, p_ly_do: lyDo });
 export const duyetGiaoConNo = (id) => rpc('duyet_giao_xe_con_no', { p_ho_so: id });
 export const giaoXe = (id, p) => rpc('giao_xe', { p_ho_so: id, p });
+// 036: kế toán thu tiền & giao xe trong một lần (giao không được thì phiếu thu cũng không ghi)
+export const thuTienGiaoXe = (id, p) => rpc('thu_tien_giao_xe', { p_ho_so: id, p });
+// 036: sửa cách chia công nợ bảo hiểm / khách sau khi đã duyệt giá (khấu trừ – giảm trừ)
+export const suaChiaCongNo = (id, khachTra) => rpc('sua_chia_cong_no', { p_ho_so: id, p_khach_tra: khachTra });
 export const guiHoSoBH = (id, ngay) => rpc('gui_ho_so_bh', { p_ho_so: id, p_ngay: ngay });
 export const nhapHoaHong = (id, soTien, ghiChu, boQua) =>
   rpc('nhap_hoa_hong_gdv', { p_ho_so: id, p_so_tien: soTien, p_ghi_chu: ghiChu, p_bo_qua_canh_bao: boQua });

@@ -119,7 +119,7 @@ async function layViecCuaToi() {
     for (const v of viec) {
       const x = theoId[v.ho_so_id]; const b = x && viecTiepTheo(x);
       if (!b) continue;
-      ds.push({ dau: bienSo(x.bien_so_hien_thi, { maThay: x.ma }), ten: b.ten, phu: [x.xe, x.ten_khach].filter(Boolean).join(' · '),
+      ds.push({ hoSoId: x.id, dau: bienSo(x.bien_so_hien_thi, { maThay: x.ma }), ten: b.ten, phu: [x.xe, x.ten_khach].filter(Boolean).join(' · '),
         luc: v.giao_viec_luc, han: hanHoSo(x, v.giao_viec_luc), href: `#/ho-so/${x.id}` });
     }
   }
@@ -140,10 +140,48 @@ async function layViecCuaToi() {
     if (r.trang_thai === 'cho_duyet' && r.nguoi_de_nghi === toi.id && !api.coVaiTro('giam_doc')) continue;
     themPhieu('de_nghi_chi', r, `Đề nghị chi ${tien(r.so_tien)} đ`, `${r.noi_dung || r.muc || ''} · ${r.nguoi_de_nghi_ten || ''} đề nghị`, '#/de-nghi');
   }
+  ds.push(...(await viecSauGiaoXe(ds)));
   ds.push(...(await viecTaiSanCuaToi()));
   // Quá hạn lên đầu, rồi theo hạn gần nhất, rồi theo lúc giao
   const khoa = (v) => (v.han ? v.han.getTime() : Infinity);
   ds.sort((a, b) => (quaHan(b.han) - quaHan(a.han)) || (khoa(a) - khoa(b)) || (new Date(a.luc) - new Date(b.luc)));
+  return ds;
+}
+
+// Sau giao xe có nhiều việc SONG SONG (036): kế toán gửi hồ sơ BH / nhập hoa hồng / thu dịch vụ nhanh, quản lý gọi chăm sóc.
+// Hồ sơ chỉ giao một người "bước tiếp theo", nên các việc còn lại lấy theo điều kiện của hồ sơ, không theo người được giao.
+async function viecSauGiaoXe(daCo) {
+  const toi = api.toi;
+  const an = (p) => p.catch(() => []);
+  const quanLy = api.coVaiTro('quan_ly', 'giam_doc'); const keToan = api.coVaiTro('ke_toan', 'giam_doc');
+  const [chamSoc, hoaHong, dvn] = await Promise.all([
+    quanLy ? an(api.doc('v_ho_so', (q) => q.not('giao_luc', 'is', null).is('cham_soc_luc', null).eq('tu_excel', false).neq('trang_thai', 'huy').order('giao_luc').limit(100))) : [],
+    keToan ? an(api.doc('v_ho_so', (q) => q.not('giao_luc', 'is', null).not('gdv_id', 'is', null).is('hoa_hong_gdv', null).eq('tu_excel', false).neq('trang_thai', 'huy').order('giao_luc').limit(100))) : [],
+    keToan ? an(api.doc('v_dich_vu_nhanh', (q) => q.eq('trang_thai', 'hieu_luc').gte('ngay', new Date(Date.now() - 60 * 864e5).toISOString().slice(0, 10)).order('ngay').limit(200))) : [],
+  ]);
+  const ds = [];
+  const daCoViec = (hoSoId, ten) => daCo.some((v) => v.hoSoId === hoSoId && v.ten === ten);
+  // Chăm sóc: bỏ qua nếu bước này đã được giao cho người khác (hiện ở việc của người đó)
+  const ids = chamSoc.map((x) => x.id);
+  const viec = ids.length ? await an(api.doc('v_viec_ho_so', (q) => q.in('ho_so_id', ids))) : [];
+  const giaoCho = Object.fromEntries(viec.map((v) => [v.ho_so_id, v.nguoi_tiep_theo]));
+  const soNgay = api.caiDat('so_ngay_goi_cham_soc', 3);
+  for (const x of chamSoc) {
+    const b = viecTiepTheo(x);
+    if (daCoViec(x.id, 'Chăm sóc sau giao')) continue;
+    if (b?.ten === 'Chăm sóc sau giao' && giaoCho[x.id] && giaoCho[x.id] !== toi.id) continue;
+    ds.push({ hoSoId: x.id, dau: bienSo(x.bien_so_hien_thi, { maThay: x.ma }), ten: 'Chăm sóc sau giao', phu: [x.xe, x.ten_khach, b?.ten && b.ten !== 'Chăm sóc sau giao' ? `đang chờ ${b.ten.toLowerCase()}` : null].filter(Boolean).join(' · '),
+      luc: x.giao_luc, han: new Date(new Date(x.giao_luc).getTime() + soNgay * 864e5), href: `#/ho-so/${x.id}` });
+  }
+  for (const x of hoaHong) {
+    if (daCoViec(x.id, 'Nhập hoa hồng GDV')) continue;
+    ds.push({ hoSoId: x.id, dau: bienSo(x.bien_so_hien_thi, { maThay: x.ma }), ten: 'Nhập hoa hồng GDV', phu: [x.xe, x.gdv ? `GDV ${x.gdv}` : null].filter(Boolean).join(' · '),
+      luc: x.giao_luc, han: null, href: `#/ho-so/${x.id}` });
+  }
+  for (const r of dvn.filter((d) => Number(d.da_thu) < Number(d.so_tien))) {
+    ds.push({ dau: r.bien_so_hien_thi ? bienSo(r.bien_so_hien_thi) : h('b', null, 'Dịch vụ nhanh'), ten: `Thu tiền dịch vụ nhanh ${tien(Number(r.so_tien) - Number(r.da_thu))} đ`,
+      phu: `${r.dich_vu} · ${r.nguoi_lam || ''}`, luc: r.tao_luc, han: null, href: `#/thu-chi?dvn=${r.id}` });
+  }
   return ds;
 }
 

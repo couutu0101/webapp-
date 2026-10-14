@@ -1,5 +1,5 @@
 // Bước 1: Tiếp nhận xe – 10 thông tin bắt buộc + ảnh nhận xe
-import { h, oGoiY, bienSo, vietBienSo, oChonTep, oCheck, truong, oChu, oChon, oVung, oNgayVN, oTien, isoSangVN, vnSangIso, docForm, chay, toast, nenAnh, dat, veDanhSachHoSo, xacNhan, tien, ngay } from '../ui.js';
+import { h, oGoiY, bienSo, vietBienSo, oChonTep, oCheck, truong, oChu, oChon, oVung, oNgayVN, oTien, isoSangVN, vnSangIso, docForm, chay, toast, nenAnh, dat, veDanhSachHoSo, xacNhan, tien, ngay, NHOM, NHOM_CHON } from '../ui.js';
 import * as api from '../api.js';
 import { khungGiaoViec, giaoSauKhiLuu, VAI_TRO_BUOC } from './giao-viec.js';
 import { homNayVN, themNgay, tuGhiNgayKhiBam, nhacHetHan, layLichSu, khoiLichSu } from './lich-su-xe.js';
@@ -10,6 +10,12 @@ export default async function trangTiepNhan(el) {
     return;
   }
   const dm = api.dm;
+  const thamSoUrl = new URLSearchParams(location.hash.split('?')[1] || '');
+  // Hồ sơ bảo hành (036): xe quay lại vì lỗi cũ – không báo giá, không duyệt giá, không hãng BH / GDV;
+  // chọn hạng mục làm lại (giá 0) → hồ sơ sang "Đã duyệt giá", lập lệnh sửa chữa ngay
+  const baoHanh = thamSoUrl.get('bao_hanh');
+  const hoSoGoc = baoHanh ? await api.layHoSo(baoHanh) : null;
+  const hangMucGoc = hoSoGoc ? (await api.layHangMuc(hoSoGoc.id).catch(() => [])).filter((m) => ['duyet', 'dang_lam', 'xong'].includes(m.trang_thai)) : [];
   const tenLoaiXe = (idDong) => {
     const d = dm.dong_xe.find((x) => String(x.id) === String(idDong));
     return d ? `${dm.ten('hang_xe', d.hang_xe_id)} ${d.ten}` : '';
@@ -67,7 +73,8 @@ export default async function trangTiepNhan(el) {
   let kmTruoc = null;
 
   const truongHangBH = truong('Hãng bảo hiểm', chonHangBH, null, { batBuoc: true });
-  const truongGdv = truong('Giám định viên', chonGdv, null, { batBuoc: true });
+  // 036: giám định viên không bắt buộc lúc nhận xe (hãng thường cử GDV sau); phải ghi trước khi nhập kết quả duyệt giá
+  const truongGdv = truong('Giám định viên', chonGdv, 'Hãng chưa cử thì để trống – ghi trước khi nhập kết quả duyệt giá');
   const khungBH = h('fieldset', { class: 'nhom-o' }, h('legend', null, 'Bảo hiểm'),
     h('div', { class: 'luoi-o hai-cot' },
       truongHangBH,
@@ -130,9 +137,17 @@ export default async function trangTiepNhan(el) {
     dat(xemAnh, ...[...oAnh.files].map((f) => h('img', { src: URL.createObjectURL(f), alt: f.name })));
   });
 
-  // Người thực hiện + giao bước báo giá (mặc định: chính CVDV tiếp nhận)
-  const giao = khungGiaoViec('Lập báo giá', VAI_TRO_BUOC.bao_gia);
+  // Người thực hiện + giao bước tiếp theo (mặc định: chính CVDV tiếp nhận). Bảo hành: bước tiếp theo là lập lệnh sửa chữa
+  const giao = hoSoGoc ? khungGiaoViec('Lập lệnh sửa chữa', VAI_TRO_BUOC.lenh) : khungGiaoViec('Lập báo giá', VAI_TRO_BUOC.bao_gia);
   giao.el.classList.add('nhom-o');
+  // Hạng mục bảo hành: chọn trong các hạng mục đã làm của hồ sơ gốc, hoặc ghi thêm hạng mục khác
+  const oHmKhac = oChu('hm_khac', '', { placeholder: 'Ví dụ: Sơn lại cửa trước trái' });
+  const chonNhomKhac = oChon('hm_khac_nhom', NHOM_CHON.map((value) => ({ value, label: NHOM[value] })), 'son', { trong: null, 'aria-label': 'Nhóm hạng mục khác' });
+  const khungBaoHanh = hoSoGoc ? h('fieldset', { class: 'nhom-o khung-bao-hanh' }, h('legend', null, 'Hạng mục bảo hành (làm lại miễn phí)'),
+    h('p', { class: 'goi-y' }, `Tích các hạng mục của hồ sơ ${hoSoGoc.ma} phải làm lại. Không báo giá, không duyệt giá – lưu xong lập lệnh sửa chữa ngay.`),
+    hangMucGoc.length ? h('div', { class: 'ds-hm-bao-hanh' }, hangMucGoc.map((m) => oCheck(`hm_${m.id}`, false, `${m.ten} (${NHOM[m.nhom] || m.nhom})`)))
+      : h('p', { class: 'trong' }, 'Hồ sơ gốc không có hạng mục đã làm – ghi hạng mục bên dưới.'),
+    h('div', { class: 'luoi-o' }, truong('Hạng mục khác (nếu có)', oHmKhac), truong('Nhóm', chonNhomKhac))) : null;
   const form = h('form', { class: 'the', novalidate: true },
     h('fieldset', { class: 'nhom-o' }, h('legend', null, 'Thông tin xe'),
       h('div', { class: 'luoi-o' },
@@ -153,12 +168,14 @@ export default async function trangTiepNhan(el) {
       h('div', { class: 'luoi-o' },
         truong('Tên khách', oTen, null, { batBuoc: true }),
         truong('Số điện thoại', oSdt, 'Không gửi SĐT khách ra ngoài', { batBuoc: true }))),
-    h('fieldset', { class: 'nhom-o' }, h('legend', null, 'Xe bảo hiểm hay khách ngoài bảo hiểm'), radioNguon),
-    khungBH,
-    h('fieldset', { class: 'nhom-o' }, h('legend', null, 'Yêu cầu khách hàng và tư vấn'),
+    // Bảo hành: luôn là "khách" (không liên quan bảo hiểm) – ẩn phần chọn nguồn và bảo hiểm
+    h('fieldset', { class: 'nhom-o', hidden: !!hoSoGoc }, h('legend', null, 'Xe bảo hiểm hay khách ngoài bảo hiểm'), radioNguon),
+    hoSoGoc ? null : khungBH,
+    khungBaoHanh,
+    h('fieldset', { class: 'nhom-o' }, h('legend', null, hoSoGoc ? 'Lỗi khách phản ánh và tư vấn' : 'Yêu cầu khách hàng và tư vấn'),
       h('div', { class: 'luoi-o' },
         khungLichSu,
-        truong('Yêu cầu khách hàng', oTinhTrang, 'Ngày hôm nay tự thêm vào đầu khi bấm vào ô', { batBuoc: true, rong: true }),
+        truong(hoSoGoc ? 'Yêu cầu khách hàng (lỗi cần làm lại)' : 'Yêu cầu khách hàng', oTinhTrang, 'Ngày hôm nay tự thêm vào đầu khi bấm vào ô', { batBuoc: true, rong: true }),
         truong('Những gì có thể tư vấn', oTuVan, 'Anh Long dùng để tư vấn khi giao xe. Bảo hiểm hết hạn sẽ tự ghi nhắc ở đầu.', { batBuoc: true, rong: true }))),
     h('fieldset', { class: 'nhom-o' }, h('legend', null, 'Ảnh nhận xe'),
       truong('Ảnh xe lúc nhận', chonAnh, 'Không bắt buộc. Có thể chụp bổ sung sau trong hồ sơ.'), xemAnh),
@@ -214,7 +231,12 @@ export default async function trangTiepNhan(el) {
     e.preventDefault();
     const d = docForm(form);
     if (!d.bien_so) { oBienSo.focus(); return toast('Nhập biển số xe.', 'loi'); }
-    const bh = d.nguon_tt !== 'khach';
+    const bh = !hoSoGoc && d.nguon_tt !== 'khach';
+    // Bảo hành: ít nhất một hạng mục làm lại (tích từ hồ sơ gốc hoặc ghi thêm)
+    const hangMucBH = hoSoGoc ? [
+      ...hangMucGoc.filter((m) => d[`hm_${m.id}`]).map((m) => ({ ten: m.ten, nhom: m.nhom })),
+      ...(d.hm_khac ? [{ ten: d.hm_khac, nhom: d.hm_khac_nhom || 'son' }] : [])] : [];
+    if (hoSoGoc && !hangMucBH.length) { (hangMucGoc.length ? form.querySelector('.ds-hm-bao-hanh input') : oHmKhac)?.focus(); return toast('Tích hoặc ghi ít nhất một hạng mục bảo hành.', 'loi'); }
     for (const [o, v, ten, khong] of [[oHanThanVo, d.han_bh_than_vo, 'thân vỏ', d.khong_than_vo], [oHan, d.han_bao_hiem, 'TNDS', d.khong_tnds]]) {
       if (v === 'sai') { o.focus(); return toast(`Ngày hết hạn bảo hiểm ${ten} không đúng. Nhập dạng ngày/tháng/năm, ví dụ 01/03/2027.`, 'loi'); }
       if (bh && !v && !khong) { o.focus(); return toast(`Xe bảo hiểm: nhập ngày hết hạn bảo hiểm ${ten}, hoặc tích "Không có BH ${ten}".`, 'loi'); }
@@ -228,11 +250,12 @@ export default async function trangTiepNhan(el) {
     if (!d.tu_van) { oTuVan.focus(); return toast('Ghi những gì có thể tư vấn (ghi "Không" nếu không có).', 'loi'); }
     const p = {
       bien_so: d.bien_so, ten_khach: d.ten_khach, dien_thoai: d.dien_thoai,
-      dong_xe_id: d.dong_xe_id, mau: d.mau, nguon_tt: d.nguon_tt,
+      dong_xe_id: d.dong_xe_id, mau: d.mau, nguon_tt: hoSoGoc ? 'khach' : d.nguon_tt,
       ngay_vao: null,   // không nhập: máy chủ ghi đúng lúc lưu hồ sơ (vẫn hiện "Vào xưởng" trong hồ sơ)
-      hang_bh_id: d.hang_bh_id, gdv_id: d.gdv_id, gdv_ten_tam: d.gdv_ten_tam,
+      hang_bh_id: bh ? d.hang_bh_id : null, gdv_id: bh ? d.gdv_id : null, gdv_ten_tam: bh ? d.gdv_ten_tam : null,
       han_bao_hiem: d.han_bao_hiem, han_bh_than_vo: d.han_bh_than_vo, tinh_trang_xe: d.tinh_trang_xe, tu_van: d.tu_van, so_km: d.so_km, bat_buoc_km: true,
       loai: hoSoGoc ? 'bao_hanh' : 'sua_chua', ho_so_goc_id: hoSoGoc ? hoSoGoc.id : null,
+      hang_muc: hoSoGoc ? hangMucBH : undefined,
     };
     const nut = form.querySelector('button[type=submit]');
     nut.disabled = true; nut.textContent = 'Đang lưu…';
@@ -245,28 +268,26 @@ export default async function trangTiepNhan(el) {
       for (const f of oAnh.files) {
         try { await api.taiTep(hoSo, 'tiep_nhan', await nenAnh(f)); } catch { loiAnh++; }
       }
-      toast(loiAnh ? `Đã tạo hồ sơ ${kq.ma}, nhưng ${loiAnh} ảnh tải lên lỗi – tải lại trong hồ sơ.` : `Đã tạo hồ sơ ${kq.ma}`, loiAnh ? 'loi' : 'ok');
+      const daTao = hoSoGoc ? `Đã tạo hồ sơ bảo hành ${kq.ma} – lập lệnh sửa chữa được ngay` : `Đã tạo hồ sơ ${kq.ma}`;
+      toast(loiAnh ? `${daTao}, nhưng ${loiAnh} ảnh tải lên lỗi – tải lại trong hồ sơ.` : daTao, loiAnh ? 'loi' : 'ok');
       veDanhSachHoSo({ id: kq.id, ma: kq.ma });
     } catch {
       nut.disabled = false; nut.textContent = 'Lưu hồ sơ';
     }
   });
 
-  // Hồ sơ bảo hành: mở từ hồ sơ cũ đã đóng
-  const baoHanh = new URLSearchParams(location.hash.split('?')[1] || '').get('bao_hanh');
-  let hoSoGoc = null;
-  if (baoHanh) {
-    hoSoGoc = await api.layHoSo(baoHanh);
-    if (hoSoGoc) {
-      oBienSo.value = hoSoGoc.bien_so_hien_thi || '';
-      await traCuu();
-      oBienSo.readOnly = true;
-      form.prepend(h('p', { class: 'thong-bao canh-bao' }, `Hồ sơ bảo hành cho xe quay lại vì lỗi cũ của ${hoSoGoc.ma}. Không tính doanh thu.`));
-    }
+  // Hồ sơ bảo hành: mở từ hồ sơ cũ đã đóng – điền sẵn xe, khách; luôn là nguồn "khách" (không liên quan bảo hiểm)
+  if (hoSoGoc) {
+    oBienSo.value = hoSoGoc.bien_so_hien_thi || '';
+    await traCuu();
+    for (const r of form.querySelectorAll('input[name=nguon_tt]')) r.checked = r.value === 'khach';
+    hienBH();
+    oBienSo.readOnly = true;
+    form.prepend(h('p', { class: 'thong-bao canh-bao' }, `Bảo hành cho xe quay lại vì lỗi cũ của hồ sơ ${hoSoGoc.ma}: làm lại miễn phí, không báo giá, không duyệt giá, không tính doanh thu.`));
   }
 
   // Tiếp nhận lại xe từ một hồ sơ cũ: điền sẵn biển số rồi tự tra cứu – xe, khách, bảo hiểm, GĐV, hạn BH, lịch sử
-  const tuHoSo = !baoHanh && new URLSearchParams(location.hash.split('?')[1] || '').get('tu_ho_so');
+  const tuHoSo = !baoHanh && thamSoUrl.get('tu_ho_so');
   if (tuHoSo) {
     const cu = await api.layHoSo(tuHoSo);
     if (cu?.bien_so_hien_thi) {
@@ -277,6 +298,6 @@ export default async function trangTiepNhan(el) {
   }
 
   dat(el, h('div', { class: 'tieu-de-trang' }, h('h1', null, hoSoGoc ? 'Tiếp nhận xe bảo hành' : 'Tiếp nhận xe'),
-    h('p', { class: 'mo-ta' }, 'Bước 1 · CVDV · trong 30 phút. Mục có dấu * là bắt buộc.')), form);
-  if (tuHoSo) oTinhTrang.focus(); else oBienSo.focus();
+    h('p', { class: 'mo-ta' }, hoSoGoc ? 'Bước 1 · CVDV. Chọn hạng mục làm lại, ghi lỗi khách phản ánh rồi lưu – sang thẳng lệnh sửa chữa.' : 'Bước 1 · CVDV · trong 30 phút. Mục có dấu * là bắt buộc.')), form);
+  if (tuHoSo || hoSoGoc) oTinhTrang.focus(); else oBienSo.focus();
 }

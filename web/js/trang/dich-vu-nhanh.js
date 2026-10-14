@@ -2,7 +2,7 @@
 // 032: gõ biển số / SĐT → gợi ý xe cũ, hiện khách, lần vào gần nhất, số km lần trước, hạn BH, tư vấn còn ghi.
 //      Mỗi lượt lưu kèm xe – khách (chưa có thì tạo), số km BẮT BUỘC; lượt dịch vụ nhanh vào lịch sử xe.
 import {
-  h, bienSo, vietBienSo, oGoiY, tien, ngay, homNay, truong, oChu, oTien, oCheck, docForm, chay, bang, moModal, oVung, toast, dat, xacNhan,
+  h, bienSo, vietBienSo, oGoiY, tien, ngay, homNay, truong, oChu, oTien, oChon, oCheck, docForm, chay, bang, moModal, oVung, toast, dat, xacNhan,
 } from '../ui.js';
 import * as api from '../api.js';
 import { nhacHetHan } from './lich-su-xe.js';
@@ -20,6 +20,14 @@ export default async function trangDichVu(el) {
     TO_DVN.map((id) => h('label', null, h('input', { type: 'radio', name: 'to_id', value: id, checked: id === 'DT' }),
       h('span', null, api.dm.ten('to_thuc_hien', id) || (id === 'DMG' ? 'Điện – máy – gầm' : 'Detailing')))));
   const khungXe = h('div', { class: 'rong thong-tin-xe-nhanh', hidden: true, 'aria-live': 'polite' });
+  // 036: kế toán / giám đốc thu tiền ngay khi ghi – phần mềm tự lập phiếu thu gắn lượt dịch vụ (một giao dịch)
+  const keToan = api.coVaiTro('ke_toan', 'giam_doc');
+  const dsTk = (api.dm.tai_khoan_quy || []).filter((t) => t.hoat_dong && t.chi_nhanh_id === api.toi.chi_nhanh_id);
+  const tichThu = keToan ? oCheck('thu_ngay', true, 'Đã thu tiền ngay') : null;
+  const chonTk = keToan ? oChon('tai_khoan_id', dsTk.map((t) => ({ value: t.id, label: t.ten })), (dsTk.find((t) => t.mac_dinh) || dsTk[0])?.id, { trong: null, 'aria-label': 'Tài khoản nhận' }) : null;
+  const khungThu = keToan ? h('div', { class: 'truong co-lon khung-thu-ngay' }, tichThu, chonTk,
+    h('small', { class: 'goi-y' }, 'Tự lập phiếu thu "Thu dịch vụ nhanh" vào tài khoản này; bỏ tích nếu khách chưa trả.')) : null;
+  if (tichThu) tichThu.querySelector('input').addEventListener('change', (e) => { chonTk.disabled = !e.target.checked; });
 
   const veGoiY = (x) => h('span', { class: 'goi-y-xe' }, bienSo(x.bien_so),
     h('span', null, h('span', null, [x.loai_xe, x.mau].filter(Boolean).join(' – ') || 'Chưa rõ loại xe'),
@@ -81,7 +89,8 @@ export default async function trangDichVu(el) {
     truong('Tổ làm', chonTo, null, { batBuoc: true }),
     truong('Số tiền khách trả', oTien('so_tien', null), null, { batBuoc: true }),
     h('div', { class: 'truong' }, oCheck('xuat_hd', false, 'Có xuất hóa đơn')),
-    h('div', { class: 'hang-nut rong' }, h('button', { class: 'nut chinh', type: 'submit' }, 'Ghi dịch vụ')));
+    khungThu,
+    h('div', { class: 'hang-nut rong' }, h('button', { class: 'nut chinh', type: 'submit' }, keToan ? 'Ghi dịch vụ & thu tiền' : 'Ghi dịch vụ')));
   const ds = h('div');
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -93,10 +102,14 @@ export default async function trangDichVu(el) {
     const kmTruoc = xeChon?.km_truoc;
     if (kmTruoc && d.so_km < Number(kmTruoc.so)
       && !(await xacNhan(`Số km ${tien(d.so_km)} nhỏ hơn lần trước (${tien(kmTruoc.so)} km). Vẫn lưu?`, 'Vẫn lưu'))) { oKm.focus(); return; }
+    const thuNgay = keToan && !!d.thu_ngay;
     try {
       // Ngày = hôm nay (giờ máy, không chọn được); máy chủ vẫn lưu cột ngay + giờ ghi tao_luc
-      await chay(() => api.ghiDichVuNhanh({ ...d, ngay: homNay(), bat_buoc_km: true }), { thanhCong: 'Đã ghi.' });
-      form.reset(); daTra = ''; hienXe(null); await tai();
+      await chay(() => api.ghiDichVuNhanh({ ...d, ngay: homNay(), bat_buoc_km: true, thu_ngay: thuNgay, tai_khoan_id: thuNgay ? d.tai_khoan_id : null }),
+        { thanhCong: thuNgay ? `Đã ghi và thu ${tien(d.so_tien)} đ.` : 'Đã ghi.' });
+      form.reset(); daTra = ''; hienXe(null);
+      if (chonTk) chonTk.disabled = false;
+      await tai();
     } catch { /* đã báo lỗi */ }
   });
 
@@ -126,7 +139,8 @@ export default async function trangDichVu(el) {
   }
 
   dat(el, h('div', { class: 'tieu-de-trang' }, h('h1', null, 'Dịch vụ nhanh'),
-    h('p', { class: 'mo-ta' }, 'Ghi ngay mỗi lượt làm. Gõ biển số để xem xe cũ; số km bắt buộc. Kế toán thu tiền ở mục Thu chi.')), api.laCoDong() ? null : form,
+    h('p', { class: 'mo-ta' }, keToan ? 'Ghi ngay mỗi lượt làm. Gõ biển số để xem xe cũ; số km bắt buộc. Tích "Đã thu tiền ngay" thì phiếu thu tự lập.'
+      : 'Ghi ngay mỗi lượt làm. Gõ biển số để xem xe cũ; số km bắt buộc. Kế toán thu tiền ở mục Thu chi (có nhắc ở Việc hôm nay).')), api.laCoDong() ? null : form,
   h('section', { class: 'the' }, h('h2', null, '31 ngày gần nhất'), ds));
   await tai();
 }

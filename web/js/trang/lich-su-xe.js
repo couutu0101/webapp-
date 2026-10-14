@@ -76,7 +76,7 @@ export function khoiLichSu(ds, { tieuDe = 'Lịch sử các lần trước', moS
       h('div', { class: 'ls-dau' },
         h('b', null, ngay(x.ngay_vao)), ' ',
         h('a', { href: `#/ho-so/${x.id}` }, x.ma), ' ',
-        h('small', null, x.nguon_tt === 'khach' ? NGUON.khach : (x.hang_bh || NGUON[x.nguon_tt])),
+        h('small', null, x.loai === 'bao_hanh' ? 'Bảo hành (làm lại miễn phí)' : x.nguon_tt === 'khach' ? NGUON.khach : (x.hang_bh || NGUON[x.nguon_tt])),
         x.tu_excel ? h('span', { class: 'nhan' }, 'Từ Excel') : null),
       x.so_km !== null && x.so_km !== undefined ? h('div', { class: 'ls-dong' }, h('span', { class: 'ls-nhan' }, 'Số km'), h('span', { class: 'ls-noi-dung' }, `${tien(x.so_km)} km`)) : null,
       dongNoiDung('Yêu cầu khách hàng', x.tinh_trang_xe, x.ngay_vao),
