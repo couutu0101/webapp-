@@ -296,7 +296,7 @@ export function moModal(tieuDe, noiDung, { nutChinh, nhanNut = 'Lưu', nutPhu = 
   if (nut) nut.addEventListener('click', async () => {
     nut.disabled = true;
     try { const ok = await nutChinh(); if (ok !== false) dong(); }
-    catch (e) { if (!e?.daHuy) baoLoi(e); }
+    catch (e) { if (!e?.daHuy && !e?.daBao) baoLoi(e); }   // lỗi đã báo (qua chay) thì không báo lần hai
     finally { nut.disabled = false; }
   });
   nen.addEventListener('click', (e) => { if (e.target === nen) dong(); });

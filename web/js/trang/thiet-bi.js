@@ -476,8 +476,11 @@ export default async function veThietBi(el, nut = null) {
         may ? null : h('label', { class: 'kt-so', hidden: true, 'data-o': 'con' }, 'Đếm được', oCon, h('small', null, `/ ${t.so_luong} ${t.don_vi}`)),
         may ? null : h('label', { class: 'kt-so', hidden: true, 'data-o': 'hong' }, 'Số hỏng', oHong),
         oGhi);
+      // 041: món kho đã giao nhưng nhóm chưa nhận – không bắt kiểm; có thì chọn "Đủ / Có" (tính là đã nhận)
+      const tuyChon = !!t.cho_nhan;
       const li = h('li', { class: 'kt-dong' },
         h('div', { class: 'kt-ten' }, h('b', null, t.ten), h('small', null, `${t.ma} · trên sổ ${t.so_luong} ${t.don_vi}${t.vi_tri ? ` · ${t.vi_tri}` : ''}`),
+          tuyChon ? h('small', { class: 'kt-da-bao' }, 'Chờ nhóm nhận – chưa có thì bỏ qua; có rồi thì chọn "Đủ"/"Có, tốt" (tính là đã nhận)') : null,
           daThieu || daHong ? h('small', { class: 'kt-da-bao' }, `Đang báo ${[daThieu ? `thiếu ${daThieu}` : null, daHong ? `hỏng ${daHong}` : null].filter(Boolean).join(', ')}, chờ giám đốc xử lý`) : null),
         chon, phu);
       chon.addEventListener('change', () => {
@@ -491,11 +494,11 @@ export default async function veThietBi(el, nut = null) {
         }
         capNhatDem();
       });
-      return { t, li, may, chon, oCon, oHong, oGhi };
+      return { t, li, may, chon, oCon, oHong, oGhi, tuyChon };
     });
     const capNhatDem = () => { dem.textContent = String(dong.filter((d) => d.li.dataset.kq).length); };
     const tatCaDu = h('button', { class: 'nut nho', type: 'button', onclick: () => {
-      for (const d of dong) if (!d.li.dataset.kq) { const r = d.chon.querySelector('input[value=du]'); r.checked = true; d.chon.dispatchEvent(new Event('change')); }
+      for (const d of dong) if (!d.li.dataset.kq && !d.tuyChon) { const r = d.chon.querySelector('input[value=du]'); r.checked = true; d.chon.dispatchEvent(new Event('change')); }
     } }, 'Các món còn lại: Đủ');
     const dsPt = nguoiPhuTrach(n);
     const oCung = kk ? oChu('cung_kiem', dsPt[0]?.ho_ten || '', { list: 'ds-cung-kiem' }) : null;
@@ -503,7 +506,7 @@ export default async function veThietBi(el, nut = null) {
       h('div', { class: 'kt-dau' },
         h('p', { class: 'mo-ta' }, kk ? 'Đếm từng món cùng người phụ trách nhóm. Thiếu phải ghi lý do / nơi để. Lưu xong có biên bản để in.'
           : 'Đi một vòng chỗ để đồ nghề của nhóm, chọn từng món. Thiếu hoặc hỏng sẽ báo ngay cho giám đốc và quản lý chung.'),
-        h('div', { class: 'kt-tien-do' }, h('span', null, 'Đã kiểm ', dem, ` / ${dong.length} món`), tatCaDu)),
+        h('div', { class: 'kt-tien-do' }, h('span', null, 'Đã kiểm ', dem, ` / ${dong.filter((d) => !d.tuyChon).length} món`), tatCaDu)),
       kk ? h('div', { class: 'luoi-o kt-cung' },
         truong('Người cùng kiểm', oCung, 'Trưởng nhóm / người phụ trách nhóm', { batBuoc: true, co: 'lon' }),
         h('datalist', { id: 'ds-cung-kiem' }, (api.dm.nhan_vien || []).filter((x) => x.hoat_dong).map((x) => h('option', { value: x.ho_ten })))) : null,
@@ -512,9 +515,10 @@ export default async function veThietBi(el, nut = null) {
     moModal(`${kk ? 'Kiểm kê tháng' : 'Kiểm tra tuần'} – ${n.ten}`, form, {
       rong: true, nhanNut: kk ? 'Lưu biên bản kiểm kê' : 'Lưu kiểm tra',
       nutChinh: async () => {
-        const chua = dong.filter((d) => !d.li.dataset.kq);
+        const chua = dong.filter((d) => !d.li.dataset.kq && !d.tuyChon);
         if (chua.length) { toast(`Còn ${chua.length} món chưa chọn: ${chua.slice(0, 3).map((d) => d.t.ten).join(', ')}${chua.length > 3 ? '…' : ''}`, 'loi'); chua[0].li.scrollIntoView({ block: 'center' }); return false; }
-        const p = { nhom_id: n.nhom_id, loai, cung_kiem: oCung?.value || null, ghi_chu: form.ghi_chu.value, dong: dong.map((d) => {
+        const daChon = dong.filter((d) => d.li.dataset.kq);   // món chờ nhận không chọn thì không gửi
+        const p = { nhom_id: n.nhom_id, loai, cung_kiem: oCung?.value || null, ghi_chu: form.ghi_chu.value, dong: daChon.map((d) => {
           const v = d.li.dataset.kq; const sl = d.t.so_luong;
           let soThuc = sl; let soHong = 0;
           if (d.may) { soThuc = v === 'thieu' ? 0 : 1; soHong = v === 'hong' ? 1 : 0; }
@@ -523,7 +527,7 @@ export default async function veThietBi(el, nut = null) {
           return { tai_san_id: d.t.id, so_thuc: soThuc, so_hong: soHong, ghi_chu: d.oGhi.value };
         }) };
         const id = await api.luuKiemTraTaiSan(p);
-        const thieu = p.dong.filter((x, i) => x.so_thuc < dong[i].t.so_luong).length; const hongN = p.dong.filter((x) => x.so_hong > 0).length;
+        const thieu = p.dong.filter((x, i) => x.so_thuc < daChon[i].t.so_luong && !daChon[i].tuyChon).length; const hongN = p.dong.filter((x) => x.so_hong > 0).length;
         toast(thieu || hongN ? `Đã lưu: thiếu ${thieu} món, hỏng ${hongN} món – đã báo giám đốc và quản lý chung.` : `Đã lưu: đủ cả ${p.dong.length} món.`);
         await taiLai();
         if (kk) moBienBan({ id, loai, ngay: homNay(), nguoi_kiem: api.toi.id, cung_kiem: p.cung_kiem, ghi_chu: p.ghi_chu }, n);

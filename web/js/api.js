@@ -126,7 +126,11 @@ export const guiHoSoBH = (id, ngay) => rpc('gui_ho_so_bh', { p_ho_so: id, p_ngay
 export const nhapHoaHong = (id, soTien, ghiChu, boQua) =>
   rpc('nhap_hoa_hong_gdv', { p_ho_so: id, p_so_tien: soTien, p_ghi_chu: ghiChu, p_bo_qua_canh_bao: boQua });
 export const ghiChamSoc = (id, ketQua, henBD) => rpc('ghi_cham_soc', { p_ho_so: id, p_ket_qua: ketQua, p_hen_bao_duong: henBD });
-export const huyHoSo = (id, lyDo) => rpc('huy_ho_so', { p_ho_so: id, p_ly_do: lyDo });
+// 041: boQua = false → máy chủ hỏi lại (CANH_BAO) nếu hồ sơ đã thu cọc; dùng với chay()
+export const huyHoSo = (id, lyDo, boQua = false) => rpc('huy_ho_so', { p_ho_so: id, p_ly_do: lyDo, p_bo_qua_canh_bao: !!boQua });
+// 041: phát sinh không cần làm thêm; hồ sơ bảo hành thêm hạng mục miễn phí
+export const xuLyPhatSinh = (id, ghiChu) => rpc('xu_ly_phat_sinh', { p_ho_so: id, p_ghi_chu: ghiChu });
+export const themHangMucBaoHanh = (id, dong) => rpc('them_hang_muc_bao_hanh', { p_ho_so: id, p_dong: dong });
 
 // v_ho_so có sẵn số km (037), người làm bước tiếp theo và lúc giao việc (040): một lần đọc
 export const layHoSo = async (id) => (await doc('v_ho_so', (q) => q.eq('id', id)))[0] ?? null;

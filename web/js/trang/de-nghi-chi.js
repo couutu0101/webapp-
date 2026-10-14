@@ -1,5 +1,5 @@
 // Đề nghị chi → duyệt (quản lý chung đến 2 triệu, trên 2 triệu giám đốc) → kế toán chi
-import { h, tien, ngay, homNay, truong, oChu, oTien, oChon, oNgay, docForm, chay, bang, moModal, toast, dat, thanhThe, hoiLyDo } from '../ui.js';
+import { h, tien, docTien, ngay, homNay, truong, oChu, oTien, oChon, oNgay, docForm, chay, bang, moModal, toast, dat, thanhThe, hoiLyDo } from '../ui.js';
 import * as api from '../api.js';
 
 const TT = { cho_duyet: 'Chờ duyệt', da_duyet: 'Đã duyệt – chờ chi', tu_choi: 'Từ chối', da_chi: 'Đã chi', huy: 'Đã hủy' };
@@ -100,20 +100,35 @@ export default async function trangDeNghi(el) {
     return ds;
   }
 
-  async function moLap({ mucTen = null, kyMacDinh = null, soTien = null, noiDung = '', nguoiNhan = '' } = {}) {
+  async function moLap({ mucTen = null, kyMacDinh = null, soTien = null, noiDung = '', nguoiNhan = '', hoSoId = null } = {}) {
     const mucChi = api.dm.muc_thu_chi.filter((m) => m.loai === 'chi' && m.hoat_dong);
     const NHOM = { gia_von: 'Giá vốn', co_dinh: 'Chi phí cố định', van_hanh: 'Chi phí vận hành' };
     const chonMuc = h('select', { name: 'muc_id' }, h('option', { value: '' }, '— Chọn —'),
       [...new Set(mucChi.map((m) => m.nhom || 'khac'))].map((n) => h('optgroup', { label: NHOM[n] || 'Không tính vào lãi lỗ' },
         mucChi.filter((m) => (m.nhom || 'khac') === n).map((m) => h('option', { value: m.id }, m.ten)))));
     const vungRieng = h('div', { class: 'luoi-o rong' });
-    const hoSo = api.laNhanVien() ? await api.doc('v_ho_so', (q) => q.not('trang_thai', 'in', '(huy)').order('ngay_vao', { ascending: false }).limit(300)) : [];
+    // Hồ sơ để gắn khoản chi; "Trả lại cọc" cần cả hồ sơ đã hủy / đã đóng còn giữ tiền của khách (041)
+    const [hoSoMo, hoSoDu] = api.laNhanVien() ? await Promise.all([
+      api.doc('v_ho_so', (q) => q.not('trang_thai', 'in', '(huy)').order('ngay_vao', { ascending: false }).limit(300)),
+      api.doc('v_ho_so', (q) => q.lt('con_no_khach', 0).eq('tu_excel', false).order('ngay_vao', { ascending: false }).limit(100)),
+    ]) : [[], []];
+    const hoSo = [...hoSoMo, ...hoSoDu.filter((x) => !hoSoMo.some((y) => y.id === x.id))];
     chonMuc.addEventListener('change', () => {
       const m = mucChi.find((x) => String(x.id) === chonMuc.value);
       dat(vungRieng, );
       if (!m) return;
       if (m.can_ho_so || ['tra_hoa_hong', 'tra_coc'].includes(m.tinh_chat)) {
-        vungRieng.append(truong('Xe', oChon('ho_so_id', hoSo.map((x) => ({ value: x.id, label: `${x.bien_so_hien_thi || x.ma} – ${x.ten_khach}${x.gdv ? ` – GDV ${x.gdv}` : ''}` })), null), null, { batBuoc: true }));
+        const traCoc = m.tinh_chat === 'tra_coc';
+        const ds = traCoc && hoSoDu.length ? hoSoDu : hoSo;
+        const chonXe = oChon('ho_so_id', ds.map((x) => ({ value: x.id, label: `${x.bien_so_hien_thi || x.ma} – ${x.ten_khach}${x.gdv ? ` – GDV ${x.gdv}` : ''}`
+          + (Number(x.con_no_khach) < 0 ? ` – khách dư ${tien(-x.con_no_khach)} đ${x.trang_thai === 'huy' ? ' (hồ sơ đã hủy)' : ''}` : '') })), hoSoId);
+        // Trả lại cọc / tiền dư: chọn xe thì điền sẵn số tiền khách dư
+        if (traCoc) chonXe.addEventListener('change', () => {
+          const x = hoSo.find((r) => String(r.id) === chonXe.value);
+          const oSo = form.querySelector('[name=so_tien]');
+          if (x && Number(x.con_no_khach) < 0 && !docTien(oSo.value)) { oSo.value = tien(-x.con_no_khach); }
+        });
+        vungRieng.append(truong('Xe', chonXe, traCoc ? 'Danh sách xe khách đang dư tiền (trả dư, đặt cọc, hồ sơ đã hủy)' : null, { batBuoc: true }));
       }
       if (m.tinh_chat === 'tra_hoa_hong') vungRieng.append(truong('Giám định viên', oChon('gdv_id', api.dm.giam_dinh_vien.filter((g) => !g.la_cho_them).map((g) => ({ value: g.id, label: `${g.ten}${g.hang_id ? ` (${api.dm.ten('hang_bao_hiem', g.hang_id)})` : ''}` })), null), null, { batBuoc: true }));
       if (m.tinh_chat === 'tra_ncc') vungRieng.append(truong('Nhà cung cấp', oChon('nha_cung_cap_id', api.dm.nha_cung_cap.filter((x) => x.hoat_dong).map((x) => ({ value: x.id, label: x.ten })), null), null, { batBuoc: true }));
@@ -144,6 +159,7 @@ export default async function trangDeNghi(el) {
   const thamSo = new URLSearchParams(location.hash.split('?')[1] || '');
   if (thamSo.get('lap') && !api.laCoDong()) {
     history.replaceState(null, '', '#/de-nghi');
-    await moLap({ mucTen: thamSo.get('muc'), kyMacDinh: thamSo.get('ky'), soTien: thamSo.get('tien') ? Number(thamSo.get('tien')) : null, noiDung: thamSo.get('nd') || '', nguoiNhan: thamSo.get('nhan') || '' });
+    await moLap({ mucTen: thamSo.get('muc'), kyMacDinh: thamSo.get('ky'), soTien: thamSo.get('tien') ? Number(thamSo.get('tien')) : null, noiDung: thamSo.get('nd') || '',
+      nguoiNhan: thamSo.get('nhan') || '', hoSoId: thamSo.get('ho_so') ? Number(thamSo.get('ho_so')) : null });
   }
 }

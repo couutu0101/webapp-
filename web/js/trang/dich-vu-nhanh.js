@@ -124,7 +124,7 @@ export default async function trangDichVu(el) {
         { nhan: 'Biển số', lay: (r) => r.bien_so_hien_thi ? bienSo(r.bien_so_hien_thi) : '' },
         { nhan: 'Khách', lay: (r) => [r.ten_khach && r.ten_khach !== 'Chưa có tên' ? r.ten_khach : null, r.dien_thoai].filter(Boolean).join(' – ') },
         { nhan: 'Số km', so: true, lay: (r) => (r.so_km === null || r.so_km === undefined ? '' : tien(r.so_km)) },
-        { nhan: 'Dịch vụ', lay: (r) => r.trang_thai === 'huy' ? h('s', null, r.dich_vu) : r.dich_vu },
+        { nhan: 'Dịch vụ', lay: (r) => r.trang_thai === 'huy' ? h('span', null, h('s', null, r.dich_vu), r.ly_do_huy ? h('small', null, ` · hủy: ${r.ly_do_huy}`) : null) : r.dich_vu },
         { nhan: 'Tổ làm', lay: (r) => r.nguoi_lam || '' },
         { nhan: 'Số tiền', so: true, lay: (r) => tien(r.so_tien) },
         { nhan: 'Đã thu', lay: (r) => r.trang_thai === 'huy' ? 'Đã hủy' : Number(r.da_thu) >= Number(r.so_tien) ? '✓' :

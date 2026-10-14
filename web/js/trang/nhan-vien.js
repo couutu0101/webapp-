@@ -102,7 +102,9 @@ export default async function trangNhanVien(el) {
       truong('Chi nhánh', oChon('chi_nhanh_id', api.dm.chi_nhanh.map((c) => ({ value: c.id, label: c.ten })), r.chi_nhanh_id || api.toi.chi_nhanh_id)),
       oVaiTro(r.vai_tro),
       truong('Tổ (cho trưởng nhóm)', oChon('to_id', api.dm.to_thuc_hien.map((t) => ({ value: t.id, label: t.ten })), r.to_id, { trong: '— Không —' })),
-      h('div', { class: 'truong' }, oCheck('hoat_dong', r.hoat_dong, 'Đang làm (bỏ chọn để khóa tài khoản)')));
+      // 041: không tự khóa tài khoản của chính mình (khóa rồi không ai mở lại được)
+      r.id === api.toi.id ? h('p', { class: 'goi-y' }, 'Tài khoản của anh/chị – không tự khóa được.')
+        : h('div', { class: 'truong' }, oCheck('hoat_dong', r.hoat_dong, 'Đang làm (bỏ chọn để khóa tài khoản)')));
     moModal(`Quyền của ${r.ho_ten}`, form, {
       rong: true,
       nutChinh: async () => {

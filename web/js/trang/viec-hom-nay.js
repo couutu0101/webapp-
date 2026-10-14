@@ -88,6 +88,10 @@ function khoiCanhBao(ds) {
 }
 
 function khoiBangViec(ds, taiLai) {
+  // Đúng danh sách vai trò của hàm máy chủ (bao_xong_hang_muc, lap_de_xuat_vat_tu, bao_phat_sinh)
+  const duocBaoXong = api.coVaiTro('truong_nhom', 'cvdv', 'quan_ly', 'giam_doc');
+  const duocDeXuat = api.coVaiTro('truong_nhom', 'cvdv', 'kho', 'quan_ly', 'giam_doc');
+  const duocBaoPhatSinh = api.coVaiTro('truong_nhom', 'cvdv', 'quan_ly', 'giam_doc');
   return h('section', { class: 'the' },
     h('h2', null, api.coVaiTro('truong_nhom') ? `Xe của tổ ${api.dm.ten('to_thuc_hien', api.toi.to_id)}` : 'Bảng việc xưởng'),
     !ds.length ? h('p', { class: 'trong' }, 'Không có xe đang sửa.') :
@@ -99,12 +103,13 @@ function khoiBangViec(ds, taiLai) {
           quaHan(new Date(x.hen_giao)) ? h('span', { class: 'nhan qua-han' }, chuHan(new Date(x.hen_giao))) : null) : null,
         h('ul', { class: 'ds-hang-muc' }, (x.hang_muc || []).map((m) => h('li', { class: m.trang_thai },
           h('span', { class: 'hang-muc-ten' }, m.ten, m.nguoi_lam ? chipNguoi(m.nguoi_lam, { vai: 'truong_nhom', gon: true, nho: true }) : null),
-          m.trang_thai === 'dang_lam'
-            ? h('button', { class: 'nut nho', type: 'button', onclick: () => chay(() => api.baoXong(m.id), { thanhCong: `Đã báo xong: ${m.ten}` }).then(taiLai, taiLai) }, 'Báo xong')
-            : h('span', { class: 'xong' }, '✓ Xong')))),
-        h('div', { class: 'hang-nut' },
-          h('button', { class: 'nut nho', type: 'button', onclick: () => moLapDeXuat({ id: x.ho_so_id, ma: x.ma, bien_so_hien_thi: x.bien_so, xe: x.xe }, taiLai) }, 'Đề xuất vật tư'),
-          h('button', { class: 'nut nho', type: 'button', onclick: () => moPhatSinh(x, taiLai) }, 'Báo phát sinh')),
+          m.trang_thai !== 'dang_lam' ? h('span', { class: 'xong' }, '✓ Xong')
+            : duocBaoXong ? h('button', { class: 'nut nho', type: 'button', onclick: () => chay(() => api.baoXong(m.id), { thanhCong: `Đã báo xong: ${m.ten}` }).then(taiLai, taiLai) }, 'Báo xong')
+              : h('span', { class: 'mo-ta' }, 'Đang làm')))),
+        // 041: chỉ hiện nút người đó làm được (kế toán xem bảng việc nhưng không báo xong, không đề xuất, không báo phát sinh)
+        duocDeXuat || duocBaoPhatSinh ? h('div', { class: 'hang-nut' },
+          duocDeXuat ? h('button', { class: 'nut nho', type: 'button', onclick: () => moLapDeXuat({ id: x.ho_so_id, ma: x.ma, bien_so_hien_thi: x.bien_so, xe: x.xe }, taiLai) }, 'Đề xuất vật tư') : null,
+          duocBaoPhatSinh ? h('button', { class: 'nut nho', type: 'button', onclick: () => moPhatSinh(x, taiLai) }, 'Báo phát sinh') : null) : null,
       ))));
 }
 
