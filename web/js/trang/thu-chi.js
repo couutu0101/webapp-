@@ -1,5 +1,5 @@
 // Thu chi: số dư quỹ, sổ thu chi, phiếu thu (gắn vào xe), chuyển quỹ, kiểm quỹ
-import { h, tien, ngay, homNay, cuoiThang, truong, oChu, oTien, oChon, oNgay, oVung, docForm, docTien, chay, bang, moModal, toast, dat } from '../ui.js';
+import { h, tien, ngay, homNay, cuoiThang, truong, oChu, oTien, oChon, oNgay, oVung, docForm, docTien, bang, moModal, toast, dat, hoiLyDo } from '../ui.js';
 import * as api from '../api.js';
 
 export default async function trangThuChi(el) {
@@ -235,8 +235,8 @@ export default async function trangThuChi(el) {
   }
 
   function moHuy(p) {
-    const form = h('form', null, truong('Lý do hủy', oVung('ly_do', ''), 'Phiếu hủy vẫn được giữ lại để tra cứu.', { batBuoc: true }));
-    moModal('Hủy phiếu', form, { nhanNut: 'Hủy phiếu', nutChinh: async () => { await api.huyPhieu(p.id, docForm(form).ly_do); toast('Đã hủy phiếu.'); await taiLai(); } });
+    hoiLyDo('Hủy phiếu', async (lyDo) => { await api.huyPhieu(p.id, lyDo); toast('Đã hủy phiếu.'); await taiLai(); },
+      { nhan: 'Lý do hủy', goiY: 'Phiếu hủy vẫn được giữ lại để tra cứu.', nhanNut: 'Hủy phiếu' });
   }
 
   await taiLai();

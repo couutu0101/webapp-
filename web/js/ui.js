@@ -66,7 +66,6 @@ export function homNay() {
   const t = new Date();
   return `${t.getFullYear()}-${hai(t.getMonth() + 1)}-${hai(t.getDate())}`;
 }
-export function dauThang(d = new Date()) { return `${d.getFullYear()}-${hai(d.getMonth() + 1)}-01`; }
 export function cuoiThang(thang /* 'YYYY-MM' */) {
   const [y, m] = thang.split('-').map(Number);
   const t = new Date(y, m, 0);
@@ -84,13 +83,14 @@ export const TRANG_THAI = {
   cho_kcs: 'Chờ KCS', dat_kcs: 'Đạt KCS – chờ giao', da_giao: 'Đã giao xe', da_gui_hs: 'Đã gửi hồ sơ BH',
   dong: 'Đã đóng', huy: 'Đã hủy',
 };
-export const BUOC_SO = { tiep_nhan: 1, bao_gia: 2, da_duyet: 3, dang_sua: 5, cho_kcs: 6, dat_kcs: 7, da_giao: 8, da_gui_hs: 8, dong: 9, huy: 0 };
 // Nhóm hạng mục báo giá. Chọn mới: Đồng, Sơn, Phụ tùng, Detailing; "Đồng sơn", "Điện – máy – gầm" chỉ còn ở dòng cũ.
 export const NHOM = { dong: 'Đồng', son: 'Sơn', phu_tung: 'Phụ tùng', detailing: 'Detailing', dong_son: 'Đồng sơn', dmg: 'Điện – máy – gầm' };
 export const NHOM_CHON = ['dong', 'son', 'phu_tung', 'detailing'];
 // Gộp nhóm cho báo cáo doanh thu: Đồng + Sơn tính vào "Đồng sơn"
 export const NHOM_BAO_CAO = { dong_son: 'Đồng sơn', phu_tung: 'Phụ tùng', dmg: 'Điện – máy – gầm', detailing: 'Detailing' };
 export const nhomBaoCao = (n) => (n === 'dong' || n === 'son' ? 'dong_son' : n);
+// Nhóm hàng kho, theo thứ tự hiển thị (kho, xuất Excel)
+export const NHOM_HANG = ['Sơn', 'Nhám', 'Vật tư phụ', 'Phụ tùng', 'Dầu nhớt', 'Detailing', 'Khác'];
 export const NGUON = { bao_hiem: 'Bảo hiểm', khach: 'Khách ngoài bảo hiểm', bao_hiem_khach: 'Bảo hiểm + khách trả thêm' };
 export const VAI_TRO = {
   giam_doc: 'Giám đốc', quan_ly: 'Quản lý chung', ke_toan: 'Kế toán', cvdv: 'CVDV',
@@ -321,6 +321,7 @@ export function xacNhan(cauHoi, nhan = 'Đồng ý') {
 
 export function baoLoi(e) {
   const msg = (e && (e.message || e.error_description)) || String(e);
+  if (e && typeof e === 'object') e.daBao = true;   // đã hiện cho người dùng – nơi khác không báo lại
   console.warn(e);
   toast(msg.replace(/^CANH_BAO:\s*/, ''), 'loi');
 }
@@ -519,10 +520,6 @@ export function docForm(form) {
   return kq;
 }
 
-export function trangThaiTai(el, dangTai = true) {
-  dat(el, h('div', { class: 'dang-tai', role: 'status' }, dangTai ? 'Đang tải…' : ''));
-}
-
 // Hàng thẻ dài hơn màn hình (điện thoại): cuộn ngang cho thẻ đang chọn nằm giữa, không bị che
 export function cuonTheChon(tabs) {
   requestAnimationFrame(() => {
@@ -530,6 +527,61 @@ export function cuonTheChon(tabs) {
     if (!b || tabs.scrollWidth <= tabs.clientWidth) return;
     const lech = b.getBoundingClientRect().left - tabs.getBoundingClientRect().left + tabs.scrollLeft;
     tabs.scrollLeft = Math.max(0, lech - (tabs.clientWidth - b.offsetWidth) / 2);
+  });
+}
+
+// Dải thẻ (tab) dùng chung: ds = [[ma, nhan], …]; chon(ma) chạy khi bấm thẻ khác.
+// Giữ role="tab", data-ma, aria-selected; thẻ đang chọn luôn nằm trong tầm nhìn (điện thoại).
+export function thanhThe(ds, dangChon, chon, { nho = false, nhan = null } = {}) {
+  const tabs = h('div', { class: nho ? 'tabs nho' : 'tabs', role: 'tablist', 'aria-label': nhan },
+    ds.map(([ma, chu]) => h('button', { type: 'button', role: 'tab', 'data-ma': ma, 'aria-selected': String(ma === dangChon),
+      onclick: () => { tabs.danhDau(ma); chon(ma); } }, chu)));
+  tabs.danhDau = (ma) => { for (const b of tabs.children) b.setAttribute('aria-selected', String(b.dataset.ma === ma)); cuonTheChon(tabs); };
+  return tabs;
+}
+
+// Hộp hỏi lý do (hủy, từ chối, treo…): bắt buộc ghi; lam(lyDo) chạy khi bấm nút chính, lỗi thì hộp vẫn mở để sửa
+export function hoiLyDo(tieuDe, lam, { nhan = 'Lý do', goiY = null, nhanNut = 'Xác nhận', placeholder = '', moTa = null } = {}) {
+  const o = oVung('ly_do', '', { placeholder, rows: 3 });
+  return moModal(tieuDe, h('form', { onsubmit: (e) => e.preventDefault() }, moTa ? h('p', null, moTa) : null, truong(nhan, o, goiY, { batBuoc: true })), {
+    nhanNut,
+    nutChinh: async () => {
+      const lyDo = o.value.trim();
+      if (!lyDo) { toast(`Ghi ${nhan.charAt(0).toLowerCase()}${nhan.slice(1)}.`, 'loi'); o.focus(); return false; }
+      return lam(lyDo);
+    },
+  });
+}
+
+// Chạy fn(phần tử) cho cả danh sách, tối đa toiDa việc cùng lúc. Kết quả theo đúng thứ tự, dạng Promise.allSettled
+// (một việc lỗi không làm dừng các việc khác).
+export async function chaySongSong(ds, fn, toiDa = 3) {
+  const kq = new Array(ds.length); let tiep = 0;
+  const tho = async () => {
+    while (tiep < ds.length) {
+      const i = tiep++;
+      try { kq[i] = { status: 'fulfilled', value: await fn(ds[i], i) }; } catch (e) { kq[i] = { status: 'rejected', reason: e }; }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(toiDa, ds.length) }, tho));
+  return kq;
+}
+
+// Chặn gửi form 2 lần (bấm đúp, Enter liên tục): trong lúc xuLy(e) chạy, nút gửi bị khóa và lần gửi sau bị bỏ qua.
+// xuLy trả về true = đã xong hẳn (vd chuyển sang trang khác) → giữ khóa luôn, không cho gửi lại.
+export function khoaKhiGui(form, xuLy, { chuDangGui = null } = {}) {
+  let dangGui = false;
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (dangGui) return;
+    dangGui = true;
+    const nut = form.querySelector('button[type=submit]'); const chuCu = nut?.textContent;
+    if (nut) { nut.disabled = true; if (chuDangGui) nut.textContent = chuDangGui; }
+    let giuKhoa = false;
+    try { giuKhoa = (await xuLy(e)) === true; } catch (loi) { if (!loi?.daBao && !loi?.daHuy) baoLoi(loi); } finally {
+      dangGui = giuKhoa;
+      if (!giuKhoa && nut && nut.isConnected) { nut.disabled = false; if (chuDangGui) nut.textContent = chuCu; }
+    }
   });
 }
 

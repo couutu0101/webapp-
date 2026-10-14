@@ -2,7 +2,8 @@
 // Theo đặc tả 11/10/2026. Tồn theo đơn vị xuất; giá vốn nhập trước xuất trước, đã gồm VAT.
 import {
   h, tien, ngay, ngayGio, homNay, truong, oChu, oTien, oChon, oNgay, oVung, oCheck, oChonTep, docTien, chay, bang,
-  moModal, toast, dat, xacNhan, bienSo, nenAnh, taiTepCSV, nhoPhien, cuoiThang, oGoiY, VAI_TRO, chipNguoi, vaiChinh, vienHan, cuonTheChon,
+  moModal, toast, dat, xacNhan, bienSo, taiTepCSV, nhoPhien, oGoiY, VAI_TRO, chipNguoi, vaiChinh, vienHan, cuonTheChon,
+  thanhThe, hoiLyDo, NHOM_HANG,
 } from '../ui.js';
 import * as api from '../api.js';
 import { nutXuatExcel, xuatExcelKho } from './xuat-excel.js';
@@ -21,9 +22,9 @@ function oYeuCauTiep(loai, r, nguoiYeuCau, { mot = false, ten = null } = {}) {
   return h('span', { class: 'yeu-cau-tiep' }, dau, mot ? ' ' : h('br'), tiep);
 }
 
-export const NHOM_HANG = ['Sơn', 'Nhám', 'Vật tư phụ', 'Phụ tùng', 'Dầu nhớt', 'Detailing', 'Khác'];
 const DVT_GOI_Y = ['Cái', 'Bộ', 'Chai', 'Lít', 'Can 4L', 'Bình 20L', 'Hộp', 'Cây', 'Tờ', 'Kg', 'Mét', 'Cuộn'];
-const MUC_VAT = [[0, '0%'], [0.08, '8%'], [0.1, '10%']];
+// VAT đầu vào trên hóa đơn nhà cung cấp (phiếu nhập, đề nghị mua); VAT đầu ra của báo giá ở ho-so-chi-tiet.js
+const VAT_NHAP = [[0, '0%'], [0.08, '8%'], [0.1, '10%']];
 const TT_DE_XUAT = { cho_xuat: 'Chờ xuất', da_xuat: 'Đã xuất đủ', huy: 'Đã hủy' };
 const TT_MUA = { cho_duyet: 'Chờ duyệt', da_duyet: 'Đã duyệt – chờ hàng', tu_choi: 'Từ chối', da_nhap: 'Đã nhập', huy: 'Đã hủy' };
 const TT_NHAP = { cho_khop: 'Chờ kế toán khớp', da_khop: 'Đã khớp hóa đơn', treo: 'Treo – lệch', huy: 'Đã hủy' };
@@ -38,10 +39,16 @@ const laKho = () => api.coVaiTro('kho', 'giam_doc');
 const keToan = () => api.coVaiTro('ke_toan', 'giam_doc');
 const chungTu = (r) => ({ id: r.id, ma: r.ma, chi_nhanh_id: r.chi_nhanh_id || api.toi.chi_nhanh_id });
 
-// Danh sách hàng (tồn hiện tại) dùng chung cho các ô chọn
+// Danh sách hàng (tồn hiện tại) dùng chung cho các ô chọn và hộp thoại.
+// Dùng lại trong 30 giây nếu từ lúc tải chưa ghi gì (mở thẻ rồi mở hộp thoại không tải lại);
+// vừa lập / xuất / nhập / sửa (api.soLanGhi đổi) thì tải lại ngay.
 let dsHang = [];
-export async function taiHang() {
+let daTaiHang = { ghi: -1, luc: 0 };
+export async function taiHang({ moi = false } = {}) {
+  const conDung = dsHang.length && daTaiHang.ghi === api.soLanGhi() && Date.now() - daTaiHang.luc < 30000;
+  if (!moi && conDung) return dsHang;
   dsHang = await api.doc('v_ton_kho', (q) => q.order('nhom').order('ma'));
+  daTaiHang = { ghi: api.soLanGhi(), luc: Date.now() };
   return dsHang;
 }
 const hangTheoId = (id) => dsHang.find((x) => String(x.id) === String(id));
@@ -109,7 +116,6 @@ function khungDong(taoDong, nhanThem = '+ Thêm dòng') {
 }
 
 export default async function trangKho(el) {
-  await taiHang();
   const vanPhong = api.xemNhuNhanVien();
   const THE = [
     ['ton', 'Tồn kho', true],
@@ -125,17 +131,15 @@ export default async function trangKho(el) {
   let the = thamSo.get('the') || nhoPhien.doc('kho_the') || 'ton';
   if (!THE.some((t) => t[0] === the)) the = 'ton';
   const vung = h('div');
-  const tabs = h('div', { class: 'tabs', role: 'tablist' }, THE.map(([ma, nhan]) => h('button', {
-    type: 'button', role: 'tab', 'data-ma': ma, 'aria-selected': String(ma === the),
-    onclick: () => { the = ma; nhoPhien.ghi('kho_the', ma); for (const b of tabs.children) b.setAttribute('aria-selected', String(b.dataset.ma === the)); cuonTheChon(tabs); ve(); },
-  }, nhan)));
+  const tabs = thanhThe(THE, the, (ma) => { the = ma; nhoPhien.ghi('kho_the', ma); ve(); }, { nhan: 'Mục kho' });
   const nut = h('div', { class: 'hang-nut' });
   dat(el, h('div', { class: 'tieu-de-trang' }, h('h1', null, 'Kho'), nut), h('div', { class: 'thanh-loc' }, tabs), vung);
   cuonTheChon(tabs);
 
   async function ve() {
     dat(nut); dat(vung, h('div', { class: 'dang-tai' }, 'Đang tải…'));
-    await taiHang();
+    // Chỉ thẻ Tồn kho và Nhập – xuất – tồn cần danh sách hàng; hộp thoại tự tải khi mở
+    if (the === 'ton' || the === 'nxt') await taiHang({ moi: the === 'ton' });
     const VE = { ton: veTon, de_xuat: veDeXuat, nhap: veNhap, mua: veMua, kiem_ke: veKiemKe, cong_no: veCongNo, nxt: veNxt, thiet_bi: veThietBi };
     await VE[the]();
   }
@@ -190,9 +194,7 @@ export default async function trangKho(el) {
     }
     let loc = 'cho_xuat';
     const kq = h('div');
-    const tabsCon = h('div', { class: 'tabs nho', role: 'tablist' }, [['cho_xuat', 'Chờ xuất'], ['tat', 'Tất cả (60 ngày)']].map(([ma, nhan]) =>
-      h('button', { type: 'button', role: 'tab', 'data-ma': ma, 'aria-selected': String(ma === loc),
-        onclick: () => { loc = ma; for (const b of tabsCon.children) b.setAttribute('aria-selected', String(b.dataset.ma === loc)); tai(); } }, nhan)));
+    const tabsCon = thanhThe([['cho_xuat', 'Chờ xuất'], ['tat', 'Tất cả (60 ngày)']], loc, (ma) => { loc = ma; tai(); }, { nho: true });
     async function tai() {
       dat(kq, h('div', { class: 'dang-tai' }, 'Đang tải…'));
       const ds = await api.doc('v_de_xuat', (q) => (loc === 'cho_xuat' ? q.eq('trang_thai', 'cho_xuat')
@@ -218,9 +220,7 @@ export default async function trangKho(el) {
     if (laKho()) nut.append(h('button', { class: 'nut chinh', type: 'button', onclick: () => moPhieuNhap({}, ve) }, '+ Phiếu nhập'));
     let loc = keToan() ? 'cho_khop' : 'tat';
     const kq = h('div');
-    const tabsCon = h('div', { class: 'tabs nho', role: 'tablist' }, [['cho_khop', 'Chờ khớp'], ['treo', 'Treo'], ['tat', 'Tất cả (60 ngày)']].map(([ma, nhan]) =>
-      h('button', { type: 'button', role: 'tab', 'data-ma': ma, 'aria-selected': String(ma === loc),
-        onclick: () => { loc = ma; for (const b of tabsCon.children) b.setAttribute('aria-selected', String(b.dataset.ma === loc)); tai(); } }, nhan)));
+    const tabsCon = thanhThe([['cho_khop', 'Chờ khớp'], ['treo', 'Treo'], ['tat', 'Tất cả (60 ngày)']], loc, (ma) => { loc = ma; tai(); }, { nho: true });
     async function tai() {
       dat(kq, h('div', { class: 'dang-tai' }, 'Đang tải…'));
       const ds = await api.doc('v_phieu_nhap', (q) => (loc === 'tat' ? q.gte('ngay', new Date(Date.now() - 60 * 864e5).toISOString().slice(0, 10))
@@ -247,9 +247,7 @@ export default async function trangKho(el) {
     if (api.coVaiTro('kho', 'cvdv', 'quan_ly', 'giam_doc')) nut.append(h('button', { class: 'nut chinh', type: 'button', onclick: () => moLapDeNghiMua({}, ve) }, '+ Đề nghị mua'));
     let loc = ql() ? 'cho_duyet' : 'da_duyet';
     const kq = h('div');
-    const tabsCon = h('div', { class: 'tabs nho', role: 'tablist' }, [['cho_duyet', 'Chờ duyệt'], ['da_duyet', 'Đã duyệt – chờ hàng'], ['tat', 'Tất cả (60 ngày)']].map(([ma, nhan]) =>
-      h('button', { type: 'button', role: 'tab', 'data-ma': ma, 'aria-selected': String(ma === loc),
-        onclick: () => { loc = ma; for (const b of tabsCon.children) b.setAttribute('aria-selected', String(b.dataset.ma === loc)); tai(); } }, nhan)));
+    const tabsCon = thanhThe([['cho_duyet', 'Chờ duyệt'], ['da_duyet', 'Đã duyệt – chờ hàng'], ['tat', 'Tất cả (60 ngày)']], loc, (ma) => { loc = ma; tai(); }, { nho: true });
     const nguong = api.caiDat('nguong_3_bao_gia', 5000000);
     async function tai() {
       dat(kq, h('div', { class: 'dang-tai' }, 'Đang tải…'));
@@ -329,16 +327,13 @@ export default async function trangKho(el) {
     const kq = h('div');
     async function tai() {
       dat(kq, h('div', { class: 'dang-tai' }, 'Đang tải…'));
-      const tu = `${thang}-01`; const den = cuoiThang(thang);
-      const ps = await api.doc('v_the_kho', (q) => q.lte('ngay', den));
-      const g = new Map();
-      for (const x of dsHang) g.set(x.id, { x, dau: 0, gtDau: 0, nhap: 0, gtNhap: 0, xuat: 0, gtXuat: 0 });
-      for (const p of ps) {
-        const r = g.get(p.hang_id); if (!r) continue;
-        const so = Number(p.so_luong); const gt = Number(p.gia_tri);
-        if (p.ngay < tu) { r.dau += so; r.gtDau += gt; } else if (so > 0) { r.nhap += so; r.gtNhap += gt; } else { r.xuat -= so; r.gtXuat -= gt; }
-      }
-      const ds = [...g.values()].filter((r) => r.dau || r.nhap || r.xuat);
+      // 040: máy chủ cộng sẵn theo mã hàng (trước đây tải cả lịch sử thẻ kho về máy)
+      const ps = await api.nhapXuatTon(thang);
+      const theoId = new Map(dsHang.map((x, i) => [x.id, { x, i }]));
+      const ds = ps.map((p) => ({ ...theoId.get(p.hang_id), dau: Number(p.dau), gtDau: Number(p.gt_dau), nhap: Number(p.nhap), gtNhap: Number(p.gt_nhap),
+        xuat: Number(p.xuat), gtXuat: Number(p.gt_xuat) }))
+        .filter((r) => r.x && (r.dau || r.nhap || r.xuat))
+        .sort((a, b) => a.i - b.i);   // giữ thứ tự danh sách hàng (nhóm, mã)
       const cot = [
         { nhan: 'Mã', lay: (r) => r.x.ma, xuat: (r) => r.x.ma },
         { nhan: 'Tên hàng', lay: (r) => r.x.ten, xuat: (r) => r.x.ten },
@@ -418,7 +413,7 @@ async function moTheKho(x, veLai) {
 
 // Lập phiếu đề xuất vật tư (có thể đặt sẵn xe từ trang hồ sơ)
 export async function moLapDeXuat(hoSo, veLai) {
-  if (!dsHang.length) await taiHang();
+  await taiHang();
   const dsXe = hoSo ? [hoSo] : await hoSoDangSua();
   if (!dsXe.length) { toast('Chưa có xe nào có lệnh sửa chữa để đề xuất vật tư.', 'loi'); return; }
   const chonXe = oChon('ho_so_id', dsXe.map((x) => ({ value: x.id, label: nhanXe(x) })), hoSo?.id, { trong: hoSo ? null : '— Chọn xe —' });
@@ -510,11 +505,10 @@ export async function moDeXuat(id, veLai) {
       } }, 'Hủy phiếu đề xuất') : null);
   noiDung.append(hangNut);
   function dongModal() { dongHop(); }
-  async function huyXuat(p) {
-    const form = h('form', null, truong('Lý do hủy', oVung('ly_do', ''), 'Hàng trả về đúng lô cũ, giá vốn của xe giảm tương ứng.', { batBuoc: true }));
-    moModal(`Hủy phiếu xuất ${p.ma}`, form, { nhanNut: 'Hủy phiếu xuất', nutChinh: async () => {
-      await api.huyPhieuXuat(p.id, form.ly_do.value); toast('Đã hủy phiếu xuất, hàng đã về kho.'); dongModal(); await veLai?.();
-    } });
+  function huyXuat(p) {
+    hoiLyDo(`Hủy phiếu xuất ${p.ma}`, async (lyDo) => {
+      await api.huyPhieuXuat(p.id, lyDo); toast('Đã hủy phiếu xuất, hàng đã về kho.'); dongModal(); await veLai?.();
+    }, { nhan: 'Lý do hủy', goiY: 'Hàng trả về đúng lô cũ, giá vốn của xe giảm tương ứng.', nhanNut: 'Hủy phiếu xuất' });
   }
 }
 
@@ -527,7 +521,7 @@ function moChuyenMua(r, thieu, veLai) {
     const canXuat = Number(d.so_luong) - Number(d.da_xuat) - Math.max(Number(x?.ton || 0), 0);
     const oSl = oSoLuong('so_luong', Math.max(1, Math.ceil(canXuat / Number(x?.he_so || 1))));
     const oGia = oTien('don_gia', x?.gia_nhap_gan_nhat ?? null);
-    const chonVat = oChon('ty_le_vat', MUC_VAT.map(([v, l]) => ({ value: v, label: l })), 0.08, { trong: null });
+    const chonVat = oChon('ty_le_vat', VAT_NHAP.map(([v, l]) => ({ value: v, label: l })), 0.08, { trong: null });
     const tich = h('input', { type: 'checkbox', checked: true, 'aria-label': `Mua ${x?.ma}` });
     return { d, x, oSl, oGia, chonVat, tich, el: h('tr', null,
       h('td', null, h('label', null, tich, ' ', h('b', null, x?.ma), ` ${x?.ten || ''}`), h('small', { class: 'goi-y' }, ` Thiếu ${sl(canXuat)} ${x?.dvt}`)),
@@ -557,7 +551,7 @@ function dongCoGia(capNhat) {
   return (macDinh = {}) => {
     const chon = oChonHang('hang_id', macDinh.hang_id); const oSl = oSoLuong('so_luong', macDinh.so_luong ?? '');
     const oGia = oTien('don_gia', macDinh.don_gia ?? null);
-    const chonVat = oChon('ty_le_vat', MUC_VAT.map(([v, l]) => ({ value: v, label: l })), macDinh.ty_le_vat ?? 0.08, { trong: null });
+    const chonVat = oChon('ty_le_vat', VAT_NHAP.map(([v, l]) => ({ value: v, label: l })), macDinh.ty_le_vat ?? 0.08, { trong: null });
     const goiY = h('small', { class: 'goi-y' }); const thanh = h('small', { class: 'goi-y' });
     const ve = () => {
       const x = hangTheoId(chon.value);
@@ -631,10 +625,7 @@ export async function moPhieuNhap({ deNghi = null } = {}, veLai) {
       const kq = await api.lapPhieuNhap({ ngay: oNgayNhap.value, nha_cung_cap_id: Number(chonNcc.value), so_hoa_don: oSoHd.value,
         de_nghi_mua_id: chonDeNghi.value ? Number(chonDeNghi.value) : null, ho_so_id: chonXe.value ? Number(chonXe.value) : null,
         xuat_cho_xe: !!chonXe.value && tichXuat.querySelector('input').checked, ghi_chu: oGhiChu.value, dong: ds });
-      let loi = 0;
-      for (const f of chonAnh.input.files) {
-        try { await api.taiTepKho('phieu_nhap', chungTu(kq), f.type.startsWith('image/') ? await nenAnh(f, 'khac') : f); } catch { loi++; }
-      }
+      const loi = (await api.taiNhieu(chonAnh.input.files, 'khac', (f) => api.taiTepKho('phieu_nhap', chungTu(kq), f))).loi.length;
       toast(`Đã nhập kho ${kq.ma}${kq.phieu_xuat ? ` và xuất ngay ${kq.phieu_xuat.ma} cho xe` : ''}.${loi ? ` ${loi} ảnh tải lên lỗi.` : ''}`, loi ? 'loi' : 'ok');
       await veLai?.();
     },
@@ -671,16 +662,14 @@ export async function moChiTietNhap(id, veLai) {
     hangNut.append(nutTaiTep('phieu_nhap', r, async () => { dongModal(); await moChiTietNhap(id, veLai); }));
     if (keToan() && (r.tao_boi !== api.toi.id || api.coVaiTro('giam_doc'))) { // người lập không tự khớp, trừ giám đốc
       hangNut.append(h('button', { class: 'nut chinh', type: 'button', onclick: () => chay(() => api.khopPhieuNhap(id, true), { thanhCong: 'Đã khớp hóa đơn – ghi công nợ nhà cung cấp.' }).then(() => { dongModal(); veLai?.(); }).catch(() => {}) }, 'Khớp hóa đơn'));
-      hangNut.append(h('button', { class: 'nut', type: 'button', onclick: () => {
-        const form = h('form', null, truong('Chỗ lệch', oVung('ly_do', ''), 'Số lượng, đơn giá, thiếu hóa đơn…', { batBuoc: true }));
-        moModal(`Treo phiếu ${r.ma}`, form, { nhanNut: 'Treo phiếu', nutChinh: async () => { await api.khopPhieuNhap(id, false, form.ly_do.value); toast('Đã treo phiếu.'); dongModal(); await veLai?.(); } });
-      } }, 'Treo – lệch'));
+      hangNut.append(h('button', { class: 'nut', type: 'button', onclick: () => hoiLyDo(`Treo phiếu ${r.ma}`, async (lyDo) => {
+        await api.khopPhieuNhap(id, false, lyDo); toast('Đã treo phiếu.'); dongModal(); await veLai?.();
+      }, { nhan: 'Chỗ lệch', goiY: 'Số lượng, đơn giá, thiếu hóa đơn…', nhanNut: 'Treo phiếu' }) }, 'Treo – lệch'));
     }
     if (laKho()) {
-      hangNut.append(h('button', { class: 'nut-chu', type: 'button', onclick: () => {
-        const form = h('form', null, truong('Lý do hủy', oVung('ly_do', ''), 'Chỉ hủy được khi hàng của phiếu chưa xuất. Hủy xong lập lại phiếu đúng.', { batBuoc: true }));
-        moModal(`Hủy phiếu nhập ${r.ma}`, form, { nhanNut: 'Hủy phiếu nhập', nutChinh: async () => { await api.huyPhieuNhap(id, form.ly_do.value); toast('Đã hủy phiếu nhập.'); dongModal(); await veLai?.(); } });
-      } }, 'Hủy phiếu nhập'));
+      hangNut.append(h('button', { class: 'nut-chu', type: 'button', onclick: () => hoiLyDo(`Hủy phiếu nhập ${r.ma}`, async (lyDo) => {
+        await api.huyPhieuNhap(id, lyDo); toast('Đã hủy phiếu nhập.'); dongModal(); await veLai?.();
+      }, { nhan: 'Lý do hủy', goiY: 'Chỉ hủy được khi hàng của phiếu chưa xuất. Hủy xong lập lại phiếu đúng.', nhanNut: 'Hủy phiếu nhập' }) }, 'Hủy phiếu nhập'));
     }
   }
   dongModal = moModal(`Phiếu nhập ${r.ma} – ${TT_NHAP[r.trang_thai]}`, noiDung, { rong: true });
@@ -711,10 +700,8 @@ async function moLapDeNghiMua(_, veLai) {
       if (!chonNcc.value) { toast('Chọn nhà cung cấp.', 'loi'); return false; }
       if (!ds.length || ds.some((d) => !(d.so_luong > 0) || d.don_gia === null)) { toast('Nhập mã hàng, số lượng, đơn giá cho từng dòng.', 'loi'); return false; }
       const kq = await api.lapDeNghiMua({ nha_cung_cap_id: Number(chonNcc.value), ho_so_id: chonXe.value ? Number(chonXe.value) : null, ghi_chu: oGhiChu.value, dong: ds });
-      for (const f of chonBg.input.files) {
-        try { await api.taiTepKho('de_nghi_mua', chungTu({ ...kq, chi_nhanh_id: api.toi.chi_nhanh_id }), f.type.startsWith('image/') ? await nenAnh(f, 'khac') : f); } catch { /* báo ở dưới */ }
-      }
-      toast(`Đã gửi đề nghị mua ${kq.ma}.`);
+      const loi = (await api.taiNhieu(chonBg.input.files, 'khac', (f) => api.taiTepKho('de_nghi_mua', chungTu({ ...kq, chi_nhanh_id: api.toi.chi_nhanh_id }), f))).loi.length;
+      toast(`Đã gửi đề nghị mua ${kq.ma}.${loi ? ` ${loi} báo giá tải lên lỗi – tải lại trong phiếu.` : ''}`, loi ? 'loi' : 'ok');
       await veLai?.();
     },
   });
@@ -767,10 +754,9 @@ export async function moChiTietMua(id, veLai) {
       } else {
         hangNut.append(h('button', { class: 'nut chinh', type: 'button', onclick: () => chay(() => api.duyetDeNghiMua(id, true), { thanhCong: 'Đã duyệt đề nghị mua.' }).then(sau).catch(() => {}) }, 'Duyệt'));
       }
-      hangNut.append(h('button', { class: 'nut', type: 'button', onclick: () => {
-        const form = h('form', null, truong('Lý do từ chối', oVung('ly_do', ''), null, { batBuoc: true }));
-        moModal(`Từ chối ${r.ma}`, form, { nhanNut: 'Từ chối', nutChinh: async () => { await api.duyetDeNghiMua(id, false, form.ly_do.value); toast('Đã từ chối.'); await sau(); } });
-      } }, 'Từ chối'));
+      hangNut.append(h('button', { class: 'nut', type: 'button', onclick: () => hoiLyDo(`Từ chối ${r.ma}`, async (lyDo) => {
+        await api.duyetDeNghiMua(id, false, lyDo); toast('Đã từ chối.'); await sau();
+      }, { nhan: 'Lý do từ chối', nhanNut: 'Từ chối' }) }, 'Từ chối'));
     }
   }
   if (r.trang_thai === 'da_duyet' && laKho()) {
@@ -829,12 +815,12 @@ async function luoiTep(tep) {
 function nutTaiTep(loai, r, sau) {
   const o = h('input', { type: 'file', accept: 'image/*,application/pdf', multiple: true, 'aria-label': 'Chọn tệp' });
   o.addEventListener('change', async () => {
-    let n = 0;
-    for (const f of o.files) {
-      try { await api.taiTepKho(loai, chungTu(r), f.type.startsWith('image/') ? await nenAnh(f, 'khac') : f); n++; }
-      catch (e) { toast(`Không tải được ${f.name}: ${e.message}`, 'loi'); }
-    }
-    if (n) { toast(`Đã tải ${n} tệp.`); await sau(); }
+    if (!o.files.length) return;
+    o.disabled = true;
+    const kq = await api.taiNhieu(o.files, 'khac', (f) => api.taiTepKho(loai, chungTu(r), f));
+    o.value = ''; o.disabled = false;
+    for (const x of kq.loi) toast(`Không tải được ${x.ten}: ${x.e?.message || x.e}`, 'loi');
+    if (kq.xong) { toast(`Đã tải ${kq.xong} tệp.`); await sau(); }
   });
   return h('label', { class: 'nut' }, loai === 'phieu_nhap' ? '+ Ảnh hóa đơn' : '+ Báo giá', o);
 }
@@ -930,12 +916,14 @@ async function moKiemKe(id, veLai) {
 }
 
 // ---------- Dùng ở trang hồ sơ xe: phụ tùng, vật tư của xe ----------
-export async function khoiPhuTungXe(hs, veLai) {
-  const [dx, px, [cho]] = await Promise.all([
+// cho: dòng v_cho_phu_tung của xe nếu trang gọi đã đọc sẵn (undefined = tự đọc)
+export async function khoiPhuTungXe(hs, veLai, cho) {
+  const [dx, px, [choPT]] = await Promise.all([
     api.doc('v_de_xuat', (q) => q.eq('ho_so_id', hs.id).order('id', { ascending: false })),
     api.doc('v_phieu_xuat', (q) => q.eq('ho_so_id', hs.id).eq('trang_thai', 'hieu_luc').order('id')),
-    api.doc('v_cho_phu_tung', (q) => q.eq('ho_so_id', hs.id)),
+    cho !== undefined ? [cho] : api.doc('v_cho_phu_tung', (q) => q.eq('ho_so_id', hs.id)),
   ]).catch(() => [[], [], []]);
+  cho = choPT;
   const duocDeXuat = ['dang_sua', 'cho_kcs'].includes(hs.trang_thai) && api.coVaiTro('truong_nhom', 'cvdv', 'kho', 'quan_ly', 'giam_doc');
   if (!dx.length && !px.length && !duocDeXuat) return null;
   const giaVon = px.reduce((s, p) => s + Number(p.gia_von), 0);

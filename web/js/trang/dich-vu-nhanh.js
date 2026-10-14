@@ -2,7 +2,7 @@
 // 032: gõ biển số / SĐT → gợi ý xe cũ, hiện khách, lần vào gần nhất, số km lần trước, hạn BH, tư vấn còn ghi.
 //      Mỗi lượt lưu kèm xe – khách (chưa có thì tạo), số km BẮT BUỘC; lượt dịch vụ nhanh vào lịch sử xe.
 import {
-  h, bienSo, vietBienSo, oGoiY, tien, ngay, homNay, truong, oChu, oTien, oChon, oCheck, docForm, chay, bang, moModal, oVung, toast, dat, xacNhan,
+  h, bienSo, vietBienSo, oGoiY, tien, ngay, homNay, truong, oChu, oTien, oChon, oCheck, docForm, chay, bang, toast, dat, xacNhan, khoaKhiGui, hoiLyDo,
 } from '../ui.js';
 import * as api from '../api.js';
 import { nhacHetHan } from './lich-su-xe.js';
@@ -92,8 +92,8 @@ export default async function trangDichVu(el) {
     khungThu,
     h('div', { class: 'hang-nut rong' }, h('button', { class: 'nut chinh', type: 'submit' }, keToan ? 'Ghi dịch vụ & thu tiền' : 'Ghi dịch vụ')));
   const ds = h('div');
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
+  // Chống bấm đúp / Enter liên tục: lần gửi sau bị bỏ qua khi lần trước chưa xong (trước đây có thể ghi 2 lượt + 2 phiếu thu)
+  khoaKhiGui(form, async () => {
     await traBienSo();
     const d = docForm(form);
     if (d.so_km === null) { oKm.focus(); return toast('Ghi số km (ODD) của xe.', 'loi'); }
@@ -134,8 +134,8 @@ export default async function trangDichVu(el) {
       ].filter(Boolean), rows, { trong: 'Chưa có dịch vụ nào trong 31 ngày qua.' }));
   }
   function moHuy(r) {
-    const f = h('form', null, truong('Lý do hủy', oVung('ly_do'), null, { batBuoc: true }));
-    moModal(`Hủy dịch vụ ${r.dich_vu}`, f, { nhanNut: 'Hủy dịch vụ', nutChinh: async () => { await api.huyDichVuNhanh(r.id, docForm(f).ly_do); toast('Đã hủy.'); await tai(); } });
+    hoiLyDo(`Hủy dịch vụ ${r.dich_vu}`, async (lyDo) => { await api.huyDichVuNhanh(r.id, lyDo); toast('Đã hủy.'); await tai(); },
+      { nhan: 'Lý do hủy', nhanNut: 'Hủy dịch vụ' });
   }
 
   dat(el, h('div', { class: 'tieu-de-trang' }, h('h1', null, 'Dịch vụ nhanh'),

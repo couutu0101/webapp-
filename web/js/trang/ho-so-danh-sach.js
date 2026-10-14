@@ -1,5 +1,5 @@
 // Danh sách hồ sơ xe
-import { h, bienSo, tien, ngay, bang, nhanTrangThai, NGUON, dat, nhoPhien, thanhBuocNho } from '../ui.js';
+import { h, bienSo, tien, ngay, bang, nhanTrangThai, NGUON, dat, nhoPhien, thanhBuocNho, thanhThe } from '../ui.js';
 import * as api from '../api.js';
 import { nutXuatExcel, xuatExcelKhachHang } from './xuat-excel.js';
 import { viecTiepTheo, chipsViec } from './giao-viec.js';
@@ -25,11 +25,10 @@ export default async function trangHoSo(el) {
   let hen;
   oTim.addEventListener('input', () => { clearTimeout(hen); hen = setTimeout(() => { tuKhoa = oTim.value.trim(); tai(); }, 300); });
 
-  const tabs = h('div', { class: 'tabs', role: 'tablist' }, LOC.map((l) => h('button', {
-    type: 'button', role: 'tab', 'data-ma': l.ma, 'aria-selected': String(l.ma === loc),
-    onclick: () => { loc = l.ma; ttRieng = null; nhoPhien.ghi('hs_tab', loc); nhoPhien.ghi('hs_ds', '#/ho-so'); capNhatTab(); tai(); },
-  }, l.nhan)));
-  function capNhatTab() { for (const b of tabs.children) b.setAttribute('aria-selected', String(b.dataset.ma === loc)); }
+  const tabs = thanhThe(LOC.map((l) => [l.ma, l.nhan]), loc, (ma) => {
+    loc = ma; ttRieng = null; nhoPhien.ghi('hs_tab', loc); nhoPhien.ghi('hs_ds', '#/ho-so'); tai();
+  }, { nhan: 'Lọc hồ sơ' });
+  const capNhatTab = () => tabs.danhDau(loc);
 
   dat(el, 
     h('div', { class: 'tieu-de-trang' }, h('h1', null, 'Hồ sơ xe'),
@@ -39,7 +38,9 @@ export default async function trangHoSo(el) {
     h('div', { class: 'thanh-loc' }, oTim, tabs),
     ketQua);
 
+  let soLan = 0;   // gõ tìm nhanh: chỉ vẽ kết quả của lần tải mới nhất
   async function tai() {
+    const lan = ++soLan;
     dat(ketQua, h('div', { class: 'dang-tai' }, 'Đang tải…'));
     const tt = ttRieng || LOC.find((l) => l.ma === loc)?.tt;
     const ds = await api.doc('v_ho_so', (q) => {
@@ -51,11 +52,18 @@ export default async function trangHoSo(el) {
       }
       return q.order('ngay_vao', { ascending: false }).limit(300);
     });
-    // Ai đang được giao bước tiếp theo
-    const viec = ds.length ? await api.doc('v_viec_ho_so', (q) => q.in('ho_so_id', ds.map((d) => d.id))).catch(() => []) : [];
-    const viecCua = Object.fromEntries(viec.map((v) => [v.ho_so_id, v]));
-    const choPT = Object.fromEntries((ds.length ? await api.doc('v_cho_phu_tung', (q) => q.in('ho_so_id', ds.map((d) => d.id))).catch(() => []) : [])
-      .map((c) => [c.ho_so_id, c.so_ngay]));
+    if (lan !== soLan) return ds;
+    // Ai đang được giao bước tiếp theo: v_ho_so có sẵn người được giao (040); xe đang sửa cần tên trưởng nhóm các tổ → v_viec_ho_so.
+    // Hai lượt đọc phụ chạy song song.
+    const idDangSua = ds.filter((d) => d.trang_thai === 'dang_sua').map((d) => d.id);
+    const [viec, cho] = await Promise.all([
+      idDangSua.length ? api.doc('v_viec_ho_so', (q) => q.in('ho_so_id', idDangSua)).catch(() => []) : [],
+      ds.length ? api.doc('v_cho_phu_tung', (q) => q.in('ho_so_id', ds.map((d) => d.id))).catch(() => []) : [],
+    ]);
+    if (lan !== soLan) return ds;
+    const viecCua = Object.fromEntries(ds.map((d) => [d.id, { nguoi_tiep_theo: d.nguoi_tiep_theo, giao_viec_luc: d.giao_viec_luc }]));
+    for (const v of viec) viecCua[v.ho_so_id] = v;
+    const choPT = Object.fromEntries(cho.map((c) => [c.ho_so_id, c.so_ngay]));
     const oViec = (d) => {
       const v = viecTiepTheo(d);
       if (!v) return '';

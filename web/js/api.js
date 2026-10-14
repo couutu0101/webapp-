@@ -1,6 +1,6 @@
 // Mọi lệnh gọi cơ sở dữ liệu nằm ở đây. Trang giao diện chỉ gọi các hàm trong file này.
 import { sb } from './supabase.js';
-import { taoAnhNho, duongDanAnhNho } from './ui.js';
+import { taoAnhNho, duongDanAnhNho, nenAnh, chaySongSong } from './ui.js';
 
 function loi(error) {
   const e = new Error(error?.message || 'Lỗi không xác định');
@@ -8,11 +8,16 @@ function loi(error) {
   return e;
 }
 // Cổ đông chỉ xem (030): chặn mọi lệnh ghi ngay ở trình duyệt; máy chủ cũng không cho cổ đông ghi
-const RPC_CHI_DOC = new Set(['bang_viec_to', 'bao_cao_co_dong', 'ket_qua_kinh_doanh', 'tra_cuu_xe', 'tra_cuu_xe_nhanh', 'da_doi_mat_khau']);
+const RPC_CHI_DOC = new Set(['bang_viec_to', 'bao_cao_co_dong', 'ket_qua_kinh_doanh', 'tra_cuu_xe', 'tra_cuu_xe_nhanh', 'da_doi_mat_khau',
+  'nhap_xuat_ton']);
+// Đếm số lần ghi thành công trong phiên: bộ nhớ tạm (vd danh sách hàng kho) biết khi nào phải tải lại
+let soGhi = 0;
+export const soLanGhi = () => soGhi;
 export async function rpc(ten, thamSo = {}) {
   if (laCoDong() && !RPC_CHI_DOC.has(ten)) throw new Error('Tài khoản cổ đông chỉ được xem số liệu, không sửa được.');
   const { data, error } = await sb.rpc(ten, thamSo);
   if (error) throw loi(error);
+  if (!RPC_CHI_DOC.has(ten)) soGhi++;
   return data;
 }
 // doc('v_ho_so', q => q.eq('id', 5).single())
@@ -24,12 +29,14 @@ export async function doc(bang, tuyChinh = (q) => q, cot = '*') {
 export async function them(bang, dong) {
   const { data, error } = await sb.from(bang).insert(dong).select();
   if (error) throw loi(error);
+  soGhi++;
   return data;
 }
 export async function sua(bang, id, giaTri, khoa = 'id') {
   const { data, error } = await sb.from(bang).update(giaTri).eq(khoa, id).select();
   if (error) throw loi(error);
   if (!data || !data.length) throw new Error('Không lưu được (có thể bạn không có quyền sửa mục này).');
+  soGhi++;
   return data;
 }
 
@@ -96,13 +103,11 @@ export const xoaDanhMuc = (bang, khoa) => rpc('xoa_danh_muc', { p_bang: bang, p_
 export const tiepNhanXe = (p) => rpc('tiep_nhan_xe', { p });
 export const traCuuXe = (bienSo) => rpc('tra_cuu_xe', { p_bien_so: bienSo });
 export const suaThongTin = (id, p) => rpc('sua_thong_tin_ho_so', { p_id: id, p });
-export const luuBaoGia = (id, dong) => rpc('luu_bao_gia', { p_ho_so: id, dong });
 // Báo giá theo nguồn (009): xe bảo hiểm chờ duyệt; khách ngoài bảo hiểm duyệt luôn. vat: 0.08 / 0.10 / 0.12
 export const lapBaoGia = (id, dong, vat) => rpc('lap_bao_gia', { p_ho_so: id, dong, p_vat: vat });
 // Giao / đổi người làm bước tiếp theo (010)
 export const giaoViec = (id, nguoi) => rpc('giao_viec', { p_ho_so: id, p_nguoi: nguoi });
 export const xoaHangMuc = (id) => rpc('xoa_hang_muc', { p_id: id });
-export const duyetGia = (id, ngay, ketQua) => rpc('duyet_gia', { p_ho_so: id, p_ngay: ngay, ket_qua: ketQua });
 // Duyệt giá + chia công nợ BH / khách (020): khachTra = tổng khách chi trả (có VAT), null = giữ như cũ
 export const duyetGiaChia = (id, ngay, ketQua, khachTra) => rpc('duyet_gia_chia', { p_ho_so: id, p_ngay: ngay, ket_qua: ketQua, p_khach_tra: khachTra });
 export const lapLenh = (id, henGiao, phanCong) => rpc('lap_lenh_sua_chua', { p_ho_so: id, p_hen_giao: henGiao, phan_cong: phanCong });
@@ -123,21 +128,36 @@ export const nhapHoaHong = (id, soTien, ghiChu, boQua) =>
 export const ghiChamSoc = (id, ketQua, henBD) => rpc('ghi_cham_soc', { p_ho_so: id, p_ket_qua: ketQua, p_hen_bao_duong: henBD });
 export const huyHoSo = (id, lyDo) => rpc('huy_ho_so', { p_ho_so: id, p_ly_do: lyDo });
 
-export const layHoSo = async (id) => {
-  // Số km (ODO, 031) đọc thẳng từ bảng ho_so: v_ho_so chỉ tạo lại khi chạy 008
-  const [[hs], [km]] = await Promise.all([doc('v_ho_so', (q) => q.eq('id', id)), doc('ho_so', (q) => q.eq('id', id), 'so_km').catch(() => [])]);
-  return hs ? { ...hs, so_km: km?.so_km ?? null } : hs;
-};
+// v_ho_so có sẵn số km (037), người làm bước tiếp theo và lúc giao việc (040): một lần đọc
+export const layHoSo = async (id) => (await doc('v_ho_so', (q) => q.eq('id', id)))[0] ?? null;
 export const layHangMuc = (id) => doc('hang_muc', (q) => q.eq('ho_so_id', id).order('lan_bao_gia').order('id'));
 export const layNhatKy = (id) => doc('ho_so_nhat_ky', (q) => q.eq('ho_so_id', id).order('luc', { ascending: false }));
 export const layTep = (id) => doc('ho_so_tep', (q) => q.eq('ho_so_id', id).order('tai_luc'));
 export const layPhatSinh = (id) => doc('phat_sinh', (q) => q.eq('ho_so_id', id).order('luc', { ascending: false }));
 export const layKcs = (id) => doc('kcs', (q) => q.eq('ho_so_id', id).order('luc', { ascending: false }));
 
+// Tên tệp trong kho lưu trữ: bỏ dấu, ký tự lạ; thêm thời điểm + chuỗi ngẫu nhiên để nhiều ảnh tải cùng lúc
+// (điện thoại hay đặt cùng tên image.jpg) không đè nhau
+const tenLuu = (file) => `${Date.now()}-${Math.random().toString(36).slice(2, 7)}-${file.name.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w.-]+/g, '-')}`;
+
+// Tải nhiều tệp: nén ảnh lần lượt (đỡ tốn bộ nhớ điện thoại), tải lên 3 tệp cùng lúc; tệp lỗi không chặn tệp khác.
+// taiMot(tepDaNen, tepGoc) → Promise; tienDo(soXong, tong) báo sau mỗi tệp. Trả { tong, xong, loi: [{ ten, e }] }.
+let hangNen = Promise.resolve();
+const nenLanLuot = (f, buoc) => { const p = hangNen.then(() => nenAnh(f, buoc)); hangNen = p.catch(() => {}); return p; };
+export async function taiNhieu(files, buoc, taiMot, { toiDa = 3, tienDo = null } = {}) {
+  const ds = [...(files || [])];
+  let daXong = 0;
+  const kq = await chaySongSong(ds, async (f) => {
+    try { return await taiMot(await nenLanLuot(f, buoc), f); } finally { daXong++; tienDo?.(daXong, ds.length); }
+  }, toiDa);
+  const loi = kq.map((r, i) => (r.status === 'rejected' ? { ten: ds[i].name, e: r.reason } : null)).filter(Boolean);
+  for (const x of loi) console.warn('Tải tệp lỗi', x.ten, x.e);
+  return { tong: ds.length, xong: ds.length - loi.length, loi };
+}
+
 // Ảnh và biên bản: tải lên kho 'ho-so-xe' rồi ghi nhận vào hồ sơ
 export async function taiTep(hoSo, buoc, file, loai = 'anh') {
-  const ten = file.name.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w.-]+/g, '-');
-  const duongDan = `${hoSo.chi_nhanh_id}/${hoSo.ma}/${buoc}-${Date.now()}-${ten}`;
+  const duongDan = `${hoSo.chi_nhanh_id}/${hoSo.ma}/${buoc}-${tenLuu(file)}`;
   const { error } = await sb.storage.from('ho-so-xe').upload(duongDan, file, { upsert: false });
   if (error) throw loi(error);
   // Ảnh thu nhỏ: lỗi thì bỏ qua, hồ sơ sẽ dùng ảnh lớn thay thế
@@ -147,11 +167,6 @@ export async function taiTep(hoSo, buoc, file, loai = 'anh') {
     catch { /* bỏ qua */ }
   }
   return rpc('them_tep', { p_ho_so: hoSo.id, p_buoc: buoc, p_loai: loai, p_duong_dan: duongDan });
-}
-export async function linkTep(duongDan) {
-  const { data, error } = await sb.storage.from('ho-so-xe').createSignedUrl(duongDan, 3600);
-  if (error) throw loi(error);
-  return data.signedUrl;
 }
 // Lấy link cho nhiều tệp một lần: { duong_dan: { lon, nho } }. Ảnh cũ chưa có bản nhỏ thì nho = lon.
 export async function linkTepNhieu(dsDuongDan) {
@@ -209,8 +224,7 @@ export const luuLichBaoDuong = (p) => rpc('luu_lich_bao_duong', { p });
 export const ghiBaoDuong = (p) => rpc('ghi_bao_duong', { p });
 export const xuatDuLieuTaiSan = () => rpc('xuat_du_lieu_tai_san');
 export async function taiAnhTaiSan(ts, file) {
-  const ten = file.name.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w.-]+/g, '-');
-  const duongDan = `${ts.chi_nhanh_id}/tai-san/${ts.ma}/${Date.now()}-${ten}`;
+  const duongDan = `${ts.chi_nhanh_id}/tai-san/${ts.ma}/${tenLuu(file)}`;
   const { error } = await sb.storage.from('ho-so-xe').upload(duongDan, file, { upsert: false });
   if (error) throw loi(error);
   const nho = await taoAnhNho(file);
@@ -234,6 +248,8 @@ export const ghiKiemQuy = (taiKhoan, soDem, ghiChu) => rpc('ghi_kiem_quy', { p_t
 
 // ---------- Kho (012) ----------
 export const luuHangKho = (p) => rpc('luu_hang_kho', { p });
+// Nhập – xuất – tồn một tháng ('YYYY-MM'), cộng ở máy chủ (040)
+export const nhapXuatTon = (thang) => rpc('nhap_xuat_ton', { p_thang: thang });
 // Xuất Excel – chỉ giám đốc (máy chủ kiểm quyền và ghi nhật ký mỗi lần xuất)
 export const xuatDuLieuKho = () => rpc('xuat_du_lieu_kho');
 export const xuatDuLieuKhach = () => rpc('xuat_du_lieu_khach');
@@ -256,8 +272,7 @@ export const chotKiemKe = (id, bienBan) => rpc('chot_kiem_ke', { p_id: id, p_bie
 export const huyKiemKe = (id) => rpc('huy_kiem_ke', { p_id: id });
 // Ảnh hóa đơn / báo giá NCC: lưu vào 'ho-so-xe' dưới thư mục kho của chi nhánh
 export async function taiTepKho(loai, chungTu, file) {
-  const ten = file.name.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w.-]+/g, '-');
-  const duongDan = `${chungTu.chi_nhanh_id}/kho/${chungTu.ma}/${Date.now()}-${ten}`;
+  const duongDan = `${chungTu.chi_nhanh_id}/kho/${chungTu.ma}/${tenLuu(file)}`;
   const { error } = await sb.storage.from('ho-so-xe').upload(duongDan, file, { upsert: false });
   if (error) throw loi(error);
   return rpc('them_tep_kho', { p_loai: loai, p_id: chungTu.id, p_duong_dan: duongDan, p_ten: file.name });

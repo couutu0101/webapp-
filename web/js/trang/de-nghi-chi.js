@@ -1,5 +1,5 @@
 // Đề nghị chi → duyệt (quản lý chung đến 2 triệu, trên 2 triệu giám đốc) → kế toán chi
-import { h, tien, ngay, homNay, truong, oChu, oTien, oChon, oNgay, oVung, docForm, chay, bang, moModal, toast, dat } from '../ui.js';
+import { h, tien, ngay, homNay, truong, oChu, oTien, oChon, oNgay, docForm, chay, bang, moModal, toast, dat, thanhThe, hoiLyDo } from '../ui.js';
 import * as api from '../api.js';
 
 const TT = { cho_duyet: 'Chờ duyệt', da_duyet: 'Đã duyệt – chờ chi', tu_choi: 'Từ chối', da_chi: 'Đã chi', huy: 'Đã hủy' };
@@ -16,10 +16,7 @@ export default async function trangDeNghi(el) {
     ['cua_toi', 'Của tôi'],
     nguoiDuyet || keToan ? ['tat', 'Tất cả (60 ngày)'] : null,
   ].filter(Boolean);
-  const tabs = h('div', { class: 'tabs', role: 'tablist' }, LOC.map(([ma, nhan]) => h('button', {
-    type: 'button', role: 'tab', 'aria-selected': String(ma === loc), 'data-ma': ma,
-    onclick: () => { loc = ma; for (const b of tabs.children) b.setAttribute('aria-selected', String(b.dataset.ma === loc)); tai(); },
-  }, nhan)));
+  const tabs = thanhThe(LOC, loc, (ma) => { loc = ma; tai(); }, { nhan: 'Lọc đề nghị chi' });
 
   dat(el, 
     h('div', { class: 'tieu-de-trang' }, h('h1', null, 'Đề nghị chi'),
@@ -68,8 +65,8 @@ export default async function trangDeNghi(el) {
   }
 
   function moTuChoi(r) {
-    const form = h('form', null, truong('Lý do từ chối', oVung('ly_do', ''), null, { batBuoc: true }));
-    moModal('Từ chối đề nghị', form, { nhanNut: 'Từ chối', nutChinh: async () => { await api.duyetDeNghi(r.id, false, docForm(form).ly_do); toast('Đã từ chối.'); await tai(); } });
+    hoiLyDo('Từ chối đề nghị', async (lyDo) => { await api.duyetDeNghi(r.id, false, lyDo); toast('Đã từ chối.'); await tai(); },
+      { nhan: 'Lý do từ chối', nhanNut: 'Từ chối' });
   }
 
   function moChi(r) {

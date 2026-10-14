@@ -5,8 +5,7 @@
 //  - Thiếu / hỏng → sự cố chờ xử lý (giám đốc, quản lý chung); người chịu + tiền bồi thường chỉ giám đốc ghi; kế toán đánh dấu đã trừ.
 //  - Bảo dưỡng theo thời gian: mỗi máy một hoặc nhiều việc, chu kỳ; ghi lần làm, thuê ngoài thì lập đề nghị chi.
 import {
-  h, tien, ngay, ngayGio, homNay, truong, oChu, oTien, oChon, oNgay, oVung, oCheck, oChonTep, docForm, chay, bang, moModal, toast, dat,
-  nhoPhien, chipNguoi, vaiChinh, nenAnh, cuonTheChon,
+  h, tien, ngay, ngayGio, homNay, truong, oChu, oTien, oChon, oNgay, oVung, oCheck, oChonTep, docForm, chay, bang, moModal, toast, dat, nhoPhien, chipNguoi, vaiChinh, nenAnh, cuonTheChon, hoiLyDo,
 } from '../ui.js';
 import * as api from '../api.js';
 import { taiFileExcel } from '../excel.js';
@@ -340,9 +339,9 @@ export default async function veThietBi(el, nut = null) {
   }
 
   function moThanhLy(t) {
-    const form = h('form', null, h('p', null, `Thanh lý ${t.so_luong} ${t.don_vi} ${t.ten} (${t.ma}). Món này sẽ không còn trong danh sách kiểm tra.`),
-      truong('Lý do', oVung('ly_do', ''), 'Hư hỏng không sửa được, bán ve chai…', { batBuoc: true }));
-    moModal(`Thanh lý – ${t.ten}`, form, { nhanNut: 'Thanh lý', nutChinh: async () => { await api.thanhLyTaiSan(t.id, docForm(form).ly_do); toast('Đã thanh lý.'); await taiLai(); } });
+    hoiLyDo(`Thanh lý – ${t.ten}`, async (lyDo) => { await api.thanhLyTaiSan(t.id, lyDo); toast('Đã thanh lý.'); await taiLai(); },
+      { moTa: `Thanh lý ${t.so_luong} ${t.don_vi} ${t.ten} (${t.ma}). Món này sẽ không còn trong danh sách kiểm tra.`,
+        goiY: 'Hư hỏng không sửa được, bán ve chai…', nhanNut: 'Thanh lý' });
   }
 
   function moBaoSuCo(t) {

@@ -1,9 +1,8 @@
 // Nút "Xuất Excel" – chỉ giám đốc. Máy chủ kiểm quyền lần nữa và ghi nhật ký mỗi lần xuất.
-import { h, chay, toast, ngayGio, homNay, TRANG_THAI } from '../ui.js';
+import { h, chay, toast, ngayGio, homNay, TRANG_THAI, NHOM_HANG } from '../ui.js';
 import { taiFileExcel } from '../excel.js';
 import * as api from '../api.js';
 
-const THU_TU_NHOM = ['Sơn', 'Nhám', 'Vật tư phụ', 'Phụ tùng', 'Dầu nhớt', 'Detailing', 'Khác'];
 const phuDe = (chiNhanh, luc) => `${chiNhanh || 'Gara Hoàng Sơn'} · Xuất lúc ${ngayGio(luc)} · Người xuất: ${api.toi?.ho_ten || ''}`;
 
 export function nutXuatExcel(nhan, lam) {
@@ -19,7 +18,7 @@ export async function xuatExcelKho() {
   const kq = await api.xuatDuLieuKho();
   const hang = kq.hang || [];
   const nhom = [...new Set(hang.map((x) => x.nhom))]
-    .sort((a, b) => (THU_TU_NHOM.indexOf(a) + 1 || 99) - (THU_TU_NHOM.indexOf(b) + 1 || 99) || a.localeCompare(b, 'vi'));
+    .sort((a, b) => (NHOM_HANG.indexOf(a) + 1 || 99) - (NHOM_HANG.indexOf(b) + 1 || 99) || a.localeCompare(b, 'vi'));
   const tongGT = hang.reduce((s, x) => s + Number(x.gia_tri || 0), 0);
   const pd = phuDe(kq.chi_nhanh, kq.luc);
   const trang = [{

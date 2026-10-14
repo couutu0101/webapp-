@@ -1,5 +1,5 @@
 // Việc hôm nay: số xe theo bước, việc cần xử lý, bảng việc của tổ
-import { h, oChonTep, bienSo, icon, ngayGio, tien, chay, moModal, oVung, truong, docForm, nhanTrangThai, nenAnh, TRANG_THAI, dat, thanhBuocNho, chipNguoi, nhoPhien } from '../ui.js';
+import { h, oChonTep, bienSo, ngayGio, tien, chay, moModal, oVung, truong, docForm, nhanTrangThai, dat, thanhBuocNho, chipNguoi, nhoPhien, toast } from '../ui.js';
 import * as api from '../api.js';
 import { viecTiepTheo } from './giao-viec.js';
 import { moLapDeXuat, moDeXuat, moChiTietMua, moChiTietNhap } from './kho.js';
@@ -16,23 +16,51 @@ const NHOM_DEM = [
 ];
 const MUC_DO = { cao: 'Cần làm ngay', vua: 'Trong tuần', thap: 'Bổ sung khi rảnh' };
 
-export default async function trangViec(el) {
-  const laVanPhong = api.laNhanVien();
-  const [hoSo, canhBao, bangViec, viecCuaToi, kho] = await Promise.all([
-    laVanPhong ? api.doc('v_ho_so', (q) => q.not('trang_thai', 'in', '(dong,huy)')) : [],
-    laVanPhong ? api.doc('v_canh_bao') : [],
-    api.coVaiTro('truong_nhom', 'quan_ly', 'cvdv', 'ke_toan', 'giam_doc') ? api.bangViecTo() : [],
-    laVanPhong ? layViecCuaToi() : api.coVaiTro('truong_nhom') ? viecTaiSanCuaToi() : [],
-    laVanPhong ? demKho() : null,
+// Mọi thứ của trang tải MỘT đợt song song (040): trước đây ~19 lượt, 4 đợt nối tiếp, đọc hồ sơ 4 lần.
+// Phần nào tải lỗi (mạng, quyền) thì ghi lại và báo ở đầu trang, không để danh sách trống mà không nói gì.
+async function taiDuLieu() {
+  const vp = api.laNhanVien(); const toi = api.toi;
+  const quanLy = api.coVaiTro('quan_ly', 'giam_doc'); const keToan = api.coVaiTro('ke_toan', 'giam_doc');
+  const xemKho = api.coVaiTro('kho', 'giam_doc', 'quan_ly');
+  const loi = [];
+  const an = (p, ten) => Promise.resolve(p).catch((e) => { console.warn(`Việc hôm nay – ${ten}:`, e); loi.push(ten); return []; });
+  const xeDaGiao = (q) => q.eq('trang_thai', 'dong').not('giao_luc', 'is', null).eq('tu_excel', false).order('giao_luc', { ascending: false }).limit(300);
+  const [hoSo, chamSocDong, hoaHongDong, canhBao, bangViec, deXuat, mua, nhap, chi, dvn, thieu, taiSan] = await Promise.all([
+    vp ? an(api.doc('v_ho_so', (q) => q.not('trang_thai', 'in', '(dong,huy)')), 'hồ sơ xe') : [],
+    // Hồ sơ đã đóng còn việc song song sau giao (036): chăm sóc (quản lý), hoa hồng GDV (kế toán) – mới nhất trước
+    vp && quanLy ? an(api.doc('v_ho_so', (q) => xeDaGiao(q.is('cham_soc_luc', null))), 'chăm sóc sau giao') : [],
+    vp && keToan ? an(api.doc('v_ho_so', (q) => xeDaGiao(q.not('gdv_id', 'is', null).is('hoa_hong_gdv', null))), 'hoa hồng GDV') : [],
+    vp ? an(api.doc('v_canh_bao'), 'việc cần xử lý') : [],
+    api.coVaiTro('truong_nhom', 'quan_ly', 'cvdv', 'ke_toan', 'giam_doc') ? an(api.bangViecTo(), 'bảng việc xưởng') : [],
+    vp && xemKho ? an(api.doc('v_de_xuat', (q) => q.eq('trang_thai', 'cho_xuat').order('id')), 'đề xuất vật tư') : [],
+    vp && api.coVaiTro('quan_ly', 'giam_doc', 'kho') ? an(api.doc('v_de_nghi_mua', (q) => q.in('trang_thai', ['cho_duyet', 'da_duyet']).order('id')), 'đề nghị mua') : [],
+    vp && keToan ? an(api.doc('v_phieu_nhap', (q) => q.in('trang_thai', ['cho_khop', 'treo']).order('id')), 'phiếu nhập kho') : [],
+    vp && api.coVaiTro('quan_ly', 'giam_doc', 'ke_toan') ? an(api.doc('v_de_nghi_chi', (q) => q.in('trang_thai', ['cho_duyet', 'da_duyet']).order('id')), 'đề nghị chi') : [],
+    vp && keToan ? an(api.doc('v_dich_vu_nhanh', (q) => q.eq('trang_thai', 'hieu_luc').gte('ngay', new Date(Date.now() - 60 * 864e5).toISOString().slice(0, 10)).order('ngay').limit(200)), 'dịch vụ nhanh') : [],
+    vp && xemKho ? an(api.doc('v_ton_kho', (q) => q.eq('duoi_toi_thieu', true).eq('hoat_dong', true), 'id'), 'tồn kho') : [],
+    vp || api.coVaiTro('truong_nhom') ? an(viecTaiSanCuaToi(), 'đồ nghề') : [],
   ]);
+  const theoId = new Map([...chamSocDong, ...hoaHongDong, ...hoSo].map((x) => [x.id, x]));
+  return { vp, toi, quanLy, keToan, xemKho, loi, hoSo, tatCaHoSo: [...theoId.values()], canhBao, bangViec, deXuat, mua, nhap, chi, dvn, thieu, taiSan };
+}
+
+export default async function trangViec(el) {
+  const d = await taiDuLieu();
+  const laVanPhong = d.vp;
+  const { hoSo, canhBao, bangViec } = d;
+  const viecCuaToi = laVanPhong ? viecCuaToiTu(d) : d.taiSan;
+  const kho = laVanPhong ? demKho(d) : null;
 
   const nut = [];
   if (api.coVaiTro('cvdv', 'quan_ly', 'giam_doc')) nut.push(h('a', { class: 'nut chinh', href: '#/ho-so/moi' }, '+ Tiếp nhận xe'));
   nut.push(h('a', { class: 'nut', href: '#/dich-vu' }, '+ Dịch vụ nhanh'));
   nut.push(h('a', { class: 'nut', href: '#/de-nghi' }, '+ Đề nghị chi'));
 
-  dat(el, 
+  dat(el,
     h('div', { class: 'tieu-de-trang' }, h('h1', null, 'Việc hôm nay'), h('div', { class: 'hang-nut' }, nut)),
+    d.loi.length ? h('p', { class: 'thong-bao canh-bao', role: 'alert' },
+      `Chưa tải được: ${d.loi.join(', ')} (mạng chậm hoặc mất kết nối) – số liệu bên dưới có thể thiếu. `,
+      h('button', { class: 'nut nho', type: 'button', onclick: () => trangViec(el) }, 'Tải lại')) : null,
     laVanPhong || viecCuaToi.length ? khoiViecCuaToi(viecCuaToi, () => trangViec(el)) : null,
     laVanPhong ? h('section', { class: 'luoi-dem chuoi-xe', 'aria-label': 'Số xe ở từng bước' }, NHOM_DEM.map((n) => {
       const so = hoSo.filter((x) => n.tt.includes(x.trang_thai)).length;
@@ -89,40 +117,33 @@ function moPhatSinh(x, taiLai) {
     nutChinh: async () => {
       const { mo_ta } = docForm(form);
       await api.baoPhatSinh(x.ho_so_id, mo_ta);
-      for (const f of form.anh.files) await api.taiTep({ id: x.ho_so_id, ma: x.ma, chi_nhanh_id: api.toi.chi_nhanh_id }, 'phat_sinh', await nenAnh(f, 'phat_sinh'));
+      const hs = { id: x.ho_so_id, ma: x.ma, chi_nhanh_id: x.chi_nhanh_id || api.toi.chi_nhanh_id };
+      const kq = await api.taiNhieu(form.anh.files, 'phat_sinh', (f) => api.taiTep(hs, 'phat_sinh', f));
+      if (kq.loi.length) toast(`Đã báo phát sinh, nhưng ${kq.loi.length}/${kq.tong} ảnh tải lên lỗi – báo CVDV chụp lại.`, 'loi');
       taiLai();
     },
   });
 }
 
-export { TRANG_THAI };
-
 // ---------- Việc của tôi: việc đang chờ đúng người đăng nhập, quá hạn tô vàng ----------
 //   - Xe: bước tiếp theo được giao cho mình (ho_so.nguoi_tiep_theo).
 //   - Phiếu kho / đề nghị chi: đang chờ đúng vai trò của mình (kho xuất, duyệt mua, khớp hóa đơn, duyệt chi, chi tiền).
 //   Mỗi việc: { dau, ten, phu, luc, han, href | moChiTiet }
-async function layViecCuaToi() {
-  const toi = api.toi;
-  const an = (p) => p.catch(() => []);
-  const [viec, deXuat, muaChoDuyet, muaChoHang, nhap, chi] = await Promise.all([
-    an(api.doc('v_viec_ho_so', (q) => q.eq('nguoi_tiep_theo', toi.id).neq('trang_thai', 'huy').order('giao_viec_luc', { ascending: true }))),
-    api.coVaiTro('kho', 'giam_doc') ? an(api.doc('v_de_xuat', (q) => q.eq('trang_thai', 'cho_xuat').order('id'))) : [],
-    api.coVaiTro('quan_ly', 'giam_doc') ? an(api.doc('v_de_nghi_mua', (q) => q.eq('trang_thai', 'cho_duyet').order('id'))) : [],
-    api.coVaiTro('kho', 'giam_doc') ? an(api.doc('v_de_nghi_mua', (q) => q.eq('trang_thai', 'da_duyet').order('id'))) : [],
-    api.coVaiTro('ke_toan', 'giam_doc') ? an(api.doc('v_phieu_nhap', (q) => q.in('trang_thai', ['cho_khop', 'treo']).order('id'))) : [],
-    api.coVaiTro('quan_ly', 'giam_doc', 'ke_toan') ? an(api.doc('v_de_nghi_chi', (q) => q.in('trang_thai', ['cho_duyet', 'da_duyet']).order('id'))) : [],
-  ]);
+function viecCuaToiTu(d) {
+  const { toi } = d;
   const ds = [];
-  if (viec.length) {
-    const hs = await an(api.doc('v_ho_so', (q) => q.in('id', viec.map((v) => v.ho_so_id))));
-    const theoId = Object.fromEntries(hs.map((x) => [x.id, x]));
-    for (const v of viec) {
-      const x = theoId[v.ho_so_id]; const b = x && viecTiepTheo(x);
-      if (!b) continue;
-      ds.push({ hoSoId: x.id, dau: bienSo(x.bien_so_hien_thi, { maThay: x.ma }), ten: b.ten, phu: [x.xe, x.ten_khach].filter(Boolean).join(' · '),
-        luc: v.giao_viec_luc, han: hanHoSo(x, v.giao_viec_luc), href: `#/ho-so/${x.id}` });
-    }
+  // Xe: bước tiếp theo được giao cho mình (v_ho_so có sẵn người được giao và lúc giao – 040)
+  for (const x of d.tatCaHoSo.filter((r) => r.nguoi_tiep_theo === toi.id)
+    .sort((a, b) => String(a.giao_viec_luc || '').localeCompare(String(b.giao_viec_luc || '')))) {
+    const b = viecTiepTheo(x);
+    if (!b) continue;
+    ds.push({ hoSoId: x.id, dau: bienSo(x.bien_so_hien_thi, { maThay: x.ma }), ten: b.ten, phu: [x.xe, x.ten_khach].filter(Boolean).join(' · '),
+      luc: x.giao_viec_luc, han: hanHoSo(x, x.giao_viec_luc), href: `#/ho-so/${x.id}` });
   }
+  const deXuat = api.coVaiTro('kho', 'giam_doc') ? d.deXuat : [];
+  const muaChoDuyet = api.coVaiTro('quan_ly', 'giam_doc') ? d.mua.filter((r) => r.trang_thai === 'cho_duyet') : [];
+  const muaChoHang = api.coVaiTro('kho', 'giam_doc') ? d.mua.filter((r) => r.trang_thai === 'da_duyet') : [];
+  const { nhap, chi } = d;
   const themPhieu = (loai, r, dau, phu, mo) => {
     const b = buocTiepPhieu(loai, r);
     if (!b || !b.vaiTro.some((vt) => api.coVaiTro(vt))) return;
@@ -140,8 +161,8 @@ async function layViecCuaToi() {
     if (r.trang_thai === 'cho_duyet' && r.nguoi_de_nghi === toi.id && !api.coVaiTro('giam_doc')) continue;
     themPhieu('de_nghi_chi', r, `Đề nghị chi ${tien(r.so_tien)} đ`, `${r.noi_dung || r.muc || ''} · ${r.nguoi_de_nghi_ten || ''} đề nghị`, '#/de-nghi');
   }
-  ds.push(...(await viecSauGiaoXe(ds)));
-  ds.push(...(await viecTaiSanCuaToi()));
+  ds.push(...viecSauGiaoXe(d, ds));
+  ds.push(...d.taiSan);
   // Quá hạn lên đầu, rồi theo hạn gần nhất, rồi theo lúc giao
   const khoa = (v) => (v.han ? v.han.getTime() : Infinity);
   ds.sort((a, b) => (quaHan(b.han) - quaHan(a.han)) || (khoa(a) - khoa(b)) || (new Date(a.luc) - new Date(b.luc)));
@@ -150,26 +171,20 @@ async function layViecCuaToi() {
 
 // Sau giao xe có nhiều việc SONG SONG (036): kế toán gửi hồ sơ BH / nhập hoa hồng / thu dịch vụ nhanh, quản lý gọi chăm sóc.
 // Hồ sơ chỉ giao một người "bước tiếp theo", nên các việc còn lại lấy theo điều kiện của hồ sơ, không theo người được giao.
-async function viecSauGiaoXe(daCo) {
-  const toi = api.toi;
-  const an = (p) => p.catch(() => []);
-  const quanLy = api.coVaiTro('quan_ly', 'giam_doc'); const keToan = api.coVaiTro('ke_toan', 'giam_doc');
-  const [chamSoc, hoaHong, dvn] = await Promise.all([
-    quanLy ? an(api.doc('v_ho_so', (q) => q.not('giao_luc', 'is', null).is('cham_soc_luc', null).eq('tu_excel', false).neq('trang_thai', 'huy').order('giao_luc').limit(100))) : [],
-    keToan ? an(api.doc('v_ho_so', (q) => q.not('giao_luc', 'is', null).not('gdv_id', 'is', null).is('hoa_hong_gdv', null).eq('tu_excel', false).neq('trang_thai', 'huy').order('giao_luc').limit(100))) : [],
-    keToan ? an(api.doc('v_dich_vu_nhanh', (q) => q.eq('trang_thai', 'hieu_luc').gte('ngay', new Date(Date.now() - 60 * 864e5).toISOString().slice(0, 10)).order('ngay').limit(200))) : [],
-  ]);
+function viecSauGiaoXe(d, daCo) {
+  const { toi, quanLy, keToan, dvn } = d;
+  const xeDaGiao = d.tatCaHoSo.filter((x) => x.giao_luc && !x.tu_excel && x.trang_thai !== 'huy')
+    .sort((a, b) => String(a.giao_luc).localeCompare(String(b.giao_luc)));
+  const chamSoc = quanLy ? xeDaGiao.filter((x) => !x.cham_soc_luc) : [];
+  const hoaHong = keToan ? xeDaGiao.filter((x) => x.gdv_id && (x.hoa_hong_gdv === null || x.hoa_hong_gdv === undefined)) : [];
   const ds = [];
   const daCoViec = (hoSoId, ten) => daCo.some((v) => v.hoSoId === hoSoId && v.ten === ten);
-  // Chăm sóc: bỏ qua nếu bước này đã được giao cho người khác (hiện ở việc của người đó)
-  const ids = chamSoc.map((x) => x.id);
-  const viec = ids.length ? await an(api.doc('v_viec_ho_so', (q) => q.in('ho_so_id', ids))) : [];
-  const giaoCho = Object.fromEntries(viec.map((v) => [v.ho_so_id, v.nguoi_tiep_theo]));
   const soNgay = api.caiDat('so_ngay_goi_cham_soc', 3);
   for (const x of chamSoc) {
     const b = viecTiepTheo(x);
     if (daCoViec(x.id, 'Chăm sóc sau giao')) continue;
-    if (b?.ten === 'Chăm sóc sau giao' && giaoCho[x.id] && giaoCho[x.id] !== toi.id) continue;
+    // Bước chăm sóc đã giao cho người khác thì hiện ở việc của người đó
+    if (b?.ten === 'Chăm sóc sau giao' && x.nguoi_tiep_theo && x.nguoi_tiep_theo !== toi.id) continue;
     ds.push({ hoSoId: x.id, dau: bienSo(x.bien_so_hien_thi, { maThay: x.ma }), ten: 'Chăm sóc sau giao', phu: [x.xe, x.ten_khach, b?.ten && b.ten !== 'Chăm sóc sau giao' ? `đang chờ ${b.ten.toLowerCase()}` : null].filter(Boolean).join(' · '),
       luc: x.giao_luc, han: new Date(new Date(x.giao_luc).getTime() + soNgay * 864e5), href: `#/ho-so/${x.id}` });
   }
@@ -178,7 +193,7 @@ async function viecSauGiaoXe(daCo) {
     ds.push({ hoSoId: x.id, dau: bienSo(x.bien_so_hien_thi, { maThay: x.ma }), ten: 'Nhập hoa hồng GDV', phu: [x.xe, x.gdv ? `GDV ${x.gdv}` : null].filter(Boolean).join(' · '),
       luc: x.giao_luc, han: null, href: `#/ho-so/${x.id}` });
   }
-  for (const r of dvn.filter((d) => Number(d.da_thu) < Number(d.so_tien))) {
+  for (const r of (keToan ? dvn : []).filter((v) => Number(v.da_thu) < Number(v.so_tien))) {
     ds.push({ dau: r.bien_so_hien_thi ? bienSo(r.bien_so_hien_thi) : h('b', null, 'Dịch vụ nhanh'), ten: `Thu tiền dịch vụ nhanh ${tien(Number(r.so_tien) - Number(r.da_thu))} đ`,
       phu: `${r.dich_vu} · ${r.nguoi_lam || ''}`, luc: r.tao_luc, han: null, href: `#/thu-chi?dvn=${r.id}` });
   }
@@ -188,7 +203,7 @@ async function viecSauGiaoXe(daCo) {
 // Việc về thiết bị đồ nghề (028): kiểm tra tuần, kiểm kê tháng, xác nhận nhận, bảo dưỡng tới hạn, thiếu / hỏng chờ xử lý – theo vai trò
 async function viecTaiSanCuaToi() {
   if (!api.coVaiTro('giam_doc', 'quan_ly', 'ke_toan', 'kho', 'truong_nhom')) return [];
-  const ds = await api.doc('v_viec_tai_san', (q) => q.eq('chi_nhanh_id', api.toi.chi_nhanh_id)).catch(() => []);
+  const ds = await api.doc('v_viec_tai_san', (q) => q.eq('chi_nhanh_id', api.toi.chi_nhanh_id));
   const truongNhom = api.coVaiTro('truong_nhom');
   return ds.filter((x) => (x.vai || []).some((v) => api.coVaiTro(v)) && (!x.to_id || !truongNhom || api.laNhanVien() || x.to_id === api.toi.to_id))
     .map((x) => ({
@@ -220,23 +235,15 @@ function khoiViecCuaToi(ds, taiLai) {
       : h('p', { class: 'trong' }, 'Không có việc nào đang chờ anh/chị làm.'));
 }
 
-// ---------- Việc kho: số phiếu chờ xử lý theo vai trò ----------
-async function demKho() {
-  try {
-    const [dx, thieu, mua, nhap] = await Promise.all([
-      api.coVaiTro('kho', 'giam_doc', 'quan_ly') ? api.doc('de_xuat_vat_tu', (q) => q.eq('trang_thai', 'cho_xuat'), 'id') : [],
-      api.coVaiTro('kho', 'giam_doc', 'quan_ly') ? api.doc('v_ton_kho', (q) => q.eq('duoi_toi_thieu', true).eq('hoat_dong', true), 'id') : [],
-      api.coVaiTro('quan_ly', 'giam_doc') ? api.doc('de_nghi_mua', (q) => q.eq('trang_thai', 'cho_duyet'), 'id') : [],
-      api.coVaiTro('ke_toan', 'giam_doc') ? api.doc('phieu_nhap', (q) => q.in('trang_thai', ['cho_khop', 'treo']), 'id') : [],
-    ]);
-    const o = [
-      api.coVaiTro('kho', 'giam_doc', 'quan_ly') ? ['de_xuat', 'Đề xuất vật tư chờ xuất', dx.length] : null,
-      api.coVaiTro('kho', 'giam_doc', 'quan_ly') ? ['ton', 'Mã hàng dưới mức tối thiểu', thieu.length] : null,
-      api.coVaiTro('quan_ly', 'giam_doc') ? ['mua', 'Đề nghị mua chờ duyệt', mua.length] : null,
-      api.coVaiTro('ke_toan', 'giam_doc') ? ['nhap', 'Phiếu nhập chờ khớp hóa đơn', nhap.length] : null,
-    ].filter(Boolean);
-    return o.length ? o : null;
-  } catch { return null; }
+// ---------- Việc kho: số phiếu chờ xử lý theo vai trò (đếm từ danh sách đã tải cho "Việc của tôi") ----------
+function demKho(d) {
+  const o = [
+    d.xemKho ? ['de_xuat', 'Đề xuất vật tư chờ xuất', d.deXuat.length] : null,
+    d.xemKho ? ['ton', 'Mã hàng dưới mức tối thiểu', d.thieu.length] : null,
+    api.coVaiTro('quan_ly', 'giam_doc') ? ['mua', 'Đề nghị mua chờ duyệt', d.mua.filter((r) => r.trang_thai === 'cho_duyet').length] : null,
+    d.keToan ? ['nhap', 'Phiếu nhập chờ khớp hóa đơn', d.nhap.length] : null,
+  ].filter(Boolean);
+  return o.length ? o : null;
 }
 function khoiKho(o) {
   return h('section', { class: 'luoi-dem' }, o.map(([the, nhan, so]) =>

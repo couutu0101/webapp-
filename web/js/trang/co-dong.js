@@ -1,5 +1,5 @@
 // Báo cáo cổ đông: chỉ số tổng của các tháng giám đốc đã chốt (025/026)
-import { h, tien, ngay, ngayGio, bang, dat } from '../ui.js';
+import { h, tien, ngay, bang, dat } from '../ui.js';
 import * as api from '../api.js';
 import { bieuDoDuong } from '../bieu-do.js';
 

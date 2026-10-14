@@ -1,5 +1,5 @@
 // Bước 1: Tiếp nhận xe – 10 thông tin bắt buộc + ảnh nhận xe
-import { h, oGoiY, bienSo, vietBienSo, oChonTep, oCheck, truong, oChu, oChon, oVung, oNgayVN, oTien, isoSangVN, vnSangIso, docForm, chay, toast, nenAnh, dat, veDanhSachHoSo, xacNhan, tien, ngay, NHOM, NHOM_CHON } from '../ui.js';
+import { h, oGoiY, bienSo, vietBienSo, oChonTep, oCheck, truong, oChu, oChon, oVung, oNgayVN, oTien, isoSangVN, vnSangIso, docForm, chay, toast, dat, veDanhSachHoSo, xacNhan, tien, ngay, NHOM, NHOM_CHON, khoaKhiGui } from '../ui.js';
 import * as api from '../api.js';
 import { khungGiaoViec, giaoSauKhiLuu, VAI_TRO_BUOC } from './giao-viec.js';
 import { homNayVN, themNgay, tuGhiNgayKhiBam, nhacHetHan, layLichSu, khoiLichSu } from './lich-su-xe.js';
@@ -228,8 +228,8 @@ export default async function trangTiepNhan(el) {
   }
   oBienSo.addEventListener('change', traCuu);
 
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
+  // Chống gửi 2 lần (bấm đúp, Enter khi đang hỏi xác nhận số km) → không tạo trùng hồ sơ
+  khoaKhiGui(form, async () => {
     const d = docForm(form);
     if (!d.bien_so) { oBienSo.focus(); return toast('Nhập biển số xe.', 'loi'); }
     const bh = !hoSoGoc && d.nguon_tt !== 'khach';
@@ -264,14 +264,15 @@ export default async function trangTiepNhan(el) {
       const kq = await chay((boQua) => api.tiepNhanXe({ ...p, bo_qua_canh_bao: boQua }));
       nut.textContent = 'Đang tải ảnh…';
       await giaoSauKhiLuu(kq.id, giao.nguoi());
-      const hoSo = { id: kq.id, ma: kq.ma, chi_nhanh_id: api.toi.chi_nhanh_id };
-      let loiAnh = 0;
-      for (const f of oAnh.files) {
-        try { await api.taiTep(hoSo, 'tiep_nhan', await nenAnh(f)); } catch { loiAnh++; }
-      }
+      const hoSo = { id: kq.id, ma: kq.ma, chi_nhanh_id: kq.chi_nhanh_id || api.toi.chi_nhanh_id };
+      // Ảnh tải song song (3 ảnh một lượt), báo tiến độ trên nút
+      const { loi } = await api.taiNhieu(oAnh.files, 'tiep_nhan', (f) => api.taiTep(hoSo, 'tiep_nhan', f),
+        { tienDo: (n, t) => { nut.textContent = `Đang tải ảnh ${n}/${t}…`; } });
+      const loiAnh = loi.length;
       const daTao = hoSoGoc ? `Đã tạo hồ sơ bảo hành ${kq.ma} – lập lệnh sửa chữa được ngay` : `Đã tạo hồ sơ ${kq.ma}`;
       toast(loiAnh ? `${daTao}, nhưng ${loiAnh} ảnh tải lên lỗi – tải lại trong hồ sơ.` : daTao, loiAnh ? 'loi' : 'ok');
       veDanhSachHoSo({ id: kq.id, ma: kq.ma });
+      return true;   // đã tạo hồ sơ: giữ khóa nút, không cho gửi lại trong lúc chuyển trang
     } catch {
       nut.disabled = false; nut.textContent = 'Lưu hồ sơ';
     }

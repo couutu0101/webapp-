@@ -11,6 +11,32 @@
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="apple-mobile-web-app-title" content="Hoàng Sơn">
   <link rel="stylesheet" href="css/app.css">
+  <!-- Tải song song ngay từ đầu (không chờ trình duyệt dò từng tầng import): thư viện Supabase, máy chủ dữ liệu, các tệp mã -->
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://gttrctrcsexrznlwaseo.supabase.co" crossorigin><!-- cùng địa chỉ SUPABASE_URL trong js/cau-hinh.js -->
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm" crossorigin>
+  <link rel="preload" href="fonts/be-vietnam-pro-Regular.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="modulepreload" href="js/ui.js">
+  <link rel="modulepreload" href="js/api.js">
+  <link rel="modulepreload" href="js/supabase.js">
+  <link rel="modulepreload" href="js/cau-hinh.js">
+  <link rel="modulepreload" href="js/han-viec.js">
+  <link rel="modulepreload" href="js/bieu-do.js">
+  <link rel="modulepreload" href="js/excel.js">
+  <link rel="modulepreload" href="js/trang/viec-hom-nay.js">
+  <link rel="modulepreload" href="js/trang/giao-viec.js">
+  <link rel="modulepreload" href="js/trang/kho.js">
+  <link rel="modulepreload" href="js/trang/xuat-excel.js">
+  <link rel="modulepreload" href="js/trang/lich-su-xe.js">
+  <link rel="modulepreload" href="js/trang/ho-so-danh-sach.js">
+  <link rel="modulepreload" href="js/trang/tiep-nhan.js">
+  <link rel="modulepreload" href="js/trang/ho-so-chi-tiet.js">
+  <link rel="modulepreload" href="js/trang/dich-vu-nhanh.js">
+  <link rel="modulepreload" href="js/trang/thu-chi.js">
+  <link rel="modulepreload" href="js/trang/de-nghi-chi.js">
+  <link rel="modulepreload" href="js/trang/doanh-thu.js">
+  <link rel="modulepreload" href="js/trang/danh-muc.js">
+  <link rel="modulepreload" href="js/trang/nhan-vien.js">
 </head>
 <body>
   <div id="app"><div class="dang-tai man-hinh">Đang tải…</div></div>

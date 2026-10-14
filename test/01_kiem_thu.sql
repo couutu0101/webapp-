@@ -164,7 +164,7 @@ select public.luu_bao_gia((select v::bigint from ctx where k='hs1'), '[
 select kt.ghi('Chưa có ảnh nhận xe vẫn lập được báo giá → trạng thái báo giá',
   (select trang_thai from public.ho_so where id=(select v::bigint from ctx where k='hs1')) = 'bao_gia'
   and not exists (select 1 from public.ho_so_tep where ho_so_id=(select v::bigint from ctx where k='hs1')));
-select public.them_tep((select v::bigint from ctx where k='hs1'), 'tiep_nhan', 'anh', 'TK/hs1/nhan-xe-1.jpg');
+select public.them_tep((select v::bigint from ctx where k='hs1'), 'tiep_nhan', 'anh', 'TK/' || (select ma from public.ho_so where id=(select v::bigint from ctx where k='hs1')) || '/tiep_nhan-nhan-xe-1.jpg');
 
 select kt.mong_loi('Chưa duyệt thì chưa lập lệnh', format($$select public.lap_lenh_sua_chua(%s, now() + interval '2 day',
   (select jsonb_agg(jsonb_build_object('id',id,'to_id','DS')) from public.hang_muc where ho_so_id=%s))$$,
@@ -241,7 +241,7 @@ select kt.mong_loi('KCS đạt phải có ảnh sau sửa', format($$select publ
 select public.kcs((select v::bigint from ctx where k='hs1'), false, 'Sơn chảy cửa trái', array[(select v::bigint from ctx where k='dong_ds1')]);
 select kt.ghi('KCS chưa đạt → về đang sửa', (select trang_thai from public.ho_so where id=(select v::bigint from ctx where k='hs1')) = 'dang_sua');
 select public.bao_xong_hang_muc((select v::bigint from ctx where k='dong_ds1'));
-select public.them_tep((select v::bigint from ctx where k='hs1'), 'kcs', 'anh', 'TK/hs1/sau-sua-1.jpg');
+select public.them_tep((select v::bigint from ctx where k='hs1'), 'kcs', 'anh', 'TK/' || (select ma from public.ho_so where id=(select v::bigint from ctx where k='hs1')) || '/kcs-sau-sua-1.jpg');
 select public.kcs((select v::bigint from ctx where k='hs1'), true);
 select kt.ghi('KCS đạt', (select trang_thai from public.ho_so where id=(select v::bigint from ctx where k='hs1')) = 'dat_kcs');
 
@@ -1108,7 +1108,7 @@ select public.lap_bao_gia((select v::bigint from ctx where k='hs_a6'), '[{"ten":
 select public.lap_lenh_sua_chua((select v::bigint from ctx where k='hs_a6'), now() + interval '1 day',
   (select jsonb_agg(jsonb_build_object('id',id,'to_id','DT')) from public.hang_muc where ho_so_id=(select v::bigint from ctx where k='hs_a6')));
 select public.bao_xong_hang_muc((select id from public.hang_muc where ho_so_id=(select v::bigint from ctx where k='hs_a6')));
-select public.them_tep((select v::bigint from ctx where k='hs_a6'), 'kcs', 'anh', 'TK/a6/sau-sua.jpg');
+select public.them_tep((select v::bigint from ctx where k='hs_a6'), 'kcs', 'anh', 'TK/' || (select ma from public.ho_so where id=(select v::bigint from ctx where k='hs_a6')) || '/kcs-sau-sua.jpg');
 select public.kcs((select v::bigint from ctx where k='hs_a6'), true);
 select kt.mong_loi('038 Tiền bo lớn hơn hoặc bằng số tiền phiếu bị chặn', format($$select public.lap_phieu_thu(jsonb_build_object('tai_khoan_id',(select id from public.tai_khoan_quy where ten='Tiền mặt'),'muc_id',(select id from public.muc_thu_chi where tinh_chat='thu_khach'),'so_tien',1000000,'tien_bo',1000000,'phan_bo',jsonb_build_array(jsonb_build_object('ho_so_id',%s,'so_tien',0))))$$, (select v from ctx where k='hs_a6')), 'Tiền bo không hợp lệ');
 insert into ctx select 'pt_a6', public.lap_phieu_thu(jsonb_build_object('tai_khoan_id',(select id from public.tai_khoan_quy where ten='Tiền mặt'),'muc_id',(select id from public.muc_thu_chi where tinh_chat='thu_khach'),
@@ -1141,6 +1141,35 @@ select public.tiep_nhan_xe(jsonb_build_object(
   'nguon_tt','khach','tinh_trang_xe','Thử 2','tu_van','Không','so_km',200,'bat_buoc_km',true,'bo_qua_canh_bao',true));
 select kt.ghi('038 Tra cứu xe: số lần vào gara không đếm hồ sơ hủy (1, không phải 2)',
   (public.tra_cuu_xe('51G-038.08')->>'so_lan_vao')::int = 1 and (public.tra_cuu_xe('51G-038.08')->'ho_so_gan_nhat'->>'id')::bigint <> (select v::bigint from ctx where k='hs_a8'));
+-- ===================== 040: tối ưu giao diện =====================
+select kt.dong_vai('thuan@gara.vn');
+select kt.ghi('040 v_ho_so có nguoi_tiep_theo, giao_viec_luc khớp bảng hồ sơ (Việc hôm nay đọc một lần)',
+  not exists (select 1 from public.v_ho_so v join public.ho_so h on h.id = v.id
+              where v.nguoi_tiep_theo is distinct from h.nguoi_tiep_theo or v.giao_viec_luc is distinct from h.giao_viec_luc)
+  and exists (select 1 from public.v_ho_so where nguoi_tiep_theo is not null));
+select kt.ghi('040 Bảng việc tổ trả thêm nguồn, loại hồ sơ, chi nhánh (thanh 9 bước nhỏ bỏ đúng bước)',
+  (select bool_and(x ? 'nguon_tt' and x ? 'loai' and x ? 'chi_nhanh_id') from jsonb_array_elements(public.bang_viec_to()) x)
+  and jsonb_array_length(public.bang_viec_to()) > 0);
+select kt.ghi('040 Nhập – xuất – tồn tính ở máy chủ khớp thẻ kho từng mã (tháng này)',
+  not exists (
+    with k as (select date_trunc('month', current_date)::date as tu),
+    tay as (select t.hang_id,
+              sum(t.so_luong) filter (where t.ngay < k.tu) as dau,
+              sum(t.so_luong) filter (where t.ngay >= k.tu and t.so_luong > 0) as nhap,
+              -sum(t.so_luong) filter (where t.ngay >= k.tu and t.so_luong <= 0) as xuat,
+              sum(t.gia_tri) filter (where t.ngay >= k.tu and t.so_luong <= 0) as gtx
+            from public.v_the_kho t, k where t.ngay <= current_date group by t.hang_id)
+    select 1 from tay full join public.nhap_xuat_ton(to_char(current_date, 'YYYY-MM')) m on m.hang_id = tay.hang_id
+    where coalesce(tay.dau,0) <> coalesce(m.dau,0) or coalesce(tay.nhap,0) <> coalesce(m.nhap,0)
+       or coalesce(tay.xuat,0) <> coalesce(m.xuat,0) or coalesce(-tay.gtx,0) <> coalesce(m.gt_xuat,0))
+  and (select count(*) from public.nhap_xuat_ton(to_char(current_date, 'YYYY-MM'))) > 0);
+select kt.mong_loi('040 Gắn ảnh: đường dẫn thuộc hồ sơ khác bị chặn',
+  format($$select public.them_tep(%s, 'kcs', 'anh', 'TK/TK-0000-KHAC/kcs-1.jpg')$$, (select v from ctx where k='hs1')), 'không thuộc thư mục');
+select kt.mong_loi('040 Gắn ảnh: bước không hợp lệ bị chặn',
+  format($$select public.them_tep(%1$s, 'bat_ky', 'anh', 'TK/' || (select ma from public.ho_so where id=%1$s) || '/x.jpg')$$, (select v from ctx where k='hs1')), 'Bước của tệp');
+select kt.dong_vai('duy@gara.vn');
+select kt.ghi('040 Vai kho (Duy: CVDV + kho) gọi nhập – xuất – tồn được (quyền như thẻ kho)',
+  (select count(*) from public.nhap_xuat_ton(to_char(current_date, 'YYYY-MM'))) > 0);
 select kt.dong_vai(null);
 \o
 \echo '======== KẾT QUẢ ========'
