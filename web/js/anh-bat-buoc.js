@@ -50,6 +50,7 @@ export function khungAnhNhanXe({ hs = null, tep = [], link = {}, choSua = true, 
       anh.replaceChildren(src ? h('img', { src, alt: a.ten }) : icon('anh'));
       trangThai.textContent = chu;
       o.classList.toggle('du', !!xong);
+      if (xong) o.classList.remove('thieu');
     };
     const input = h('input', { type: 'file', accept: 'image/*', capture: 'environment', 'data-buoc': a.buoc, 'aria-label': `Ảnh ${a.ten}` });
     const o = h(choSua ? 'label' : 'div', { class: 'o-anh-buoc', 'data-o': a.buoc },
