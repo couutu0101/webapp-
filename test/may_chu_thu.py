@@ -54,6 +54,8 @@ def dieu_kien(f):
     op, c, v = f['op'], f.get('cot'), f.get('gt')
     if op == 'or':
         return '(' + ' or '.join(dieu_kien(x) for x in tach_or(v)) + ')'
+    if op == 'and':                      # nhóm and(...) lồng trong or(...) như PostgREST
+        return '(' + ' and '.join(dieu_kien(x) for x in tach_or(v)) + ')'
     if op == 'not':
         return 'not (' + dieu_kien({'op': f['op2'], 'cot': c, 'gt': v}) + ')'
     C = cot(c)
@@ -85,6 +87,9 @@ def tach_or(s):
         phan.append(buf)
     kq = []
     for p in phan:
+        if p.startswith('and(') and p.endswith(')'):
+            kq.append({'op': 'and', 'gt': p[4:-1]})
+            continue
         c, op, gt = p.split('.', 2)
         if op in ('gt', 'gte', 'lt', 'lte') and re.match(r'^-?\d+(\.\d+)?$', gt):
             gt = float(gt)

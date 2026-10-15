@@ -620,6 +620,7 @@ td .dam, th .dam { font-weight: 700; } td .mo { color: var(--muc-phu); }
 .cot-thang { white-space: nowrap; }
 .cot-thang .nhan { margin: 2px 0 0; display: inline-block; }
 .nhan.tt-mo { background: var(--xanh-nhat); color: var(--xanh); }
+.nhan.tt-khoa { background: #eceff1; color: var(--muc-phu); }
 .ds-thang-kqkd .dong-thang { display: block; padding: 10px 0; border-top: 1px solid var(--vien); }
 .ds-thang-kqkd .dong-thang-dau { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
 .ds-thang-kqkd .dong-thang-dau small { color: var(--muc-phu); flex: none; }
@@ -794,7 +795,7 @@ td .mo, .ts-chi-tiet .mo { color: var(--muc-phu); }
 .ls-mo-lai summary { cursor: pointer; color: var(--lien-ket); }
 .ls-mo-lai ul { margin: 6px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
 .bc-in-muc { margin: 14px 0 6px; font-size: .95rem; }
-.bc-in .bb-ky { min-height: 90px; }
+.bc-in .bb-ky { min-height: 90px; break-inside: avoid; page-break-inside: avoid; }
 @media (max-width: 640px) {
   .bc-bang { font-size: .84rem; }
   .bc-bang th, .bc-bang td { padding: 6px 8px; }

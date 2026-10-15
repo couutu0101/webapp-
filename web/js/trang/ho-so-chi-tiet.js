@@ -1,6 +1,6 @@
 // Chi tiết hồ sơ xe: 9 bước trên một trang, mỗi bước chỉ hiện nút cho đúng người
 import {
-  h, oChonTep, bienSo, oNgayVN, oNgayGioVN, tien, ngay, ngayGio, homNay, truong, oChu, oTien, oChon, oVung, oNgay, oCheck, docForm, docTien, chay, moModal, toast, nhanTrangThai, bang, NHOM, NHOM_CHON, NGUON, TRANG_THAI, xacNhan, dat, veDanhSachHoSo, icon, buocXe, BUOC_XE, chipNguoi, hoiLyDo,
+  h, oChonTep, bienSo, oNgayVN, oNgayGioVN, vnSangIso, tien, ngay, ngayGio, homNay, truong, oChu, oTien, oChon, oVung, oCheck, docForm, docTien, chay, moModal, toast, nhanTrangThai, bang, NHOM, NHOM_CHON, NGUON, TRANG_THAI, xacNhan, dat, veDanhSachHoSo, icon, buocXe, BUOC_XE, chipNguoi, hoiLyDo, coBuocHoSoBH,
 } from '../ui.js';
 import { khoiPhuTungXe } from './kho.js';
 import { khungGiaoViec, giaoSauKhiLuu, dongDangCho, nguoiLamTungBuoc, tenGoi, VAI_TRO_BUOC, aiDangLam, chipNhanVien } from './giao-viec.js';
@@ -53,7 +53,8 @@ function dau({ hs, cho }) {
       // Xe đã rời xưởng quay lại: tiếp nhận lần mới với mọi thông tin điền sẵn
       ['da_giao', 'da_gui_hs', 'dong'].includes(hs.trang_thai) && q('cvdv', 'quan_ly', 'giam_doc')
         ? h('a', { class: 'nut chinh', href: `#/ho-so/moi?tu_ho_so=${hs.id}` }, '+ Tiếp nhận xe') : null,
-      hs.trang_thai === 'dong' && q('cvdv', 'quan_ly', 'giam_doc')
+      // 043: xe đã giao (kể cả đang chờ bảo hiểm trả) quay lại vì lỗi cũ: tạo hồ sơ bảo hành được ngay, không phải chờ hồ sơ đóng
+      ['da_giao', 'da_gui_hs', 'dong'].includes(hs.trang_thai) && q('cvdv', 'quan_ly', 'giam_doc')
         ? h('a', { class: 'nut', href: `#/ho-so/moi?bao_hanh=${hs.id}` }, 'Tạo hồ sơ bảo hành') : null));
 }
 
@@ -336,13 +337,15 @@ function moBaoGia(hs, hm, ve, boSung) {
 
 function moDuyetGia(hs, choDuyet, ve, hm = []) {
   const bh = hs.nguon_tt !== 'khach';
-  const oNgayDuyet = oNgay('ngay', homNay(), { max: homNay() });
+  // Ngày luôn dd/mm/yyyy (ô date của trình duyệt đổi theo ngôn ngữ máy, dễ nhầm ngày/tháng); không trước ngày nhận xe, không sau hôm nay
+  const oNgayDuyet = oNgayVN('ngay', homNay());
   const dongs = choDuyet.map((m) => {
     const dongY = h('input', { type: 'checkbox', checked: true, 'aria-label': `Duyệt ${m.ten}` });
     const gia = oTien('gia', m.gia_bao, { 'aria-label': `Giá duyệt ${m.ten}` });
     dongY.addEventListener('change', () => { gia.disabled = !dongY.checked; tinhLai(); });
     gia.addEventListener('input', tinhLai);
-    return { m, dongY, gia, el: h('tr', null, h('td', null, h('label', null, dongY, ' ', m.ten, bh && m.nguoi_tra === 'khach' ? h('small', { class: 'nhan' }, 'khách trả') : null)), h('td', { class: 'so' }, tien(m.gia_bao)), h('td', null, gia)) };
+    return { m, dongY, gia, el: h('tr', null, h('td', { 'data-nhan': 'Hạng mục' }, h('label', null, dongY, ' ', m.ten, bh && m.nguoi_tra === 'khach' ? h('small', { class: 'nhan' }, 'khách trả') : null)),
+      h('td', { class: 'so', 'data-nhan': 'Giá báo' }, tien(m.gia_bao)), h('td', { 'data-nhan': 'Giá duyệt' }, gia)) };
   });
   // Chia công nợ (xe bảo hiểm): Tổng giá duyệt = BH chi trả + Khách chi trả. Khách chi trả = dòng khách tự trả + khấu trừ / giảm trừ
   const daDuyet = hm.filter((m) => ['duyet', 'dang_lam', 'xong'].includes(m.trang_thai) && !choDuyet.some((c) => c.id === m.id));
@@ -378,7 +381,7 @@ function moDuyetGia(hs, choDuyet, ve, hm = []) {
     truong('Khách hàng chi trả', oKhach, h('span', null, 'Khấu trừ, miễn thường, giảm trừ, chế tài của hãng + các dòng khách tự trả', soKhachDong)),
   ) : null;
   const noiDung = h('div', null,
-    truong('Ngày duyệt', oNgayDuyet, 'Doanh thu tính vào tháng của ngày duyệt', { batBuoc: true }),
+    truong('Ngày duyệt', oNgayDuyet, `Doanh thu tính vào tháng của ngày duyệt (từ ngày nhận xe ${ngay(hs.ngay_vao)} đến hôm nay)`, { batBuoc: true }),
     h('div', { class: 'bang-cuon' }, h('table', { class: 'bang' },
       h('thead', null, h('tr', null, h('th', null, 'Hạng mục (bỏ chọn nếu không duyệt)'), h('th', { class: 'so' }, 'Giá báo'), h('th', null, 'Giá duyệt (chưa VAT)'))),
       h('tbody', null, dongs.map((d) => d.el)))),
@@ -390,8 +393,10 @@ function moDuyetGia(hs, choDuyet, ve, hm = []) {
   moModal('Kết quả duyệt giá', noiDung, {
     rong: true, nhanNut: 'Lưu kết quả',
     nutChinh: async () => {
+      const ngayDuyet = vnSangIso(oNgayDuyet.value);
+      if (!ngayDuyet) { toast('Ngày duyệt không đúng (dd/mm/yyyy).', 'loi'); oNgayDuyet.focus(); return false; }
       const ketQua = dongs.map((d) => ({ id: d.m.id, dong_y: d.dongY.checked, gia_duyet: d.dongY.checked ? docTien(d.gia.value) : null }));
-      const kq = await api.duyetGiaChia(hs.id, oNgayDuyet.value, ketQua, bh ? (docTien(oKhach.value) || 0) : null);
+      const kq = await api.duyetGiaChia(hs.id, ngayDuyet, ketQua, bh ? (docTien(oKhach.value) || 0) : null);
       if (giao) await giaoSauKhiLuu(hs.id, giao.nguoi());
       toast(bh && kq ? `Đã lưu. Bảo hiểm chi trả ${tien(kq.bao_hiem)} đ, khách chi trả ${tien(kq.khach)} đ.` : 'Đã lưu kết quả duyệt.'); await ve();
     },
@@ -446,7 +451,7 @@ function moLenh(hs, ds, ve) {
     let tuGo = false;
     nguoi.addEventListener('input', () => { tuGo = !!nguoi.value; });
     to.addEventListener('change', () => { if (!tuGo) nguoi.value = truongNhom(to.value); });
-    return { m, to, nguoi, el: h('tr', null, h('td', null, m.ten), h('td', null, to), h('td', null, nguoi)) };
+    return { m, to, nguoi, el: h('tr', null, h('td', { 'data-nhan': 'Hạng mục' }, m.ten), h('td', { 'data-nhan': 'Tổ' }, to), h('td', { 'data-nhan': 'Người làm' }, nguoi)) };
   });
   moModal('Lệnh sửa chữa', h('div', null,
     truong('Giờ hẹn giao xe', oHenKhung, hs.hen_giao ? 'Ngày dd/mm/yyyy · giờ 24h' : `Mặc định sau ${api.caiDat('so_ngay_hen_giao', 3)} ngày, 17:00 – sửa lại nếu khác`, { batBuoc: !hs.hen_giao }),
@@ -506,19 +511,29 @@ function moPhatSinh(hs, ve) {
 }
 
 // ---------- KCS (bước 7) ----------
-function theKcs({ hs, hm, tep, dsKcs, ve }) {
+function theKcs({ hs, hm, tep, dsKcs, ps, ve }) {
   if (!['cho_kcs', 'dat_kcs', 'da_giao', 'da_gui_hs', 'dong'].includes(hs.trang_thai) && !dsKcs.length) return null;
-  const coAnh = tep.some((t) => t.buoc === 'kcs');
+  // 043 (khớp máy chủ): lần KCS gần nhất chưa đạt thì phải có ảnh "Sau sửa" chụp SAU lần đó; còn phát sinh chờ xử lý thì chưa ký đạt
+  const truot = dsKcs[0] && !dsKcs[0].dat ? dsKcs[0] : null;
+  const coAnh = tep.some((t) => t.buoc === 'kcs' && (!truot || new Date(t.tai_luc) > new Date(truot.luc)));
+  const conPhatSinh = (ps || []).some((p) => !p.da_xu_ly);
+  const choKcs = hs.trang_thai === 'cho_kcs';
   return h('section', { class: 'the' },
     h('div', { class: 'the-dau' }, h('h2', null, '6. Nghiệm thu (KCS) và rửa xe'),
-      hs.trang_thai === 'cho_kcs' && q('quan_ly', 'giam_doc') ? h('div', { class: 'hang-nut' },
+      choKcs && q('quan_ly', 'giam_doc') ? h('div', { class: 'hang-nut' },
         nut('Chưa đạt – làm lại', () => moKhongDat(hs, hm, ve)),
         nut('Đạt KCS', async () => {
-          if (!coAnh) { toast('Tải ảnh sau sửa ở mục "Ảnh & giấy tờ" (bước: Sau sửa) trước khi ký KCS.', 'loi'); return; }
+          if (conPhatSinh) { toast('Còn hư hỏng phát sinh chưa xử lý – CVDV lập báo giá bổ sung hoặc ghi "Không cần làm thêm" trước.', 'loi'); return; }
+          if (!coAnh) {
+            toast(truot ? 'Chưa có ảnh sau khi làm lại – chụp ảnh mới ở mục "Ảnh & giấy tờ" (bước: Sau sửa) rồi ký KCS.'
+              : 'Tải ảnh sau sửa ở mục "Ảnh & giấy tờ" (bước: Sau sửa) trước khi ký KCS.', 'loi');
+            return;
+          }
           await chay(() => api.kcs(hs.id, true, null, null), { thanhCong: 'Đã ký đạt KCS.' }).then(ve, ve.lai);
         }, true)) : null),
-    hs.trang_thai === 'cho_kcs' && !q('quan_ly', 'giam_doc') ? h('p', { class: 'goi-y' }, 'Chờ quản lý chung nghiệm thu.') : null,
-    hs.trang_thai === 'cho_kcs' && !coAnh ? h('p', { class: 'goi-y' }, 'Chưa có ảnh sau sửa.') : null,
+    choKcs && !q('quan_ly', 'giam_doc') ? h('p', { class: 'goi-y' }, 'Chờ quản lý chung nghiệm thu.') : null,
+    choKcs && conPhatSinh ? h('p', { class: 'thong-bao canh-bao' }, 'Còn hư hỏng phát sinh chờ xử lý (mục 4–5) – xử lý xong mới ký KCS đạt.') : null,
+    choKcs && !coAnh ? h('p', { class: 'goi-y' }, truot ? `Chưa có ảnh sau khi làm lại (lần KCS chưa đạt lúc ${ngayGio(truot.luc)}).` : 'Chưa có ảnh sau sửa.') : null,
     dsKcs.length ? h('ul', { class: 'ds-don' }, dsKcs.map((k) => h('li', null, ngayGio(k.luc), ' – ', k.dat ? h('b', { class: 'chu-tot' }, 'Đạt') : h('b', { class: 'chu-loi' }, 'Chưa đạt: '), k.loi || ''))) : null);
 }
 
@@ -631,7 +646,8 @@ function moGiamGia(hs, ve) {
   const toiDa = Number(hs.phai_thu_khach) + Number(hs.giam_gia || 0);
   const form = h('form', null,
     h('p', { class: 'mo-ta' }, `Khách phải trả ${tien(toiDa)} đ trước giảm giá · đã trả ${tien(hs.da_thu_khach) || '0'} đ · còn nợ ${tien(hs.con_no_khach) || '0'} đ.`),
-    truong('Tổng số tiền giảm cho khách', oTien('so_tien', hs.giam_gia), `Tối đa ${tien(toiDa)} đ. Giảm giá trừ vào doanh thu của ngày duyệt.${hs.giao_luc ? ' Hết nợ thì hồ sơ tự đóng.' : ''}`, { batBuoc: true }),
+    truong('Tổng số tiền giảm cho khách', oTien('so_tien', hs.giam_gia),
+      `Tối đa ${tien(toiDa)} đ. Ghi TỔNG giảm giá của hồ sơ: phần chênh so với lần trước trừ vào doanh thu hôm nay, các lần trước giữ ở tháng cũ.${hs.giao_luc ? ' Hết nợ thì hồ sơ tự đóng.' : ''}`, { batBuoc: true }),
     truong('Lý do', oVung('ly_do', ''), null, { batBuoc: true }));
   moModal('Duyệt giảm giá', form, {
     nhanNut: 'Duyệt',
@@ -643,19 +659,27 @@ function moGiamGia(hs, ve) {
 function theHoSoBH({ hs, ve }) {
   if (hs.nguon_tt === 'khach' || !hs.giao_luc) return null;
   const keToan = q('ke_toan', 'giam_doc');
+  // 043 (khớp máy chủ): bảo hiểm chi trả 0 đ (khách trả hết) / hồ sơ bảo hành thì không có hồ sơ gửi bảo hiểm
+  const canGui = coBuocHoSoBH(hs);
+  const oNgayGui = oNgayVN('ngay_gui', homNay(), { 'aria-label': 'Ngày gửi hồ sơ' });
+  const thangHH = hs.hoa_hong_ky ? `${String(hs.hoa_hong_ky).slice(5, 7)}/${String(hs.hoa_hong_ky).slice(0, 4)}` : null;
   return h('section', { class: 'the' },
     h('h2', null, '8. Hồ sơ bảo hiểm, thu nợ, hoa hồng'),
     hs.gui_hs_ngay ? h('p', null, 'Đã gửi hồ sơ ngày ', h('b', null, ngay(hs.gui_hs_ngay)))
-      : keToan ? h('div', { class: 'hang-nut' },
-        oNgay('ngay_gui', homNay(), { max: homNay(), 'aria-label': 'Ngày gửi hồ sơ' }),
-        nut('Đã gửi hồ sơ bảo hiểm', (e) => {
-          const ngayGui = e.target.parentElement.querySelector('[name=ngay_gui]').value;
-          chay(() => api.guiHoSoBH(hs.id, ngayGui), { thanhCong: 'Đã ghi ngày gửi hồ sơ.' }).then(ve, ve.lai);
-        }, true))
-        : h('p', { class: 'goi-y' }, 'Chờ kế toán gửi hồ sơ (trong 3 ngày sau giao xe).'),
+      : !canGui ? h('p', { class: 'goi-y' }, 'Bảo hiểm không chi trả phần nào của xe này – không cần gửi hồ sơ bảo hiểm.')
+        : keToan && hs.trang_thai === 'da_giao' && !hs.tu_excel ? h('div', { class: 'hang-nut' },
+          oNgayGui,
+          nut('Đã gửi hồ sơ bảo hiểm', () => {
+            const ngayGui = vnSangIso(oNgayGui.value);
+            if (!ngayGui) { toast('Ngày gửi hồ sơ không đúng (dd/mm/yyyy).', 'loi'); oNgayGui.focus(); return null; }
+            return chay(() => api.guiHoSoBH(hs.id, ngayGui), { thanhCong: 'Đã ghi ngày gửi hồ sơ.' }).then(ve, ve.lai);
+          }, true))
+          : h('p', { class: 'goi-y' }, 'Chờ kế toán gửi hồ sơ (trong 3 ngày sau giao xe).'),
     hs.gdv_id ? h('div', { class: 'hang-nut' },
       h('span', null, 'Hoa hồng GDV ', h('b', null, hs.gdv), ': ', hs.hoa_hong_gdv === null ? h('i', null, 'chưa nhập') : h('b', null, tien(hs.hoa_hong_gdv) + ' đ'),
-        hs.hoa_hong_ghi_chu ? h('small', null, ` (${hs.hoa_hong_ghi_chu})`) : null),
+        hs.hoa_hong_ghi_chu ? h('small', null, ` (${hs.hoa_hong_ghi_chu})`) : null,
+        // 043: tháng duyệt giá đã chốt sổ lúc nhập hoa hồng → tính vào tháng đang mở lúc nhập
+        thangHH && hs.hoa_hong_gdv !== null ? h('small', { class: 'nhan' }, `tính vào lãi lỗ tháng ${thangHH}`) : null),
       keToan ? nut(hs.hoa_hong_gdv === null ? 'Nhập hoa hồng' : 'Sửa', () => moHoaHong(hs, ve)) : null) : null);
 }
 
@@ -686,9 +710,13 @@ function theChamSoc({ hs, ve }) {
 function moChamSoc(hs, ve) {
   const form = h('form', null,
     truong('Kết quả gọi', oVung('ket_qua', hs.cham_soc_ket_qua, { rows: 3 }), null, { batBuoc: true }),
-    truong('Hẹn bảo dưỡng (3–6 tháng sau)', oNgay('hen', hs.hen_bao_duong)));
+    truong('Hẹn bảo dưỡng (3–6 tháng sau)', oNgayVN('hen', hs.hen_bao_duong), 'Ngày/tháng/năm, bỏ trống nếu chưa hẹn'));
   moModal('Chăm sóc sau giao', form, {
-    nutChinh: async () => { const d = docForm(form); await api.ghiChamSoc(hs.id, d.ket_qua, d.hen); toast('Đã lưu.'); await ve(); },
+    nutChinh: async () => {
+      const d = docForm(form);
+      if (d.hen === 'sai') { toast('Ngày hẹn bảo dưỡng không đúng (dd/mm/yyyy).', 'loi'); return false; }
+      await api.ghiChamSoc(hs.id, d.ket_qua, d.hen); toast('Đã lưu.'); await ve();
+    },
   });
 }
 
@@ -701,6 +729,8 @@ function theTien({ hs, hm, giaVon, ve }) {
       h('p', { class: 'goi-y' }, 'Hồ sơ bảo hành: làm lại miễn phí, không thu tiền, không tính doanh thu.'),
       api.duocXem('giam_doc', 'quan_ly', 'ke_toan') && giaVon ? d('Phụ tùng, vật tư đã xuất (giá vốn bảo hành)', giaVon, true) : null);
   }
+  const huy = hs.trang_thai === 'huy';
+  const dangGiu = huy ? Math.max(0, Number(hs.da_thu_khach) || 0) : Math.max(0, -Number(hs.con_no_khach) || 0);
   // 036: chia lại công nợ BH / khách sau duyệt (khấu trừ – giảm trừ) – CVDV, kế toán, quản lý chung, giám đốc
   const nutChia = bh && !['tiep_nhan', 'bao_gia', 'dong', 'huy'].includes(hs.trang_thai) && Number(hs.bh_duyet) + Number(hs.khach_duyet) > 0 && q('cvdv', 'ke_toan', 'quan_ly', 'giam_doc')
     ? h('button', { class: 'nut nho', type: 'button', onclick: () => moChiaCongNo(hs, hm, ve) }, 'Chia lại công nợ BH / khách') : null;
@@ -711,14 +741,16 @@ function theTien({ hs, hm, giaVon, ve }) {
     bh && Number(hs.khau_tru_giam_tru) ? d('+ Khấu trừ – giảm trừ', hs.khau_tru_giam_tru) : null,
     Number(hs.giam_gia) ? d('− Giảm giá đã duyệt', hs.giam_gia) : null,
     d('Khách phải trả', hs.phai_thu_khach), d('Khách đã trả (gồm cọc)', hs.da_thu_khach),
-    Number(hs.con_no_khach) < 0 ? d(hs.giao_luc ? 'Khách trả dư – cần trả lại' : 'Khách đã cọc / ứng trước', -Number(hs.con_no_khach), true) : d('Khách còn nợ', hs.con_no_khach, true),
-    Number(hs.con_no_khach) < 0 ? h('p', { class: 'goi-y' }, hs.giao_luc || hs.trang_thai === 'huy'
-      ? (hs.trang_thai === 'huy' ? 'Hồ sơ đã hủy còn giữ tiền cọc của khách – trả lại khách: ' : 'Hồ sơ chưa đóng khi còn tiền dư. Trả lại khách: ')
-        + 'lập Đề nghị chi, mục "Trả lại cọc cho khách", chọn xe này. Khách cho thợ: kế toán lập phiếu thu "Tiền bo của khách" rồi hủy phần dư ở phiếu đã thu.'
+    // 043 (khớp máy chủ): hồ sơ hủy giữ toàn bộ số khách đã trả; hồ sơ khác giữ phần trả dư
+    dangGiu > 0 ? d(huy ? 'Đang giữ tiền của khách – cần trả lại' : hs.giao_luc ? 'Khách trả dư – cần trả lại' : 'Khách đã cọc / ứng trước', dangGiu, true)
+      : d('Khách còn nợ', huy ? 0 : hs.con_no_khach, true),
+    dangGiu > 0 ? h('p', { class: 'goi-y' }, hs.giao_luc || huy
+      ? (huy ? 'Hồ sơ đã hủy còn giữ tiền của khách – trả lại khách: ' : 'Hồ sơ chưa đóng khi còn tiền dư. Trả lại khách: ')
+        + 'lập Đề nghị chi, mục "Trả lại cọc cho khách", chọn xe này (phần mềm điền sẵn số tối đa được trả). Khách cho thợ: kế toán lập phiếu thu "Tiền bo của khách" rồi hủy phần dư ở phiếu đã thu.'
       : 'Tiền cọc sẽ trừ vào phần khách trả khi giao xe.') : null,
-    Number(hs.con_no_khach) < 0 && (hs.giao_luc || hs.trang_thai === 'huy') && api.laNhanVien()
+    dangGiu > 0 && (hs.giao_luc || huy) && api.laNhanVien()
       ? h('div', { class: 'hang-nut' }, h('a', { class: 'nut nho', 'data-tra-coc': '',
-        href: `#/de-nghi?lap=1&muc=${encodeURIComponent('Trả lại cọc cho khách')}&tien=${-Number(hs.con_no_khach)}&ho_so=${hs.id}&nd=${encodeURIComponent(`Trả lại tiền ${hs.trang_thai === 'huy' ? 'cọc' : 'dư'} – ${hs.bien_so_hien_thi || hs.ma}`)}&nhan=${encodeURIComponent(hs.ten_khach || '')}` },
+        href: `#/de-nghi?lap=1&muc=${encodeURIComponent('Trả lại cọc cho khách')}&ho_so=${hs.id}&nd=${encodeURIComponent(`Trả lại tiền ${huy ? 'cọc' : 'dư'} – ${hs.bien_so_hien_thi || hs.ma}`)}&nhan=${encodeURIComponent(hs.ten_khach || '')}` },
         'Lập đề nghị chi trả lại khách')) : null,
     // Giá vốn phụ tùng, vật tư đã xuất cho xe và lãi gộp (doanh thu sau VAT − giá vốn)
     api.duocXem('giam_doc', 'quan_ly', 'ke_toan') && (giaVon || Number(hs.bh_duyet) || Number(hs.khach_duyet)) ? [h('hr'),

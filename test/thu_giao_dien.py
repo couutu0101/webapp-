@@ -715,7 +715,7 @@ with sync_playwright() as p:
     duy.click('text=+ Lập đề nghị chi')
     m = modal(duy)
     m.locator('[name=muc_id]').select_option(label='Điện')
-    expect(m.locator('[name=ky_chi_phi] option')).to_have_count(3)
+    expect(m.locator('[name=ky_chi_phi] option')).to_have_count(4)
     ghi('Đề nghị chi mục Điện có ô "Chi phí của tháng": ' + ' | '.join(m.locator('[name=ky_chi_phi] option').all_inner_texts()))
     # Ô tiền: gõ từng phím, tự chèn dấu chấm; Backspace ngay sau dấu chấm vẫn xóa được số đứng trước
     o = m.locator('[name=so_tien]')
@@ -801,7 +801,8 @@ with sync_playwright() as p:
     thuan.locator('[role=tab]', has_text='Doanh thu').first.click()
     ve_trang(thuan, '#/danh-muc')
     thuan.select_option('.tieu-de-trang select', 'giam_dinh_vien')
-    thuan.wait_for_timeout(400)
+    thuan.locator('tbody tr', has_text='Hảo').first.wait_for()          # bảng giám định viên đã vẽ
+    so_dau = thuan.locator('tbody tr').count()
     thuan.click('text=+ Thêm')
     m = modal(thuan)
     m.locator('[name=ten]').fill('Tín')
@@ -809,12 +810,12 @@ with sync_playwright() as p:
     m.locator('text=Lưu').click()
     toast_co(thuan, 'Đã lưu')
     ghi('Giám đốc thêm GDV trong danh mục')
-    so_truoc = thuan.locator('tbody tr').count()
+    expect(thuan.locator('tbody tr')).to_have_count(so_dau + 1)          # chờ bảng vẽ lại có dòng mới (danh mục sẵn đã có một "Tín")
+    so_truoc = so_dau + 1
     thuan.locator('tbody tr').filter(has=thuan.locator('td:first-child', has_text='Tín')).locator('button', has_text='Xóa').last.click()
     modal(thuan).get_by_role('button', name='Xóa', exact=True).click()
     toast_co(thuan, 'Đã xóa')
-    thuan.wait_for_timeout(500)
-    assert thuan.locator('tbody tr').count() == so_truoc - 1
+    expect(thuan.locator('tbody tr')).to_have_count(so_truoc - 1)
     thuan.select_option('.tieu-de-trang select', 'hang_bao_hiem')
     thuan.wait_for_timeout(400)
     thuan.locator('tr', has_text='Tasco').locator('button', has_text='Xóa').click()
@@ -1044,9 +1045,11 @@ with sync_playwright() as p:
     m2.locator('[name=nguoi_lam]').fill('Tiệm điện máy Hòa')
     m2.locator('button', has_text='Lưu').click()
     toast_co(thuan, 'Đã ghi')
-    thuan.wait_for_timeout(500)
     expect(thuan.locator('tbody tr', has_text='Máy đánh bóng')).to_contain_text('Tốt')
-    ghi('Ghi sửa chữa xong → máy đánh bóng trở lại Tốt; sự cố hỏng tự đóng')
+    # 043: ghi sửa chữa không tự đóng sự cố hỏng – giám đốc / quản lý chung xử lý (có thể ghi người chịu)
+    thuan.locator('[role=tab][data-the=tong]').click()
+    expect(thuan.locator('section', has_text='Thiếu / hỏng chờ xử lý').locator('tbody tr', has_text='Máy đánh bóng')).to_have_count(1)
+    ghi('Ghi sửa chữa xong → máy đánh bóng trở lại Tốt; sự cố hỏng vẫn chờ giám đốc xử lý (không tự đóng)')
     ve_trang(thuan, '#/viec')
     ghi('Việc của giám đốc có mục đồ nghề: ' + str(thuan.locator('.viec-cua-toi li', has_text='Đồ nghề').count()) + ' mục')
 
@@ -1088,6 +1091,133 @@ with sync_playwright() as p:
     dt.click('.nut-menu')
     dt.wait_for_timeout(400)
     dt.screenshot(path=os.path.join(CHUP, '16-menu-dien-thoai.png'))
+
+    # ---------- 043 (rà soát lần 3): tiền BH chưa chia, đề nghị chi không chọn ngày, trả lại khách theo máy chủ, công nợ NCC,
+    # điều chỉnh giá phiếu nhập, KQKD (VAT chuyển kỳ, số dư mới), danh mục (lịch sử tài khoản, số âm, vào lãi lỗ), tổ của trưởng nhóm ----------
+    # ---- Kế toán: Thu chi – tiền BH chưa chia, chuyển phần chia
+    kt43 = mo(b, 'tien@gara.vn')
+    kq = kt43.evaluate("""async () => {
+      const api = await import('./js/api.js');
+      const muc = api.dm.muc_thu_chi.find((m) => m.tinh_chat === 'thu_bao_hiem');
+      const tk = api.dm.tai_khoan_quy.find((t) => t.hoat_dong);
+      const hs = await api.doc('v_ho_so', (q) => q.gt('con_no_bh', 0).limit(1));
+      const hang = hs[0]?.hang_bh_id ?? api.dm.hang_bao_hiem[0].id;
+      const pb = hs[0] ? [{ ho_so_id: hs[0].id, so_tien: Math.min(100000, Number(hs[0].con_no_bh)) }] : [];
+      const id = await api.lapPhieuThu({ tai_khoan_id: tk.id, muc_id: muc.id, hang_bh_id: hang, so_tien: 700000, noi_dung: 'BH thử 043', phan_bo: pb });
+      return { id, coXe: !!hs[0] };
+    }""")
+    ghi(f'Tạo phiếu thu BH 700.000 chia một phần: {kq}')
+    ve_trang(kt43, '#/thu-chi?chua_chia=1')
+    kt43.wait_for_selector('#chua-chia')
+    expect(kt43.locator('#chua-chia h2')).to_contain_text('chưa chia vào xe')
+    ghi('Thu chi: thẻ "Tiền bảo hiểm đã về chưa chia vào xe": ' + kt43.locator('#chua-chia h2').inner_text())
+    kt43.locator('#chua-chia button', has_text='Chia').first.click()
+    m = modal(kt43)
+    expect(m).to_contain_text('chưa chia vào xe')
+    ghi('Mở "Chia … vào xe" từ thẻ chưa chia: ' + m.locator('p').first.inner_text())
+    m.locator('.modal-chan button', has_text='Đóng').click()
+    if kq['coXe']:
+        kt43.locator('#chua-chia button', has_text='Chuyển phần chia').first.click()
+        m = modal(kt43)
+        expect(m.locator('[name=tu] option')).not_to_have_count(0)
+        ghi('Mở "Chuyển phần chia": từ xe ' + m.locator('[name=tu] option:checked').inner_text() + ' · số tiền ' + m.locator('[name=so_tien]').input_value())
+        m.locator('.modal-chan button', has_text='Đóng').click()
+    chup(kt43, '043-thu-chi-chua-chia')
+
+    # ---- Đề nghị chi: không còn ô Ngày; kỳ chi phí 4 tháng
+    ve_trang(kt43, '#/de-nghi')
+    kt43.click('text=+ Lập đề nghị chi')
+    m = modal(kt43)
+    expect(m.locator('[name=ngay]')).to_have_count(0)
+    m.locator('[name=muc_id]').select_option(label='Điện')
+    expect(m.locator('[name=ky_chi_phi] option')).to_have_count(4)
+    ghi('Đề nghị chi: không có ô Ngày; kỳ chi phí: ' + ' | '.join(m.locator('[name=ky_chi_phi] option').all_inner_texts()))
+    m.locator('.modal-chan button', has_text='Đóng').click()
+
+    # ---- Trả lại khách: điền sẵn số tối đa theo máy chủ
+    hs_du = kt43.evaluate("""async () => { const api = await import('./js/api.js');
+      const r = await api.doc('v_ho_so', (q) => q.lt('con_no_khach', 0).limit(1)); return r[0] ? r[0].id : null; }""")
+    if hs_du:
+        ve_trang(kt43, f"#/de-nghi?lap=1&muc={'Trả lại cọc cho khách'}&ho_so={hs_du}&nd=thử")
+        m = modal(kt43)
+        expect(m).to_contain_text('trả lại tối đa', timeout=8000)
+        ghi('Trả lại khách: ' + m.locator('.truong', has_text='Xe').inner_text().replace('\n', ' ')[:160] + ' · số tiền ' + m.locator('[name=so_tien]').input_value())
+        m.locator('.modal-chan button', has_text='Đóng').click()
+    else:
+        ghi('Không có hồ sơ khách dư để thử trả lại (bỏ qua)')
+
+    # ---- Kho: công nợ NCC, điều chỉnh giá phiếu nhập
+    ve_trang(kt43, '#/kho?the=cong_no')
+    kt43.wait_for_selector('text=Tổng còn nợ nhà cung cấp')
+    ghi('Kho → Công nợ NCC (kế toán): ' + kt43.locator('.luoi-dem').first.inner_text().replace('\n', ' '))
+    pn = kt43.evaluate("""async () => { const api = await import('./js/api.js');
+      const r = await api.doc('v_phieu_nhap', (q) => q.in('trang_thai', ['cho_khop', 'treo']).limit(1)); return r[0] ? r[0].id : null; }""")
+    if pn:
+        kt43.evaluate(f"""async () => {{ const k = await import('./js/trang/kho.js'); k.moChiTietNhap({pn}, () => {{}}); }}""")
+        kt43.locator('button', has_text='Điều chỉnh giá theo hóa đơn').click()
+        m = modal(kt43)
+        expect(m.locator('tbody tr')).not_to_have_count(0)
+        ghi('Phiếu nhập chờ khớp: mở "Điều chỉnh giá theo hóa đơn" – ' + str(m.locator('tbody tr').count()) + ' dòng')
+        m.locator('.modal-chan button', has_text='Đóng').click()
+    else:
+        ghi('Không có phiếu nhập chờ khớp (bỏ qua điều chỉnh giá)')
+
+    # ---- Giám đốc: KQKD (VAT chuyển kỳ, khóa sổ), công nợ, danh mục, nhân viên
+    gd43 = mo(b, 'thuan@gara.vn')
+    ve_trang(gd43, '#/doanh-thu')
+    gd43.locator('[role=tab]', has_text='Kết quả kinh doanh').click()
+    gd43.wait_for_selector('text=Khấu trừ chuyển từ tháng trước')
+    expect(gd43.locator('.bc-kqkd')).to_contain_text('VAT PHẢI NỘP')
+    expect(gd43.locator('.bc-so-du')).to_contain_text('Chi phí đã tính, chưa chi')
+    ghi('KQKD: có dòng "Khấu trừ chuyển từ tháng trước", "VAT PHẢI NỘP"; số dư cuối tháng có "Chi phí đã tính, chưa chi"')
+    chup(gd43, '043-kqkd')
+    gd43.locator('[role=tab]', has_text='Công nợ').click()
+    gd43.wait_for_selector('[data-tuoi-no], .o-dem')
+    gd43.wait_for_timeout(800)
+    ghi('Công nợ: ' + ' | '.join(x.replace('\n', ' ') for x in gd43.locator('.luoi-dem .o-dem').all_inner_texts())[:400])
+    chup(gd43, '043-cong-no')
+
+    ve_trang(gd43, '#/danh-muc')
+    gd43.select_option('.tieu-de-trang select', 'tai_khoan_quy')
+    gd43.wait_for_timeout(400)
+    gd43.locator('button', has_text='Lịch sử').first.click()
+    m = modal(gd43)
+    ghi('Danh mục → Tài khoản quỹ → Lịch sử: ' + m.locator('.modal-than').inner_text().replace('\n', ' ')[:160])
+    m.locator('.modal-chan button', has_text='Đóng').click()
+    gd43.click('text=+ Thêm')
+    m = modal(gd43)
+    o = m.locator('[name=so_du_dau_ky]')
+    o.click(); o.press_sequentially('-1500000')
+    expect(o).to_have_value('−1.500.000')
+    ghi('Số dư đầu kỳ gõ "-1500000" → ' + o.input_value())
+    m.locator('.modal-chan button', has_text='Đóng').click()
+    gd43.select_option('.tieu-de-trang select', 'muc_thu_chi')
+    gd43.wait_for_timeout(400)
+    gd43.click('text=+ Thêm')
+    m = modal(gd43)
+    expect(m.locator('[data-cot=vao_lai_lo]')).to_be_hidden()
+    m.locator('[name=loai]').select_option('thu')
+    m.locator('[name=tinh_chat]').select_option('thu_khac')
+    expect(m.locator('[data-cot=vao_lai_lo]')).to_be_visible()
+    ghi('Mục thu chi: ô "vào lãi lỗ" chỉ hiện khi Thu + Thu khác')
+    m.locator('.modal-chan button', has_text='Đóng').click()
+
+    ve_trang(gd43, '#/nhan-vien')
+    gd43.click('text=+ Tạo tài khoản nhân viên')
+    m = modal(gd43)
+    expect(m.locator('[name=to_id]')).to_be_hidden()
+    m.locator('label', has_text='Trưởng nhóm').locator('input').check()
+    expect(m.locator('[name=to_id]')).to_be_visible()
+    ghi('Tạo tài khoản: ô Tổ chỉ hiện khi chọn Trưởng nhóm')
+    m.locator('.modal-chan button', has_text='Đóng').click()
+
+    # ---- Việc hôm nay: link việc chưa chia BH
+    ve_trang(gd43, '#/viec')
+    gd43.wait_for_selector('text=Việc cần xử lý')
+    lk = gd43.locator('a[href="#/thu-chi?chua_chia=1"]')
+    expect(lk.first).to_be_visible()
+    ghi('Việc hôm nay: việc "tiền BH chưa chia" mở thẳng Thu chi → ' + str(lk.count()) + ' link: '
+        + gd43.locator('li', has=lk.first).first.inner_text()[:100])
     b.close()
 
 print('\nLỖI TRÌNH DUYỆT:' if loi else '\nKhông có lỗi JavaScript.')

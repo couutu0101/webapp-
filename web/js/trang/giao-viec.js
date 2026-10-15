@@ -2,7 +2,7 @@
 //  - Người thực hiện: tự lấy người đăng nhập.
 //  - Người làm bước tiếp theo: phần mềm tự giao theo gợi ý mỗi lần chuyển bước (CSDL, 010_giao_viec.sql);
 //    ở tiếp nhận, báo giá, duyệt giá người làm chọn lại được; đổi giữa chừng: quản lý chung, giám đốc.
-import { h, oChon, truong, moModal, toast, ngayGio, VAI_TRO, chipNguoi, vaiChinh, tenNgan, vienHan } from '../ui.js';
+import { h, oChon, truong, moModal, toast, ngayGio, VAI_TRO, chipNguoi, vaiChinh, tenNgan, vienHan, coBuocHoSoBH } from '../ui.js';
 import * as api from '../api.js';
 
 // Ai làm được bước nào
@@ -28,7 +28,8 @@ export function viecTiepTheo(hs) {
     case 'cho_kcs': return { ten: 'KCS', vaiTro: VAI_TRO_BUOC.kcs };
     case 'dat_kcs': return { ten: 'Thu tiền – giao xe', vaiTro: VAI_TRO_BUOC.giao_xe };
     case 'da_giao':
-      if (hs.nguon_tt !== 'khach' && !hs.gui_hs_ngay) return { ten: 'Gửi hồ sơ bảo hiểm', vaiTro: VAI_TRO_BUOC.ho_so_bh };
+      // 043: phần bảo hiểm chi trả 0 đ / hồ sơ bảo hành thì không có hồ sơ gửi bảo hiểm (khớp máy chủ)
+      if (coBuocHoSoBH(hs) && !hs.gui_hs_ngay) return { ten: 'Gửi hồ sơ bảo hiểm', vaiTro: VAI_TRO_BUOC.ho_so_bh };
       return chamSoc;
     case 'da_gui_hs': case 'dong': return chamSoc;
     default: return null;
@@ -145,6 +146,8 @@ export function nguoiLamTungBuoc(nk) {
     if (n.sang_trang_thai && n.tu_trang_thai !== n.sang_trang_thai) so = BUOC_CUA_TRANG_THAI[n.sang_trang_thai] ?? null;
     else if ((n.ghi_chu || '').startsWith('Gọi chăm sóc')) so = 9;
     if (!so || !n.boi) continue;
+    // KCS chưa đạt đưa xe về "Đang sửa": bước 4 (lệnh sửa chữa) giữ người lập lệnh lần đầu, không đổi thành người ký KCS
+    if (so === 4 && kq[4]) continue;
     kq[so] = { boi: n.boi, luc: n.luc };
     // Khách ngoài bảo hiểm: báo giá xong là duyệt luôn – bước 2 và 3 cùng một người
     if (so === 3 && n.tu_trang_thai === 'tiep_nhan') kq[2] = kq[3];

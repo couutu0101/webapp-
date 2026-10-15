@@ -9,7 +9,7 @@ function loi(error) {
 }
 // Cổ đông chỉ xem (030): chặn mọi lệnh ghi ngay ở trình duyệt; máy chủ cũng không cho cổ đông ghi
 const RPC_CHI_DOC = new Set(['bang_viec_to', 'bao_cao_co_dong', 'ket_qua_kinh_doanh', 'tra_cuu_xe', 'tra_cuu_xe_nhanh', 'da_doi_mat_khau',
-  'nhap_xuat_ton', 'doanh_thu_theo_thang', 'chi_tiet_kqkd', 'chi_phi_theo_muc', 'lai_gop_theo_to', 'so_du_cuoi_thang']);
+  'nhap_xuat_ton', 'doanh_thu_theo_thang', 'chi_tiet_kqkd', 'chi_phi_theo_muc', 'lai_gop_theo_to', 'so_du_cuoi_thang', 'so_tien_tra_lai_khach']);
 // Đếm số lần ghi thành công trong phiên: bộ nhớ tạm (vd danh sách hàng kho) biết khi nào phải tải lại
 let soGhi = 0;
 export const soLanGhi = () => soGhi;
@@ -86,7 +86,9 @@ export async function taiDanhMuc() {
     'to_thuc_hien', 'muc_thu_chi', 'nha_cung_cap', 'don_vi_lien_quan', 'cai_dat'];
   if (duocXem('giam_doc', 'ke_toan', 'quan_ly')) bangs.push('tai_khoan_quy');
   if (xemNhuNhanVien()) bangs.push('nhan_vien');
-  const kq = await Promise.all(bangs.map((b) => doc(b, (q) => q.order('id', { ascending: true })).catch(() => [])));
+  // 043: nợ đầu kỳ nội bộ chỉ giám đốc / quản lý chung / kế toán / cổ đông đọc; vai khác đọc tên đơn vị qua view
+  const nguon = { don_vi_lien_quan: duocXem('giam_doc', 'ke_toan', 'quan_ly') ? 'don_vi_lien_quan' : 'v_don_vi_lien_quan' };
+  const kq = await Promise.all(bangs.map((b) => doc(nguon[b] || b, (q) => q.order('id', { ascending: true })).catch(() => [])));
   bangs.forEach((b, i) => { dm[b] = kq[i]; });
   dm.ten = (bang, id) => (dm[bang] || []).find((x) => String(x.id) === String(id))?.ten ?? '';
   return dm;
@@ -202,6 +204,7 @@ export async function goiYXe(chu) {
 }
 
 // ---------- Dịch vụ nhanh ----------
+// 043: p.bo_qua_canh_bao = false → máy chủ hỏi lại khi trùng lượt (cùng xe, ngày, dịch vụ); dùng với chay()
 export const ghiDichVuNhanh = (p) => rpc('ghi_dich_vu_nhanh', { p });
 // Gợi ý / tra xe theo biển số hoặc SĐT cho Dịch vụ nhanh (032) – trưởng nhóm cũng dùng được
 export const traCuuXeNhanh = (tu) => rpc('tra_cuu_xe_nhanh', { p_tu: tu });
@@ -212,7 +215,13 @@ export const lapPhieuThu = (p) => rpc('lap_phieu_thu', { p });
 export const phanBoThem = (phieu, ds) => rpc('phan_bo_them', { p_phieu: phieu, p_ds: ds });
 export const lapPhieuChuyen = (p) => rpc('lap_phieu_chuyen', { p });
 export const huyPhieu = (id, lyDo) => rpc('huy_phieu', { p_id: id, p_ly_do: lyDo });
+// 043: p.bo_qua_canh_bao = false → máy chủ hỏi lại (CANH_BAO) khi trả NCC vượt số còn nợ / chi hoa hồng chưa ghi; dùng với chay()
 export const lapDeNghiChi = (p) => rpc('lap_de_nghi_chi', { p });
+// 043: số tiền khách tối đa được trả lại của hồ sơ { dang_giu, dang_de_nghi, toi_da }
+export const soTienTraLaiKhach = (id) => rpc('so_tien_tra_lai_khach', { p_ho_so: id });
+// 043: chuyển phần đã chia của một phiếu thu từ xe này sang xe khác (kế toán / giám đốc; được cả khi tháng của phiếu đã chốt)
+export const chuyenPhanBo = (phieu, tu, den, soTien, lyDo) =>
+  rpc('chuyen_phan_bo', { p_phieu: phieu, p_tu_ho_so: tu, p_den_ho_so: den, p_so_tien: soTien, p_ly_do: lyDo });
 export const duyetDeNghi = (id, dongY, lyDo) => rpc('duyet_de_nghi_chi', { p_id: id, p_dong_y: dongY, p_ly_do: lyDo });
 export const huyDeNghi = (id) => rpc('huy_de_nghi_chi', { p_id: id });
 // ---------- Tài sản – dụng cụ, máy móc của các nhóm (028) ----------
@@ -253,7 +262,7 @@ export const baoCaoCoDong = () => rpc('bao_cao_co_dong');
 export const chiTietKqkd = (thang, khoan) => rpc('chi_tiet_kqkd', { p_thang: thang, p_khoan: khoan });
 export const chiPhiTheoMuc = (tu, den) => rpc('chi_phi_theo_muc', { p_tu: tu, p_den: den });
 export const laiGopTheoTo = (tu, den) => rpc('lai_gop_theo_to', { p_tu: tu, p_den: den });
-export const doanhThuTheoThang = () => rpc('doanh_thu_theo_thang');
+export const doanhThuTheoThang = (cn) => rpc('doanh_thu_theo_thang', cn ? { p_chi_nhanh: cn } : {});
 export const soDuCuoiThang = (thang) => rpc('so_du_cuoi_thang', { p_thang: thang });
 export const ghiKiemQuy = (taiKhoan, soDem, ghiChu) => rpc('ghi_kiem_quy', { p_tai_khoan: taiKhoan, p_so_dem: soDem, p_ghi_chu: ghiChu });
 
@@ -264,11 +273,16 @@ export const nhapXuatTon = (thang) => rpc('nhap_xuat_ton', { p_thang: thang });
 // Xuất Excel – chỉ giám đốc (máy chủ kiểm quyền và ghi nhật ký mỗi lần xuất)
 export const xuatDuLieuKho = () => rpc('xuat_du_lieu_kho');
 export const xuatDuLieuKhach = () => rpc('xuat_du_lieu_khach');
+// 043: p.bo_qua_canh_bao = false → máy chủ hỏi lại khi phiếu lớn không theo đề nghị mua; dùng với chay()
 export const lapPhieuNhap = (p) => rpc('lap_phieu_nhap', { p });
+// 043: kế toán sửa đơn giá phiếu nhập chưa khớp (theo hóa đơn) – lô trong kho và giá vốn phần đã xuất cập nhật theo
+export const dieuChinhPhieuNhap = (id, dong, lyDo) => rpc('dieu_chinh_phieu_nhap', { p_id: id, p_dong: dong, p_ly_do: lyDo });
 export const khopPhieuNhap = (id, khop, lyDo) => rpc('khop_phieu_nhap', { p_id: id, p_khop: khop, p_ly_do: lyDo ?? null });
 export const huyPhieuNhap = (id, lyDo) => rpc('huy_phieu_nhap', { p_id: id, p_ly_do: lyDo });
 export const lapDeXuat = (p) => rpc('lap_de_xuat_vat_tu', { p });
 export const huyDeXuat = (id) => rpc('huy_de_xuat_vat_tu', { p_id: id });
+// 043: đóng phần còn lại của đề xuất đã xuất một phần (không cần nữa)
+export const dongDeXuat = (id, lyDo) => rpc('dong_de_xuat_vat_tu', { p_id: id, p_ly_do: lyDo });
 export const xuatTheoDeXuat = (id, dong = null) => rpc('xuat_kho_de_xuat', { p_de_xuat: id, p_dong: dong });
 export const chuyenMua = (id, p) => rpc('chuyen_mua', { p_de_xuat: id, p });
 export const xuatDungChung = (p) => rpc('xuat_dung_chung', { p });

@@ -1,6 +1,6 @@
 // Báo cáo cổ đông: số của các tháng giám đốc đã chốt (025/026/042) – số lưu lúc chốt, không đổi theo dữ liệu nhập sau.
 // Cùng cách trình bày với Kết quả kinh doanh (kqkd.js), gọn hơn: kết quả, tỷ suất, tiền – công nợ – tồn kho cuối tháng.
-import { h, ngay, dat } from '../ui.js';
+import { h, ngay, dat, nhoPhien } from '../ui.js';
 import * as api from '../api.js';
 import { bieuDoDuong } from '../bieu-do.js';
 import { bangBC, giaTri, chuO, congThang, nhanThang, oChenh } from './kqkd.js';
@@ -27,12 +27,16 @@ const DONG_CD = [
   { nhan: 'Lãi không gồm VAT (ước tính, trước thuế TNDN)', k: 'lai_sau_vat', kieu: 'tong' },
   { nhan: 'Xe sửa chữa', k: 'so_xe', kieu: 'dem' },
 ];
-// [nhãn, lấy số, dấu]: khoản phải trả hiện "− x", cộng vào vốn lưu động với dấu âm
+// [nhãn, lấy số, dấu]: khoản phải trả hiện "− x", cộng vào vốn lưu động với dấu âm.
+// 043 (khớp Kết quả kinh doanh): phải thu trừ tiền bảo hiểm đã về chưa chia, cộng dịch vụ nhanh chưa thu; thêm nội bộ ròng
+// và chi phí đã tính chưa chi. Tháng chốt trước 043 không có các số này (tính là 0).
 const SO_DU = [
   ['Tiền (quỹ tiền mặt, ngân hàng)', (x) => so(x.so_du_quy), 1],
   ['Tồn kho (giá vốn)', (x) => so(x.ton_kho), 1],
-  ['Phải thu khách, bảo hiểm', (x) => so(x.phai_thu_khach) + so(x.phai_thu_bh), 1],
+  ['Phải thu khách, bảo hiểm, dịch vụ nhanh', (x) => so(x.phai_thu_khach) + so(x.phai_thu_bh) - so(x.bh_chua_chia) + so(x.phai_thu_dvn), 1],
+  ['Nội bộ, cá nhân (ròng, dương = họ nợ công ty)', (x) => so(x.no_noi_bo_rong), 1],
   ['Phải trả nhà cung cấp, tiền khách trả trước', (x) => so(x.phai_tra_ncc) + so(x.khach_tra_du), -1],
+  ['Chi phí đã tính, chưa chi (lương, hoa hồng…)', (x) => so(x.chi_phi_phai_tra), -1],
 ];
 
 export default async function trangCoDong(el) {
@@ -48,9 +52,16 @@ export default async function trangCoDong(el) {
     vung);
 
   function ve() {
-    const ds = tatCa.filter((r) => r.chi_nhanh_id === cn).sort((a, b) => (a.thang < b.thang ? -1 : 1))   // tăng dần
+    const dsCn = tatCa.filter((r) => r.chi_nhanh_id === cn).sort((a, b) => (a.thang < b.thang ? -1 : 1))   // tăng dần
       .map((r) => ({ ...r, s: chuanHoa(r.so_lieu) }));
-    if (!ds.length) { dat(vung, h('section', { class: 'the' }, h('p', { class: 'trong' }, 'Chưa có tháng nào được chốt.'))); return; }
+    if (!dsCn.length) { dat(vung, h('section', { class: 'the' }, h('p', { class: 'trong' }, 'Chưa có tháng nào được chốt.'))); return; }
+    // 043: xem theo năm, lũy kế từ đầu năm (trước đây cộng mọi tháng đã chốt của mọi năm)
+    const cacNam = [...new Set(dsCn.map((d) => String(d.thang).slice(0, 4)))].sort().reverse();
+    let nam = nhoPhien.doc('cd_nam');
+    if (!cacNam.includes(nam)) nam = cacNam[0];
+    const ds = dsCn.filter((d) => String(d.thang).startsWith(`${nam}-`));
+    const chonNam = cacNam.length > 1 ? h('select', { class: 'chon-gon', 'aria-label': 'Năm', onchange: (e) => { nhoPhien.ghi('cd_nam', e.target.value); ve(); } },
+      cacNam.map((n) => h('option', { value: n, selected: n === nam }, `Năm ${n}`))) : h('b', null, `Năm ${nam}`);
     const luyKe = congThang(ds.map((d) => d.s));
     const coDu = (k) => ds.every((d) => d.s[k] !== undefined);        // tháng chốt theo cách tính cũ thiếu "lãi không gồm VAT"
     const o = (r, d, laTong = false) => (r.k && (laTong ? !coDu(r.k) : d[r.k] === undefined) ? h('span', { class: 'mo', title: 'Tháng chốt trước khi có dòng này' }, '—')
@@ -58,6 +69,7 @@ export default async function trangCoDong(el) {
     const cuoi = ds[ds.length - 1]; const truoc = ds[ds.length - 2];
     const thangCoSoDu = ds.filter((d) => d.s.so_du);
     dat(vung,
+      h('div', { class: 'hang-nut' }, chonNam),
       h('section', { class: 'luoi-dem tien' },
         h('div', { class: 'o-dem' }, h('b', null, chuO({ k: 'doanh_thu' }, so(cuoi.s.doanh_thu)) || '0'), h('span', null, `Doanh thu tháng ${nhanThang(cuoi.thang)}`),
           truoc ? h('small', { class: 'o-dem-phu' }, oChenh(cuoi.s.doanh_thu, truoc.s.doanh_thu), ` so ${nhanThang(truoc.thang)}`) : null),
@@ -66,14 +78,14 @@ export default async function trangCoDong(el) {
         h('div', { class: 'o-dem' }, h('b', { class: so(cuoi.s.lai_truoc_thue) < 0 ? 'chu-loi' : 'chu-tot' }, chuO({ k: 'lai_truoc_thue' }, so(cuoi.s.lai_truoc_thue)) || '0'),
           h('span', null, `Lãi trước thuế tháng ${nhanThang(cuoi.thang)}`)),
         h('div', { class: 'o-dem' }, h('b', { class: so(luyKe.lai_truoc_thue) < 0 ? 'chu-loi' : 'chu-tot' }, chuO({ k: 'lai_truoc_thue' }, so(luyKe.lai_truoc_thue)) || '0'),
-          h('span', null, `Lãi trước thuế lũy kế ${ds.length} tháng đã chốt`)),
+          h('span', null, `Lãi trước thuế lũy kế năm ${nam} · ${ds.length} tháng đã chốt`)),
         cuoi.s.so_du ? h('div', { class: 'o-dem' }, h('b', null, chuO({ k: 'x' }, so(cuoi.s.so_du.so_du_quy)) || '0'), h('span', null, `Tiền cuối tháng ${nhanThang(cuoi.thang)}`)) : null),
-      h('section', { class: 'the' }, bieuDoDuong({ tieuDe: 'Doanh thu – Lãi gộp – Lãi trước thuế các tháng đã chốt', nhan: ds.map((d) => nhanThang(d.thang)),
+      h('section', { class: 'the' }, bieuDoDuong({ tieuDe: `Doanh thu – Lãi gộp – Lãi trước thuế các tháng đã chốt năm ${nam}`, nhan: ds.map((d) => nhanThang(d.thang)),
         chuoi: [{ ten: 'Doanh thu', giaTri: ds.map((d) => so(d.s.doanh_thu)) }, { ten: 'Lãi gộp', giaTri: ds.map((d) => so(d.s.lai_gop)) }, { ten: 'Lãi trước thuế', giaTri: ds.map((d) => so(d.s.lai_truoc_thue)) }] })),
       h('section', { class: 'the' }, h('h2', null, 'Kết quả theo tháng'),
         h('p', { class: 'goi-y' }, 'Đơn vị: đồng. Số gồm VAT như sổ của gara; "lãi không gồm VAT" là số ước tính gần với sổ thuế.'),
         bangBC(['Khoản mục', ...ds.map((d) => h('span', { class: 'cot-thang' }, nhanThang(d.thang), h('br'), h('small', { class: 'mo' }, `chốt ${ngay(d.chot_luc)}`))),
-          h('span', { class: 'cot-thang' }, 'Lũy kế', h('br'), h('small', { class: 'mo' }, `${ds.length} tháng`))],
+          h('span', { class: 'cot-thang' }, `Lũy kế ${nam}`, h('br'), h('small', { class: 'mo' }, `${ds.length} tháng`))],
         DONG_CD.map((r) => ({ loai: r.kieu === 'dem' ? 'dem' : r.kieu || 'dong', nhan: r.nhan, o: [...ds.map((d) => o(r, d.s)), o(r, luyKe, true)] })), { lop: 'bc-kqkd' })),
       thangCoSoDu.length ? h('section', { class: 'the' }, h('h2', null, 'Tiền – công nợ – tồn kho cuối tháng'),
         bangBC(['Khoản mục', ...thangCoSoDu.map((d) => nhanThang(d.thang))], [

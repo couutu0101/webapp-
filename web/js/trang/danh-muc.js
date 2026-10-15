@@ -1,5 +1,5 @@
 // Danh mục và cài đặt: giám đốc, kế toán thêm / sửa / xóa. Dòng đã được dùng (có hồ sơ, phiếu trỏ tới) thì không xóa được – bỏ chọn "Đang dùng" để ẩn.
-import { h, tien, ngay, truong, oChu, oTien, oChon, oNgay, oCheck, docForm, bang, moModal, toast, dat, xacNhan, chay } from '../ui.js';
+import { h, tien, ngay, ngayGio, truong, oChu, oTien, oChon, oNgay, oCheck, docForm, bang, moModal, toast, dat, xacNhan, chay } from '../ui.js';
 import * as api from '../api.js';
 
 const TINH_CHAT = {
@@ -16,17 +16,20 @@ const DANH_MUC = [
     ghiChu: 'Gặp hồ sơ ghi "GDV mới – chờ thêm": thêm người đó ở đây, rồi vào hồ sơ bấm Sửa để chọn lại đúng người.' },
   { bang: 'hang_xe', ten: 'Hãng xe', cot: [{ k: 'ten', nhan: 'Tên', batBuoc: true }] },
   { bang: 'dong_xe', ten: 'Dòng xe', cot: [{ k: 'hang_xe_id', nhan: 'Hãng xe', loai: 'chon', nguon: 'hang_xe', batBuoc: true }, { k: 'ten', nhan: 'Dòng xe', batBuoc: true }] },
-  { bang: 'tai_khoan_quy', ten: 'Tài khoản quỹ', coDinh: () => ({ chi_nhanh_id: api.toi.chi_nhanh_id }),
-    cot: [{ k: 'ten', nhan: 'Tên', batBuoc: true }, { k: 'so_du_dau_ky', nhan: 'Số dư đầu kỳ', loai: 'tien' }, { k: 'ngay_dau_ky', nhan: 'Ngày đầu kỳ', loai: 'ngay' },
+  { bang: 'tai_khoan_quy', ten: 'Tài khoản quỹ', coDinh: () => ({ chi_nhanh_id: api.toi.chi_nhanh_id }), lichSu: true,
+    cot: [{ k: 'ten', nhan: 'Tên', batBuoc: true }, { k: 'so_du_dau_ky', nhan: 'Số dư đầu kỳ', loai: 'tien', choAm: true }, { k: 'ngay_dau_ky', nhan: 'Ngày đầu kỳ', loai: 'ngay' },
       { k: 'mac_dinh', nhan: 'Mặc định nhận tiền (phiếu thu)', loai: 'bool', macDinh: false }, { k: 'hoat_dong', nhan: 'Đang dùng', loai: 'bool' }],
-    ghiChu: 'Số dư đầu kỳ nhập một lần lúc bắt đầu dùng phần mềm (số dư ngày 31/10/2026). Tài khoản cá nhân nhân viên: bỏ chọn "Đang dùng".' },
+    ghiChu: 'Số dư đầu kỳ nhập một lần lúc bắt đầu dùng phần mềm (số dư ngày 31/10/2026; tài khoản thấu chi thì gõ dấu "-" để nhập số âm). '
+      + 'Ngày đầu kỳ không dời qua ngày của phiếu đã ghi; mỗi lần đổi số dư / ngày đầu kỳ đều lưu lại (bấm "Lịch sử"). Tài khoản cá nhân nhân viên: bỏ chọn "Đang dùng".' },
   { bang: 'muc_thu_chi', ten: 'Mục thu chi', cot: [
     { k: 'loai', nhan: 'Loại', loai: 'chon', ds: { thu: 'Thu', chi: 'Chi' }, batBuoc: true }, { k: 'ten', nhan: 'Tên', batBuoc: true },
     { k: 'nhom', nhan: 'Nhóm chi phí', loai: 'chon', ds: NHOM_CHI }, { k: 'tinh_chat', nhan: 'Tính chất', loai: 'chon', ds: TINH_CHAT, batBuoc: true },
     { k: 'can_ho_so', nhan: 'Bắt buộc gắn xe', loai: 'bool', macDinh: false }, { k: 'dinh_ky', nhan: 'Định kỳ hàng tháng (nhắc trước khi chốt)', loai: 'bool', macDinh: false },
-    { k: 'vao_lai_lo', nhan: 'Mục thu vào lãi lỗ (thu nhập khác)', loai: 'bool', macDinh: false }, { k: 'hoat_dong', nhan: 'Đang dùng', loai: 'bool' }],
+    { k: 'vao_lai_lo', nhan: 'Mục thu vào lãi lỗ (thu nhập khác)', loai: 'bool', macDinh: false, chiKhi: (d) => d.loai === 'thu' && d.tinh_chat === 'thu_khac' },
+    { k: 'hoat_dong', nhan: 'Đang dùng', loai: 'bool' }],
     ghiChu: '"Tính chất" quyết định khoản đó có vào lãi lỗ hay không: mục chi chỉ "Chi phí" vào lãi lỗ; trả nhà cung cấp, tạm ứng, trả nội bộ chỉ trừ công nợ. '
-      + 'Mục thu tích "vào lãi lỗ" (trạm sạc, thu khác…) được cộng vào Thu nhập khác của Kết quả kinh doanh; tiền bo của thợ, phí bảo hiểm thu hộ thì không tích. '
+      + 'Mục thu tính chất "Thu khác" mới có ô "vào lãi lỗ": tích thì cộng vào Thu nhập khác của Kết quả kinh doanh (trạm sạc, bán phế liệu…); tiền bo của thợ, phí bảo hiểm thu hộ thì không tích. '
+      + 'Tiền khách, bảo hiểm, dịch vụ nhanh đã tính vào doanh thu theo xe nên không tích (tránh tính hai lần). '
       + 'Mục đã có phiếu trong tháng đã chốt thì không đổi loại, tính chất, nhóm hay "vào lãi lỗ" được – tạo mục mới.' },
   { bang: 'nha_cung_cap', ten: 'Nhà cung cấp', cot: [{ k: 'ten', nhan: 'Tên', batBuoc: true }, { k: 'hoat_dong', nhan: 'Đang dùng', loai: 'bool' }] },
   { bang: 'don_vi_lien_quan', ten: 'Đơn vị liên quan & cá nhân', cot: [
@@ -58,6 +61,7 @@ export default async function trangDanhMuc(el) {
     if (cfg.bang === 'tai_khoan_quy') rows = rows.filter((r) => r.chi_nhanh_id === api.toi.chi_nhanh_id);
     const hienThi = (c, r) => {
       const v = r[c.k];
+      if (c.chiKhi && !c.chiKhi(r)) return '—';
       if (c.loai === 'bool') return v ? '✓' : '—';
       if (c.loai === 'chon' && c.nguon) return api.dm.ten(c.nguon, v);
       if (c.loai === 'chon' && c.ds) return c.ds[v] || v || '';
@@ -73,6 +77,7 @@ export default async function trangDanhMuc(el) {
       bang([...cfg.cot.map((c) => ({ nhan: c.nhan, lay: (r) => hienThi(c, r) })),
         cfg.khongSua && cfg.khongXoa ? null : { nhan: '', lay: (r) => h('span', { class: 'hang-nut' },
           cfg.khongSua ? null : h('button', { class: 'nut-chu', type: 'button', onclick: (e) => { e.stopPropagation(); moForm(cfg, r); } }, 'Sửa'),
+          cfg.lichSu ? h('button', { class: 'nut-chu', type: 'button', onclick: (e) => { e.stopPropagation(); return moLichSu(r); } }, 'Lịch sử') : null,
           cfg.khongXoa ? null : h('button', { class: 'nut-chu chu-loi', type: 'button', 'data-xoa': r[khoa], onclick: (e) => { e.stopPropagation(); xoaDong(cfg, r); } }, 'Xóa')) }].filter(Boolean), rows)));
   }
 
@@ -84,15 +89,28 @@ export default async function trangDanhMuc(el) {
     await tai();
   }
 
+  // 043: lịch sử đổi số dư / ngày đầu kỳ của tài khoản quỹ
+  async function moLichSu(r) {
+    const ds = await api.doc('tai_khoan_quy_lich_su', (q) => q.eq('tai_khoan_id', r.id).order('sua_luc', { ascending: false }));
+    const ten = (id) => (api.dm.nhan_vien || []).find((n) => n.id === id)?.ho_ten || (id ? '' : 'Hệ thống');
+    const doi = (cu, moi, f) => (cu === moi ? f(moi) : `${cu === null || cu === undefined ? '—' : f(cu)} → ${f(moi)}`);
+    moModal(`Lịch sử – ${r.ten}`, bang([
+      { nhan: 'Lúc', lay: (x) => ngayGio(x.sua_luc) },
+      { nhan: 'Người sửa', lay: (x) => ten(x.sua_boi) },
+      { nhan: 'Số dư đầu kỳ', so: true, lay: (x) => doi(x.so_du_cu, x.so_du_moi, (v) => tien(v) || '0') },
+      { nhan: 'Ngày đầu kỳ', lay: (x) => doi(x.ngay_cu, x.ngay_moi, (v) => ngay(v) || '—') },
+    ], ds, { trong: 'Chưa có lần sửa nào (lịch sử ghi từ bản cập nhật 043).' }), { rong: true });
+  }
+
   function moForm(cfg, r) {
     const form = h('form', { class: 'luoi-o' }, cfg.cot.map((c) => {
       const v = r ? r[c.k] : (c.loai === 'bool' ? (c.macDinh ?? true) : null);
       if (c.chiXem) return r ? h('p', { class: 'rong' }, h('b', null, r.khoa), ' – ', v) : null;
       let o;
-      if (c.loai === 'bool') return h('div', { class: 'truong' }, oCheck(c.k, v, c.nhan));
+      if (c.loai === 'bool') return h('div', { class: 'truong', 'data-cot': c.k }, oCheck(c.k, v, c.nhan));
       if (c.loai === 'chon' && c.nguon) o = oChon(c.k, (api.dm[c.nguon] || []).map((x) => ({ value: x.id, label: x.ten })), v);
       else if (c.loai === 'chon') o = oChon(c.k, Object.entries(c.ds).map(([value, label]) => ({ value, label })), v);
-      else if (c.loai === 'tien') o = oTien(c.k, v);
+      else if (c.loai === 'tien') o = oTien(c.k, v, { choAm: !!c.choAm });
       else if (c.loai === 'no') o = h('div', { class: 'hang-nut' }, oTien(c.k, v === null ? null : Math.abs(Number(v))),
         oChon(`chieu_${c.k}`, [{ value: 'ho_no', label: 'Họ nợ công ty' }, { value: 'cong_ty_no', label: 'Công ty nợ họ' }], Number(v) < 0 ? 'cong_ty_no' : 'ho_no', { trong: null }));
       else if (c.loai === 'ngay') o = oNgay(c.k, v);
@@ -100,10 +118,20 @@ export default async function trangDanhMuc(el) {
       else o = oChu(c.k, v);
       return truong(c.nhan, o, null, { batBuoc: c.batBuoc, co: c.loai === 'no' ? 'lon' : '' });
     }));
+    // Ô chỉ áp dụng cho một số trường hợp (vd "vào lãi lỗ" chỉ cho mục thu "Thu khác"): ẩn khi không áp dụng
+    const anHien = () => {
+      const d = docForm(form);
+      for (const c of cfg.cot.filter((x) => x.chiKhi)) {
+        const o = form.querySelector(`[data-cot="${c.k}"]`);
+        if (o) o.hidden = !c.chiKhi(d);
+      }
+    };
+    if (cfg.cot.some((c) => c.chiKhi)) { form.addEventListener('change', anHien); anHien(); }
     moModal(`${r ? 'Sửa' : 'Thêm'} – ${cfg.ten}`, form, {
       nutChinh: async () => {
         const d = docForm(form);
         for (const c of cfg.cot) {
+          if (c.chiKhi && !c.chiKhi(d)) d[c.k] = false;
           if (c.chiXem) delete d[c.k];
           else if (c.batBuoc && (d[c.k] === null || d[c.k] === undefined || d[c.k] === '')) { toast(`Thiếu "${c.nhan}".`, 'loi'); return false; }
           if (c.loai === 'so' && d[c.k] !== null) d[c.k] = Number(String(d[c.k]).replace(',', '.'));

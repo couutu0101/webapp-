@@ -105,7 +105,9 @@ export default async function trangDichVu(el) {
     const thuNgay = keToan && !!d.thu_ngay;
     try {
       // Ngày = hôm nay (giờ máy, không chọn được); máy chủ vẫn lưu cột ngay + giờ ghi tao_luc
-      await chay(() => api.ghiDichVuNhanh({ ...d, ngay: homNay(), bat_buoc_km: true, thu_ngay: thuNgay, tai_khoan_id: thuNgay ? d.tai_khoan_id : null }),
+      // 043: ghi trùng (cùng xe, cùng ngày, cùng dịch vụ) thì máy chủ hỏi lại trước khi ghi thêm lượt
+      await chay((boQua) => api.ghiDichVuNhanh({ ...d, ngay: homNay(), bat_buoc_km: true, thu_ngay: thuNgay, tai_khoan_id: thuNgay ? d.tai_khoan_id : null,
+        bo_qua_canh_bao: boQua }),
         { thanhCong: thuNgay ? `Đã ghi và thu ${tien(d.so_tien)} đ.` : 'Đã ghi.' });
       form.reset(); daTra = ''; hienXe(null);
       if (chonTk) chonTk.disabled = false;

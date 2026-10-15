@@ -26,6 +26,8 @@ const DVT_GOI_Y = ['Cái', 'Bộ', 'Chai', 'Lít', 'Can 4L', 'Bình 20L', 'Hộp
 // VAT đầu vào trên hóa đơn nhà cung cấp (phiếu nhập, đề nghị mua); VAT đầu ra của báo giá ở ho-so-chi-tiet.js
 const VAT_NHAP = [[0, '0%'], [0.08, '8%'], [0.1, '10%']];
 const TT_DE_XUAT = { cho_xuat: 'Chờ xuất', da_xuat: 'Đã xuất đủ', huy: 'Đã hủy' };
+// 043: đề xuất đã đóng phần chưa xuất (không cần nữa) cũng ở trạng thái da_xuat – hiện rõ là "đã đóng"
+const ttDeXuat = (r) => (r.trang_thai === 'da_xuat' && r.ly_do_dong ? 'Đã đóng phần còn lại' : TT_DE_XUAT[r.trang_thai]);
 const TT_MUA = { cho_duyet: 'Chờ duyệt', da_duyet: 'Đã duyệt – chờ hàng', tu_choi: 'Từ chối', da_nhap: 'Đã nhập', huy: 'Đã hủy' };
 const TT_NHAP = { cho_khop: 'Chờ kế toán khớp', da_khop: 'Đã khớp hóa đơn', treo: 'Treo – lệch', huy: 'Đã hủy' };
 const PHAM_VI = { son_nham: 'Sơn và nhám', toan_kho: 'Toàn kho', chon: 'Chọn mã' };
@@ -205,7 +207,7 @@ export default async function trangKho(el) {
         { nhan: 'Tổ', lay: (r) => r.to_id || '' },
         { nhan: 'Người yêu cầu → tiếp theo', lay: (r) => oYeuCauTiep('de_xuat', r, `${r.nguoi_lap_ten || ''} · ${ngayGio(r.tao_luc)}`, { ten: r.nguoi_lap_ten }) },
         { nhan: 'Số dòng', so: true, lay: (r) => r.so_dong },
-        { nhan: 'Trạng thái', lay: (r) => h('span', null, TT_DE_XUAT[r.trang_thai],
+        { nhan: 'Trạng thái', lay: (r) => h('span', null, ttDeXuat(r),
           r.so_dong_cho_mua ? h('span', { class: 'nhan tt-canh-bao' }, `Chờ mua ${r.so_dong_cho_mua}`) : null) },
       ], ds, { onRow: (r) => moDeXuat(r.id, tai), trong: loc === 'cho_xuat' ? 'Không có phiếu đề xuất nào chờ xuất.' : 'Chưa có phiếu đề xuất.' }));
     }
@@ -277,42 +279,42 @@ export default async function trangKho(el) {
     if (api.coVaiTro('kho', 'quan_ly', 'giam_doc')) nut.append(h('button', { class: 'nut chinh', type: 'button', onclick: () => moTaoKiemKe(ve) }, '+ Đợt kiểm kê'));
     const ds = await api.doc('kiem_ke', (q) => q.order('id', { ascending: false }).limit(60));
     dat(vung, h('section', { class: 'the' },
-      h('p', { class: 'mo-ta' }, 'Sơn và nhám kiểm mỗi thứ Bảy, toàn kho cuối tháng. Nhập số đếm thực tế (không hiện số sổ sách để đếm khách quan); chốt thì phần mềm so với sổ sách và tự điều chỉnh tồn. Chênh trên 5% giá trị phải ghi biên bản.'),
+      h('p', { class: 'mo-ta' }, 'Sơn và nhám kiểm mỗi thứ Bảy, toàn kho cuối tháng. Nhập số đếm thực tế (không hiện số sổ sách để đếm khách quan) và bấm "Lưu số đếm" ngay khi đếm xong: phần mềm so với sổ sách LÚC ĐẾM, nên xuất / nhập sau đó vẫn đúng. '
+        + 'Không chênh thì kho tự chốt; có chênh thì quản lý chung / giám đốc chốt. Chênh trên 5% giá trị cả đợt, hoặc một mã chênh lớn, phải ghi biên bản.'),
       bang([
         { nhan: 'Ngày', lay: (r) => ngay(r.ngay) },
         { nhan: 'Đợt', lay: (r) => h('b', null, r.ma) },
         { nhan: 'Phạm vi', lay: (r) => PHAM_VI[r.pham_vi] },
         { nhan: 'Trạng thái', lay: (r) => ({ dang_dem: 'Đang đếm', da_chot: 'Đã chốt', huy: 'Đã hủy' }[r.trang_thai]) },
         { nhan: 'Giá trị kiểm', so: true, lay: (r) => (r.gia_tri_so_sach === null ? '' : tien(r.gia_tri_so_sach)) },
-        { nhan: 'Chênh lệch', so: true, lay: (r) => (r.gia_tri_chenh === null ? '' : h('span', { class: Number(r.gia_tri_chenh) ? 'chu-loi' : null }, tien(r.gia_tri_chenh))) },
+        { nhan: 'Chênh lệch', so: true, lay: (r) => (r.gia_tri_chenh === null || r.trang_thai === 'huy' ? '' : h('span', { class: Number(r.gia_tri_chenh) ? 'chu-loi' : null }, tien(r.gia_tri_chenh))) },
       ], ds, { onRow: (r) => moKiemKe(r.id, ve), trong: 'Chưa có đợt kiểm kê nào.' })));
   }
 
   // ---------------- Công nợ NCC ----------------
   async function veCongNo() {
-    const [dsNcc, dangDN] = await Promise.all([
-      api.doc('v_cong_no_ncc', (q) => q.order('ten')),
-      // Đề nghị chi trả NCC đang chờ duyệt / chờ chi – để không lập trùng
-      api.doc('de_nghi_chi', (q) => q.not('nha_cung_cap_id', 'is', null).in('trang_thai', ['cho_duyet', 'da_duyet'])).catch(() => []),
-    ]);
-    const ds = dsNcc.filter((r) => Number(r.da_nhap) || Number(r.cho_khop) || Number(r.da_tra));
-    const conNo = (r) => Number(r.da_nhap) - Number(r.da_tra);
-    const dangDeNghi = (r) => dangDN.filter((d) => d.nha_cung_cap_id === r.nha_cung_cap_id && d.chi_nhanh_id === r.chi_nhanh_id)
-      .reduce((s, d) => s + Number(d.so_tien), 0);
+    const dsNcc = await api.doc('v_cong_no_ncc', (q) => q.order('ten'));
+    // 043: còn nợ gồm cả hàng đã nhập đang chờ khớp hóa đơn (khớp cách máy chủ kiểm khi lập đề nghị chi trả);
+    //      "đang đề nghị chi" do máy chủ cộng – kho thấy cả đề nghị kế toán lập (trước đây chỉ thấy đề nghị của mình → lập trùng)
+    const ds = dsNcc.filter((r) => Number(r.da_nhap) || Number(r.cho_khop) || Number(r.da_tra) || Number(r.dang_de_nghi));
+    const conNo = (r) => Number(r.da_nhap) + Number(r.cho_khop) - Number(r.da_tra);
+    const dangDeNghi = (r) => Number(r.dang_de_nghi) || 0;
     const conLapDuoc = (r) => conNo(r) - dangDeNghi(r);
+    const traTruoc = ds.reduce((s, r) => s + Math.max(0, -conNo(r)), 0);
     dat(vung, h('section', { class: 'the' },
-      h('p', { class: 'mo-ta' }, 'Công nợ = phiếu nhập đã khớp hóa đơn − tiền đã trả. Trả nợ: bấm "Đề nghị chi trả" ở dòng nhà cung cấp; duyệt xong kế toán chi thì công nợ tự giảm.'),
+      h('p', { class: 'mo-ta' }, 'Công nợ = hàng đã nhập (kể cả phiếu chờ khớp hóa đơn) − tiền đã trả. Trả nợ: bấm "Đề nghị chi trả" ở dòng nhà cung cấp; duyệt xong kế toán chi thì công nợ tự giảm.'),
       h('section', { class: 'luoi-dem tien' },
-        h('div', { class: 'o-dem' }, h('b', null, tien(ds.reduce((s, r) => s + conNo(r), 0))), h('span', null, 'Tổng còn nợ nhà cung cấp')),
+        h('div', { class: 'o-dem' }, h('b', null, tien(ds.reduce((s, r) => s + Math.max(0, conNo(r)), 0))), h('span', null, 'Tổng còn nợ nhà cung cấp')),
         h('div', { class: 'o-dem' }, h('b', null, tien(ds.reduce((s, r) => s + dangDeNghi(r), 0))), h('span', null, 'Đã lập đề nghị chi, chờ duyệt / chờ chi')),
-        h('div', { class: 'o-dem' }, h('b', null, tien(ds.reduce((s, r) => s + Number(r.cho_khop), 0))), h('span', null, 'Hàng đã nhập, chờ khớp hóa đơn'))),
+        h('div', { class: 'o-dem' }, h('b', null, tien(ds.reduce((s, r) => s + Number(r.cho_khop), 0))), h('span', null, 'Trong đó: hàng chờ khớp hóa đơn')),
+        traTruoc ? h('div', { class: 'o-dem' }, h('b', null, tien(traTruoc)), h('span', null, 'Đã trả trước (trả nhiều hơn hàng đã nhập)')) : null),
       bang([
         { nhan: 'Nhà cung cấp', lay: (r) => h('b', null, r.ten) },
         { nhan: 'Đã nhập (đã khớp)', so: true, lay: (r) => tien(r.da_nhap) },
-        { nhan: 'Đã trả', so: true, lay: (r) => tien(r.da_tra) },
-        { nhan: 'Còn nợ', so: true, lay: (r) => h('b', { class: conNo(r) < 0 ? 'chu-loi' : null }, tien(conNo(r))) },
-        { nhan: 'Đang đề nghị chi', so: true, lay: (r) => (dangDeNghi(r) ? tien(dangDeNghi(r)) : '') },
         { nhan: 'Chờ khớp / treo', so: true, lay: (r) => (Number(r.cho_khop) ? tien(r.cho_khop) : '') },
+        { nhan: 'Đã trả', so: true, lay: (r) => tien(r.da_tra) },
+        { nhan: 'Còn nợ', so: true, lay: (r) => (conNo(r) < 0 ? h('span', { class: 'chu-cam' }, `Trả trước ${tien(-conNo(r))}`) : h('b', null, tien(conNo(r)))) },
+        { nhan: 'Đang đề nghị chi', so: true, lay: (r) => (dangDeNghi(r) ? tien(dangDeNghi(r)) : '') },
         { nhan: '', lay: (r) => (conLapDuoc(r) > 0 && (api.laNhanVien())
           ? h('button', { class: 'nut nho chinh', type: 'button', 'data-de-nghi-tra': r.nha_cung_cap_id,
             onclick: () => moDeNghiTraNcc(r, conLapDuoc(r), ve) }, 'Đề nghị chi trả')
@@ -473,6 +475,7 @@ export async function moDeXuat(id, veLai) {
   const noiDung = h('div', null,
     h('p', { class: 'mo-ta' }, `Xe ${r.bien_so} · ${r.ma_ho_so}`, r.to_id ? ` · Tổ ${r.to_id}` : '', r.ghi_chu ? ` · ${r.ghi_chu}` : ''),
     h('p', { class: 'mo-ta' }, oYeuCauTiep('de_xuat', r, `Người yêu cầu: ${r.nguoi_lap_ten || ''} (${ngayGio(r.tao_luc)})`, { mot: true })),
+    r.ly_do_dong ? h('p', { class: 'thong-bao' }, h('b', null, 'Đã đóng phần chưa xuất: '), r.ly_do_dong) : null,
     bang([
       { nhan: 'Mã hàng', lay: (d) => { const x = hangTheoId(d.hang_id); return h('span', null, h('b', null, x?.ma), ` ${x?.ten || ''}`); } },
       { nhan: 'Đề xuất', so: true, lay: (d) => `${sl(d.so_luong)} ${hangTheoId(d.hang_id)?.dvt || ''}` },
@@ -487,7 +490,7 @@ export async function moDeXuat(id, veLai) {
       { nhan: '', lay: (p) => (p.trang_thai === 'huy' ? h('small', null, `Đã hủy: ${p.ly_do_huy || ''}`)
         : laKho() ? h('button', { class: 'nut-chu', type: 'button', onclick: () => huyXuat(p) }, 'Hủy phiếu xuất') : '') },
     ].filter(Boolean), phieu)) : null);
-  const dongHop = moModal(`Đề xuất ${r.ma} – ${TT_DE_XUAT[r.trang_thai]}`, noiDung, {
+  const dongHop = moModal(`Đề xuất ${r.ma} – ${ttDeXuat(r)}`, noiDung, {
     rong: true,
     nhanNut: 'Xuất kho',
     nutChinh: kho && coXuat ? async () => {
@@ -502,7 +505,13 @@ export async function moDeXuat(id, veLai) {
       ? h('button', { class: 'nut-chu', type: 'button', onclick: async () => {
         if (!(await xacNhan(`Hủy phiếu đề xuất ${r.ma}?`, 'Hủy phiếu'))) return;
         await chay(() => api.huyDeXuat(id), { thanhCong: 'Đã hủy phiếu đề xuất.' }).then(() => { dongModal(); veLai?.(); }).catch(() => {});
-      } }, 'Hủy phiếu đề xuất') : null);
+      } }, 'Hủy phiếu đề xuất') : null,
+    // 043: đã xuất một phần (hoặc đang chờ mua) mà không cần phần còn lại nữa (xe đã giao, đổi phương án…): đóng phiếu, ghi lý do
+    r.trang_thai === 'cho_xuat' && api.coVaiTro('kho', 'quan_ly', 'giam_doc') && dongs.some((d) => Number(d.da_xuat) > 0 || d.cho_mua)
+      ? h('button', { class: 'nut-chu', type: 'button', onclick: () => hoiLyDo(`Đóng phần còn lại – ${r.ma}`, async (lyDo) => {
+        await api.dongDeXuat(id, lyDo); toast('Đã đóng phần chưa xuất của phiếu đề xuất.'); dongModal(); await veLai?.();
+      }, { nhan: 'Lý do', placeholder: 'Ví dụ: xe đã giao, không cần nữa', goiY: 'Phần đã xuất giữ nguyên; dòng đang chờ mua thôi chờ (đề nghị mua đã lập thì hủy riêng nếu không mua).', nhanNut: 'Đóng phiếu' }) },
+        'Đóng phần còn lại') : null);
   noiDung.append(hangNut);
   function dongModal() { dongHop(); }
   function huyXuat(p) {
@@ -585,14 +594,25 @@ export async function moPhieuNhap({ deNghi = null } = {}, veLai) {
   const chonXe = oChon('ho_so_id', dsXe.map((x) => ({ value: x.id, label: nhanXe(x) })), '', { trong: '— Nhập kho chung —' });
   const tichXuat = oCheck('xuat_cho_xe', true, 'Xuất ngay cho xe này (phụ tùng mua riêng cho xe)');
   tichXuat.hidden = true;
-  chonXe.addEventListener('change', () => { tichXuat.hidden = !chonXe.value; });
+  // 043: đề nghị mua lập từ phiếu đề xuất → hàng về xuất theo phiếu đề xuất, không "xuất ngay" (tránh xe nhận hai lần)
+  let tuDeXuat = false;
+  const nhacDeXuat = h('p', { class: 'goi-y rong', hidden: true }, 'Đề nghị mua này lập từ phiếu đề xuất vật tư: nhập kho xong, xuất cho xe ở Kho → Đề xuất vật tư → Xuất kho.');
+  const anHienXuat = () => {
+    tichXuat.hidden = !chonXe.value || tuDeXuat;
+    if (tuDeXuat) tichXuat.querySelector('input').checked = false;
+    nhacDeXuat.hidden = !tuDeXuat;
+  };
+  chonXe.addEventListener('change', anHienXuat);
   async function napDeNghi() {
     dat(dong.ds);
-    if (!chonDeNghi.value) { dong.them(); capNhat(); return; }
+    tuDeXuat = false;
+    if (!chonDeNghi.value) { anHienXuat(); dong.them(); capNhat(); return; }
     const d = dsDuyet.find((x) => String(x.id) === chonDeNghi.value);
     chonNcc.value = d.nha_cung_cap_id;
     if (d.ho_so_id && dsXe.some((x) => x.id === d.ho_so_id)) { chonXe.value = d.ho_so_id; tichXuat.hidden = false; tichXuat.querySelector('input').checked = false; }
     const ct = await api.doc('de_nghi_mua_dong', (q) => q.eq('de_nghi_id', d.id).order('id'));
+    tuDeXuat = ct.some((c) => c.de_xuat_dong_id);
+    anHienXuat();
     for (const c of ct) dong.them({ hang_id: c.hang_id, so_luong: c.so_luong, don_gia: c.don_gia, ty_le_vat: Number(c.ty_le_vat) });
     capNhat();
   }
@@ -608,7 +628,7 @@ export async function moPhieuNhap({ deNghi = null } = {}, veLai) {
       truong('Ngày nhập', oNgayNhap, null, { batBuoc: true }),
       truong('Số hóa đơn', oSoHd),
       truong('Mua riêng cho xe', chonXe, 'Phụ tùng mua theo xe (VinFast, phụ tùng ngoài)'),
-      h('div', { class: 'truong' }, tichXuat),
+      h('div', { class: 'truong' }, tichXuat), nhacDeXuat,
       truong('Ghi chú', oGhiChu, null, { rong: true })),
     h('h3', null, 'Hàng nhập'), dong.el,
     h('p', { class: 'tong-phieu' }, 'Tổng tiền (gồm VAT): ', tong),
@@ -622,9 +642,10 @@ export async function moPhieuNhap({ deNghi = null } = {}, veLai) {
       if (!chonNcc.value) { toast('Chọn nhà cung cấp.', 'loi'); return false; }
       if (!ds.length) { toast('Chọn ít nhất một mã hàng.', 'loi'); return false; }
       if (ds.some((d) => !(d.so_luong > 0) || d.don_gia === null)) { toast('Nhập số lượng và đơn giá cho từng dòng.', 'loi'); return false; }
-      const kq = await api.lapPhieuNhap({ ngay: oNgayNhap.value, nha_cung_cap_id: Number(chonNcc.value), so_hoa_don: oSoHd.value,
+      // 043: phiếu lớn không theo đề nghị mua đã duyệt → máy chủ hỏi lại (giám đốc thấy ở Việc cần xử lý)
+      const kq = await chay((boQua) => api.lapPhieuNhap({ ngay: oNgayNhap.value, nha_cung_cap_id: Number(chonNcc.value), so_hoa_don: oSoHd.value,
         de_nghi_mua_id: chonDeNghi.value ? Number(chonDeNghi.value) : null, ho_so_id: chonXe.value ? Number(chonXe.value) : null,
-        xuat_cho_xe: !!chonXe.value && tichXuat.querySelector('input').checked, ghi_chu: oGhiChu.value, dong: ds });
+        xuat_cho_xe: !!chonXe.value && !tuDeXuat && tichXuat.querySelector('input').checked, ghi_chu: oGhiChu.value, dong: ds, bo_qua_canh_bao: boQua }));
       const loi = (await api.taiNhieu(chonAnh.input.files, 'khac', (f) => api.taiTepKho('phieu_nhap', chungTu(kq), f))).loi.length;
       toast(`Đã nhập kho ${kq.ma}${kq.phieu_xuat ? ` và xuất ngay ${kq.phieu_xuat.ma} cho xe` : ''}.${loi ? ` ${loi} ảnh tải lên lỗi.` : ''}`, loi ? 'loi' : 'ok');
       await veLai?.();
@@ -659,7 +680,9 @@ export async function moChiTietNhap(id, veLai) {
   noiDung.append(hangNut);
   let dongModal = () => noiDung.closest('.modal-nen')?.remove();
   if (['cho_khop', 'treo'].includes(r.trang_thai)) {
-    hangNut.append(nutTaiTep('phieu_nhap', r, async () => { dongModal(); await moChiTietNhap(id, veLai); }));
+    if (api.laNhanVien()) hangNut.append(nutTaiTep('phieu_nhap', r, async () => { dongModal(); await moChiTietNhap(id, veLai); }));
+    // 043: hóa đơn ghi giá khác phiếu nhập → kế toán sửa đơn giá; lô trong kho và giá vốn phần đã xuất cập nhật theo
+    if (keToan()) hangNut.append(h('button', { class: 'nut', type: 'button', onclick: () => { dongModal(); moDieuChinhGia(r, dongs, veLai); } }, 'Điều chỉnh giá theo hóa đơn'));
     if (keToan() && (r.tao_boi !== api.toi.id || api.coVaiTro('giam_doc'))) { // người lập không tự khớp, trừ giám đốc
       hangNut.append(h('button', { class: 'nut chinh', type: 'button', onclick: () => chay(() => api.khopPhieuNhap(id, true), { thanhCong: 'Đã khớp hóa đơn – ghi công nợ nhà cung cấp.' }).then(() => { dongModal(); veLai?.(); }).catch(() => {}) }, 'Khớp hóa đơn'));
       hangNut.append(h('button', { class: 'nut', type: 'button', onclick: () => hoiLyDo(`Treo phiếu ${r.ma}`, async (lyDo) => {
@@ -673,6 +696,37 @@ export async function moChiTietNhap(id, veLai) {
     }
   }
   dongModal = moModal(`Phiếu nhập ${r.ma} – ${TT_NHAP[r.trang_thai]}`, noiDung, { rong: true });
+}
+
+// 043: kế toán điều chỉnh đơn giá / VAT phiếu nhập chưa khớp theo hóa đơn
+function moDieuChinhGia(r, dongs, veLai) {
+  const o = dongs.map((d) => {
+    const x = hangTheoId(d.hang_id);
+    const oGia = oTien(`gia_${d.id}`, d.don_gia, { 'aria-label': `Đơn giá ${x?.ma || ''}` });
+    const chonVat = oChon(`vat_${d.id}`, VAT_NHAP.map(([v, l]) => ({ value: v, label: l })), Number(d.ty_le_vat), { trong: null, 'aria-label': `VAT ${x?.ma || ''}` });
+    return { d, oGia, chonVat, el: h('tr', null,
+      h('td', { 'data-nhan': 'Mã hàng' }, h('b', null, x?.ma), ` ${x?.ten || ''}`, h('small', null, ` · ${sl(d.so_luong)} ${dvtNhap(x)}`)),
+      h('td', { 'data-nhan': 'Đơn giá (chưa VAT)' }, oGia), h('td', { 'data-nhan': 'VAT' }, chonVat)) };
+  });
+  const oLyDo = oChu('ly_do', '', { placeholder: 'Ví dụ: hóa đơn số 123 ghi 1.050.000' });
+  moModal(`Điều chỉnh giá – ${r.ma}`, h('div', null,
+    h('p', { class: 'mo-ta' }, `${r.nha_cung_cap} · tổng hiện tại ${tien(r.tong_tien)} đ. Sửa đơn giá / VAT đúng theo hóa đơn; phiếu trở về "chờ khớp" để khớp lại.`),
+    h('div', { class: 'bang-cuon' }, h('table', { class: 'bang' },
+      h('thead', null, h('tr', null, h('th', null, 'Mã hàng'), h('th', null, 'Đơn giá (chưa VAT)'), h('th', null, 'VAT'))),
+      h('tbody', null, o.map((x) => x.el)))),
+    truong('Lý do', oLyDo, null, { batBuoc: true, rong: true })), {
+    rong: true, nhanNut: 'Lưu điều chỉnh',
+    nutChinh: async () => {
+      if (!oLyDo.value.trim()) { toast('Ghi lý do điều chỉnh.', 'loi'); return false; }
+      const dong = o.map((x) => ({ dong_id: x.d.id, don_gia: docTien(x.oGia.value), ty_le_vat: Number(x.chonVat.value) }))
+        .filter((x, i) => x.don_gia !== Number(o[i].d.don_gia) || x.ty_le_vat !== Number(o[i].d.ty_le_vat));
+      if (!dong.length) { toast('Chưa sửa dòng nào.', 'loi'); return false; }
+      if (dong.some((x) => x.don_gia === null || x.don_gia < 0)) { toast('Đơn giá không hợp lệ.', 'loi'); return false; }
+      const kq = await api.dieuChinhPhieuNhap(r.id, dong, oLyDo.value.trim());
+      toast(`Đã điều chỉnh: tổng phiếu ${tien(kq.tong_tien)} đ.`);
+      await veLai?.();
+    },
+  });
 }
 
 // Lập đề nghị mua
@@ -736,7 +790,7 @@ export async function moChiTietMua(id, veLai) {
   let dongModal = () => noiDung.closest('.modal-nen')?.remove();
   const sau = async () => { dongModal(); await veLai?.(); };
   if (r.trang_thai === 'cho_duyet') {
-    hangNut.append(nutTaiTep('de_nghi_mua', r, async () => { dongModal(); await moChiTietMua(id, veLai); }));
+    if (api.laNhanVien()) hangNut.append(nutTaiTep('de_nghi_mua', r, async () => { dongModal(); await moChiTietMua(id, veLai); }));
     // Giám đốc được tự duyệt phiếu mình lập; người khác thì không
     const thieuBaoGia = r.can_3_bao_gia && Number(r.so_bao_gia) < 3;
     if (ql() && (r.nguoi_lap !== api.toi.id || api.coVaiTro('giam_doc'))) {
@@ -778,23 +832,24 @@ function moDeNghiTraNcc(r, toiDa, veLai) {
   const khop = mucs.find((m) => m.ten.toLowerCase().includes(String(r.ten).toLowerCase())) || mucs[0];
   const chonMuc = oChon('muc_id', mucs.map((m) => ({ value: m.id, label: m.ten })), khop.id, { trong: null });
   const oSoTien = oTien('so_tien', toiDa);
+  const conNo = Number(r.da_nhap) + Number(r.cho_khop) - Number(r.da_tra);
   const form = h('form', { class: 'luoi-o', novalidate: true },
-    h('p', { class: 'mo-ta rong' }, `${r.ten} · còn nợ ${tien(Number(r.da_nhap) - Number(r.da_tra))} đ`,
-      toiDa < Number(r.da_nhap) - Number(r.da_tra) ? ` · đã đề nghị chi ${tien(Number(r.da_nhap) - Number(r.da_tra) - toiDa)} đ` : '',
+    h('p', { class: 'mo-ta rong' }, `${r.ten} · còn nợ ${tien(conNo)} đ`, Number(r.cho_khop) ? ` (gồm ${tien(r.cho_khop)} đ hàng chờ khớp hóa đơn)` : '',
+      Number(r.dang_de_nghi) ? ` · đã đề nghị chi ${tien(r.dang_de_nghi)} đ` : '',
       ` · lập được tối đa ${tien(toiDa)} đ`),
     truong('Mục chi', chonMuc, null, { batBuoc: true }),
     truong('Số tiền trả', oSoTien, 'Trả một phần thì sửa số tiền', { batBuoc: true }),
     truong('Nội dung', oChu('noi_dung', `Trả nợ ${r.ten}`), null, { batBuoc: true, rong: true }),
-    truong('Người nhận tiền', oChu('nguoi_nhan', r.ten)),
-    truong('Ngày', oNgay('ngay', homNay())));
+    truong('Người nhận tiền', oChu('nguoi_nhan', r.ten)));
+  // 043: ngày đề nghị = hôm nay (máy chủ tự lấy); trả vượt số còn nợ thì máy chủ hỏi lại
   moModal(`Đề nghị chi trả ${r.ten}`, form, {
     rong: true, nhanNut: 'Gửi đề nghị chi',
     nutChinh: async () => {
       const soTien = docTien(oSoTien.value);
       if (!(soTien > 0)) { toast('Nhập số tiền trả.', 'loi'); return false; }
       if (soTien > toiDa) { toast(`Số tiền vượt phần còn nợ chưa đề nghị (${tien(toiDa)} đ).`, 'loi'); return false; }
-      await api.lapDeNghiChi({ muc_id: Number(chonMuc.value), nha_cung_cap_id: r.nha_cung_cap_id, so_tien: soTien,
-        noi_dung: form.noi_dung.value, nguoi_nhan: form.nguoi_nhan.value, ngay: form.ngay.value, chi_nhanh_id: r.chi_nhanh_id });
+      await chay((boQua) => api.lapDeNghiChi({ muc_id: Number(chonMuc.value), nha_cung_cap_id: r.nha_cung_cap_id, so_tien: soTien,
+        noi_dung: form.noi_dung.value, nguoi_nhan: form.nguoi_nhan.value, chi_nhanh_id: r.chi_nhanh_id, bo_qua_canh_bao: boQua }));
       toast(`Đã gửi đề nghị chi trả ${r.ten} ${tien(soTien)} đ – chờ duyệt rồi kế toán chi.`);
       await veLai?.();
     },
@@ -873,6 +928,7 @@ async function moKiemKe(id, veLai) {
   const [[r], dongs] = await Promise.all([api.doc('kiem_ke', (q) => q.eq('id', id)), api.doc('kiem_ke_dong', (q) => q.eq('kiem_ke_id', id).order('id'))]);
   if (!r) return;
   const dangDem = r.trang_thai === 'dang_dem';
+  const anSoSach = dangDem || r.trang_thai === 'huy';  // đang đếm: không hiện sổ sách (đếm khách quan); đợt hủy: không có số so sánh
   const choDem = dangDem && !api.laCoDong();          // cổ đông chỉ xem số đã đếm, không nhập
   const o = new Map();
   const noiDung = h('div', null,
@@ -880,20 +936,20 @@ async function moKiemKe(id, veLai) {
     bang([
       { nhan: 'Mã hàng', lay: (d) => { const x = hangTheoId(d.hang_id); return h('span', null, h('b', null, x?.ma), ` ${x?.ten || ''}`); } },
       { nhan: 'ĐVT', lay: (d) => hangTheoId(d.hang_id)?.dvt || '' },
-      dangDem ? null : { nhan: 'Sổ sách', so: true, lay: (d) => sl(d.ton_so_sach) },
+      anSoSach ? null : { nhan: 'Sổ sách', so: true, lay: (d) => sl(d.ton_so_sach) },
       { nhan: 'Thực tế', so: true, lay: (d) => {
         if (!choDem) return d.ton_thuc_te === null || d.ton_thuc_te === undefined ? '' : sl(d.ton_thuc_te);
         const oS = oSoLuong('ton_thuc_te', d.ton_thuc_te ?? '', { 'aria-label': `Số đếm ${hangTheoId(d.hang_id)?.ma}` });
         o.set(d.id, oS); return oS;
       } },
-      dangDem ? null : { nhan: 'Chênh', so: true, lay: (d) => { const c = Number(d.ton_thuc_te) - Number(d.ton_so_sach); return h('span', { class: c ? 'chu-loi' : null }, c > 0 ? `+${sl(c)}` : sl(c)); } },
-      dangDem ? null : { nhan: 'Giá trị chênh', so: true, lay: (d) => tien(Math.round((Number(d.ton_thuc_te) - Number(d.ton_so_sach)) * Number(d.don_gia_von || 0))) },
+      anSoSach ? null : { nhan: 'Chênh', so: true, lay: (d) => { const c = Number(d.ton_thuc_te) - Number(d.ton_so_sach); return h('span', { class: c ? 'chu-loi' : null }, c > 0 ? `+${sl(c)}` : sl(c)); } },
+      anSoSach ? null : { nhan: 'Giá trị chênh', so: true, lay: (d) => tien(Math.round((Number(d.ton_thuc_te) - Number(d.ton_so_sach)) * Number(d.don_gia_von || 0))) },
     ].filter(Boolean), dongs),
     r.trang_thai === 'da_chot' ? h('p', { class: 'tong-phieu' }, 'Giá trị kiểm ', h('b', null, `${tien(r.gia_tri_so_sach)} đ`), ' · chênh lệch ', h('b', null, `${tien(r.gia_tri_chenh)} đ`)) : null);
   const docDem = () => [...o.entries()].map(([dongId, oS]) => ({ dong_id: dongId, ton_thuc_te: docSo(oS.value) }));
   let dongModal = () => noiDung.closest('.modal-nen')?.remove();
   if (choDem) {
-    const oBienBan = oVung('bien_ban', '', { placeholder: 'Bắt buộc nếu chênh trên 5% giá trị: nguyên nhân, người chứng kiến…' });
+    const oBienBan = oVung('bien_ban', '', { placeholder: 'Bắt buộc nếu chênh trên 5% giá trị (cả đợt hoặc một mã chênh lớn): nguyên nhân, người chứng kiến…' });
     noiDung.append(truong('Biên bản (khi chốt)', oBienBan, null, { rong: true }),
       h('div', { class: 'hang-nut' },
         h('button', { class: 'nut', type: 'button', onclick: () => chay(() => api.luuDemKiemKe(id, docDem()), { thanhCong: 'Đã lưu số đếm.' }).catch(() => {}) }, 'Lưu số đếm'),
@@ -906,7 +962,7 @@ async function moKiemKe(id, veLai) {
       nutChinh: async () => {
         await api.luuDemKiemKe(id, docDem());
         const kq = await api.chotKiemKe(id, oBienBan.value);
-        toast(`Đã chốt kiểm kê: chênh ${tien(kq.gia_tri_chenh)} đ (${kq.ty_le}% giá trị). Tồn đã điều chỉnh theo số đếm.`);
+        toast(`Đã chốt kiểm kê: chênh ${tien(kq.gia_tri_chenh)} đ (${kq.ty_le}% giá trị). Tồn đã điều chỉnh theo số đếm${kq.ngay_dieu_chinh ? ` (ghi ngày ${ngay(kq.ngay_dieu_chinh)})` : ''}.`);
         await veLai();
       },
     });
@@ -935,7 +991,7 @@ export async function khoiPhuTungXe(hs, veLai, cho) {
       { nhan: 'Phiếu', lay: (r) => h('b', null, r.ma) },
       { nhan: 'Tổ', lay: (r) => r.to_id || '' },
       { nhan: 'Người lập', lay: (r) => r.nguoi_lap_ten || '' },
-      { nhan: 'Trạng thái', lay: (r) => h('span', null, TT_DE_XUAT[r.trang_thai], r.so_dong_cho_mua ? h('span', { class: 'nhan tt-canh-bao' }, 'Chờ mua') : null) },
+      { nhan: 'Trạng thái', lay: (r) => h('span', null, ttDeXuat(r), r.so_dong_cho_mua ? h('span', { class: 'nhan tt-canh-bao' }, 'Chờ mua') : null) },
     ], dx, { onRow: (r) => moDeXuat(r.id, veLai) }) : h('p', { class: 'trong' }, 'Chưa có phiếu đề xuất vật tư.'),
     px.length && api.xemNhuNhanVien() ? h('p', { class: 'mo-ta' }, `Đã xuất ${px.length} phiếu · giá vốn phụ tùng, vật tư ${tien(giaVon)} đ`) : null);
 }

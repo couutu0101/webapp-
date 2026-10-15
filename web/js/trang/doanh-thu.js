@@ -66,7 +66,8 @@ export default async function trangDoanhThu(el) {
     const oDem = (b, nhan, lop = null) => h('div', { class: 'o-dem' }, h('b', { class: lop }, tien(b) || '0'), h('span', null, nhan));
     if (!thang) {
       // 042: máy chủ cộng theo tháng – không tải từng dòng doanh thu về máy
-      const dsThang = (await api.doanhThuTheoThang()).slice().sort((a, b) => (a.thang < b.thang ? 1 : -1));
+      // 043: theo chi nhánh của người xem (giám đốc nhiều chi nhánh trước đây cộng lẫn)
+      const dsThang = (await api.doanhThuTheoThang(api.toi?.chi_nhanh_id)).slice().sort((a, b) => (a.thang < b.thang ? 1 : -1));
       if (!conMoi()) return;
       const tong = (k) => dsThang.reduce((s, d) => s + so(d[k]), 0);
       const cotThang = [
@@ -93,7 +94,7 @@ export default async function trangDoanhThu(el) {
       return;
     }
     const den = cuoiThang(thang);   // 038: toISOString() lùi 1 ngày theo UTC → mất ngày cuối tháng
-    const rows = await api.doc('v_doanh_thu', (q) => q.gte('ngay', `${thang}-01`).lte('ngay', den).order('ngay').order('ma').limit(5000));
+    const rows = await api.doc('v_doanh_thu', (q) => q.eq('chi_nhanh_id', api.toi?.chi_nhanh_id).gte('ngay', `${thang}-01`).lte('ngay', den).order('ngay').order('ma').limit(5000));
     if (!conMoi()) return;
     const tong = (loc) => rows.filter(loc).reduce((s, r) => s + so(r.so_tien), 0);
     const tongVat = rows.reduce((s, r) => s + so(r.vat_ra), 0);
@@ -138,33 +139,58 @@ export default async function trangDoanhThu(el) {
     const homNayMs = Date.now();
     const soNgay = (d) => (d ? Math.max(0, Math.floor((homNayMs - new Date(d).getTime()) / 864e5)) : null);
     const xemTien = api.duocXem('giam_doc', 'ke_toan', 'quan_ly');
-    const [tatCaHs, ncc, noiBoTatCa] = await Promise.all([
-      // Còn nợ (khách, bảo hiểm) và khách trả trước / trả dư (cả hồ sơ đã hủy còn giữ cọc) – một lần đọc
-      api.doc('v_ho_so', (q) => q.or('con_no_khach.gt.0,con_no_bh.gt.0,con_no_khach.lt.0').order('giao_luc', { ascending: true, nullsFirst: false }).order('ngay_vao')),
-      xemTien ? api.doc('v_cong_no_ncc').catch(() => []) : [],
-      xemTien ? api.doc('v_cong_no_noi_bo', (q) => q.order('ten')).catch(() => []) : [],
+    const cn = api.toi?.chi_nhanh_id;
+    const [tatCaHs, ncc, noiBoTatCa, chuaChia, dvnChuaThu] = await Promise.all([
+      // Còn nợ (khách, bảo hiểm), khách trả trước / trả dư, bảo hiểm trả dư, hồ sơ hủy còn giữ cọc hoặc đã trả lại quá – một lần đọc
+      api.doc('v_ho_so', (q) => q.eq('chi_nhanh_id', cn)
+        .or('con_no_khach.gt.0,con_no_bh.gt.0,con_no_khach.lt.0,con_no_bh.lt.0,da_thu_khach.lt.0,and(trang_thai.eq.huy,da_thu_khach.gt.0)')
+        .order('giao_luc', { ascending: true, nullsFirst: false }).order('ngay_vao')),
+      xemTien ? api.doc('v_cong_no_ncc', (q) => q.eq('chi_nhanh_id', cn)).catch(() => []) : [],
+      xemTien ? api.doc('v_cong_no_noi_bo', (q) => q.eq('chi_nhanh_id', cn).order('ten')).catch(() => []) : [],
+      // 043: tiền bảo hiểm đã về chưa chia vào xe (theo hãng) – phần này đã thu, nợ BH theo xe đang tính cao hơn thực tế
+      xemTien ? api.doc('v_phieu_thu_chi', (q) => q.eq('chi_nhanh_id', cn).gt('con_chua_chia', 0)).catch(() => []) : [],
+      // 043: dịch vụ nhanh làm rồi chưa thu tiền
+      xemTien ? api.doc('v_dich_vu_nhanh', (q) => q.eq('chi_nhanh_id', cn).eq('trang_thai', 'hieu_luc').gt('con_thu', 0)).catch(() => []) : [],
     ]);
     if (!conMoi()) return;
-    const hs = tatCaHs.filter((x) => x.trang_thai !== 'huy' && (so(x.con_no_khach) > 0 || so(x.con_no_bh) > 0));
-    const traTruoc = tatCaHs.filter((x) => so(x.con_no_khach) < 0);
+    // 043: hồ sơ hủy – khách nợ lại phần đã trả lại quá số thu, đang giữ toàn bộ số khách đã trả (khớp máy chủ)
+    const huy = (x) => x.trang_thai === 'huy';
+    const noKhachCua = (x) => (huy(x) ? Math.max(0, -so(x.da_thu_khach)) : Math.max(0, so(x.con_no_khach)));
+    const noBHCua = (x) => (huy(x) ? 0 : Math.max(0, so(x.con_no_bh)));
+    const dangGiu = (x) => (huy(x) ? Math.max(0, so(x.da_thu_khach)) : Math.max(0, -so(x.con_no_khach)));
+    const bhTraDu = (x) => (huy(x) ? Math.max(0, so(x.da_thu_bh)) : Math.max(0, -so(x.con_no_bh)));
+    const hs = tatCaHs.filter((x) => noKhachCua(x) > 0 || noBHCua(x) > 0);
+    const traTruoc = tatCaHs.filter((x) => dangGiu(x) > 0);
+    const bhDu = tatCaHs.filter((x) => bhTraDu(x) > 0);
     // Phải trả lại ngay: xe đã giao / hồ sơ đã hủy, đóng mà khách còn dư tiền; xe đang làm thì cọc trừ khi giao xe
     const phaiTraLai = traTruoc.filter((x) => x.giao_luc || ['huy', 'dong'].includes(x.trang_thai));
-    const tongTraLai = phaiTraLai.reduce((s, x) => s - so(x.con_no_khach), 0);
-    const tongCoc = traTruoc.filter((x) => !phaiTraLai.includes(x)).reduce((s, x) => s - so(x.con_no_khach), 0);
+    const tongTraLai = phaiTraLai.reduce((s, x) => s + dangGiu(x), 0);
+    const tongCoc = traTruoc.filter((x) => !phaiTraLai.includes(x)).reduce((s, x) => s + dangGiu(x), 0);
+    const tongBhDu = bhDu.reduce((s, x) => s + bhTraDu(x), 0);
+    const chuaChiaTheoHang = {};
+    for (const p of chuaChia) { const k = p.hang_bh || 'Chưa ghi hãng'; chuaChiaTheoHang[k] = (chuaChiaTheoHang[k] || 0) + so(p.con_chua_chia); }
+    const tongChuaChia = chuaChia.reduce((s, p) => s + so(p.con_chua_chia), 0);
+    // Trừ khỏi phải thu tối đa bằng nợ BH theo xe (phần vượt là bảo hiểm trả dư / chưa rõ xe – hiện ở ô riêng)
+    const tongDvn = dvnChuaThu.reduce((s, d) => s + so(d.con_thu), 0);
     // Nội bộ & cá nhân (027): còn lại dương = họ nợ công ty, âm = công ty nợ họ (giám đốc, cổ đông cho công ty mượn)
     const noiBo = noiBoTatCa.map((r) => ({ ...r, con: so(r.con_lai) })).filter((r) => r.con !== 0 || so(r.da_chi) || so(r.da_thu) || r.hoat_dong !== false);
     const phaiThuNoiBo = noiBo.reduce((t, r) => t + (r.con > 0 ? r.con : 0), 0);
     const phaiTraNoiBo = noiBo.reduce((t, r) => t + (r.con < 0 ? -r.con : 0), 0);
     const chieuNo = (v) => (!v ? '—' : v < 0 ? h('span', { class: 'chu-loi' }, `Công ty nợ ${tien(-v)}`) : h('span', { class: 'chu-cam' }, `Nợ công ty ${tien(v)}`));
-    const noKhach = hs.filter((x) => so(x.con_no_khach) > 0);
-    const noBH = hs.filter((x) => so(x.con_no_bh) > 0);
-    const chuaGiao = hs.filter((x) => !x.giao_luc && !x.tu_excel);
-    const tongChuaGiao = chuaGiao.reduce((s, x) => s + Math.max(so(x.con_no_khach), 0) + so(x.con_no_bh), 0);
-    const tongKhach = noKhach.reduce((s, x) => s + so(x.con_no_khach), 0);
-    const tongBH = noBH.reduce((s, x) => s + so(x.con_no_bh), 0);
-    const noNcc = ncc.map((r) => ({ ...r, con: so(r.da_nhap) - so(r.da_tra) })).filter((r) => r.con > 0);
+    const noKhach = hs.filter((x) => noKhachCua(x) > 0);
+    const noBH = hs.filter((x) => noBHCua(x) > 0);
+    const chuaGiao = hs.filter((x) => !x.giao_luc && !x.tu_excel && !huy(x));
+    const tongChuaGiao = chuaGiao.reduce((s, x) => s + noKhachCua(x) + noBHCua(x), 0);
+    const tongKhach = noKhach.reduce((s, x) => s + noKhachCua(x), 0);
+    const tongBH = noBH.reduce((s, x) => s + noBHCua(x), 0);
+    const truChuaChia = Math.min(tongChuaChia, tongBH);
+    // 043: nợ NCC gồm cả hàng đã nhập chờ khớp hóa đơn (khớp trang Kho); trả nhiều hơn hàng nhập = trả trước
+    const conNcc = (r) => so(r.da_nhap) + so(r.cho_khop) - so(r.da_tra);
+    const noNcc = ncc.map((r) => ({ ...r, con: conNcc(r) })).filter((r) => r.con > 0);
     const tongNcc = noNcc.reduce((s, r) => s + r.con, 0);
     const choKhopNcc = ncc.reduce((s, r) => s + so(r.cho_khop), 0);
+    const traTruocNcc = ncc.reduce((s, r) => s + Math.max(0, -conNcc(r)), 0);
+    const dangDeNghiNcc = ncc.reduce((s, r) => s + so(r.dang_de_nghi), 0);
 
     // Tuổi nợ: khách tính từ ngày giao xe; bảo hiểm từ ngày gửi hồ sơ (chưa gửi thì từ ngày giao xe)
     const KHOANG = [['chua_giao', 'Xe chưa giao'], ['d30', '0–30 ngày'], ['d60', '31–60 ngày'], ['d90', '61–90 ngày'], ['tren90', 'Trên 90 ngày'], ['cu', 'Nợ cũ (Excel)']];
@@ -176,7 +202,7 @@ export default async function trangDoanhThu(el) {
     };
     const nhomNo = (ten, dsHs, bh) => {
       const c = { ten, so: dsHs.length, tong: 0, bh, ...Object.fromEntries(KHOANG.map(([k]) => [k, 0])) };
-      for (const x of dsHs) { const v = so(bh ? x.con_no_bh : x.con_no_khach); c[tuoi(x, bh)] += v; c.tong += v; }
+      for (const x of dsHs) { const v = bh ? noBHCua(x) : noKhachCua(x); c[tuoi(x, bh)] += v; c.tong += v; }
       return c;
     };
     const theoHang = new Map();
@@ -191,15 +217,17 @@ export default async function trangDoanhThu(el) {
     let loc = 'tat';
     const kq = h('div');
     const tabsCon = thanhThe([['tat', `Tất cả (${hs.length})`], ['khach', `Khách nợ (${noKhach.length})`], ['bao_hiem', `Bảo hiểm nợ (${noBH.length})`],
-      ['chua_giao', `Xe chưa giao (${chuaGiao.length})`], ['tra_lai', `Trả trước, trả dư (${traTruoc.length})`]], loc, (ma) => { loc = ma; veBang(); }, { nho: true, nhan: 'Lọc hồ sơ còn nợ' });
+      ['chua_giao', `Xe chưa giao (${chuaGiao.length})`], ['tra_lai', `Trả trước, trả dư (${traTruoc.length})`],
+      bhDu.length ? ['bh_du', `Bảo hiểm trả dư (${bhDu.length})`] : null].filter(Boolean), loc, (ma) => { loc = ma; veBang(); }, { nho: true, nhan: 'Lọc hồ sơ còn nợ' });
     const cot = [
       { nhan: 'Biển số', lay: (x) => h('a', { href: `#/ho-so/${x.id}`, class: 'lien-ket-xe' }, bienSo(x.bien_so_hien_thi, { maThay: x.ma })), xuat: (x) => x.bien_so_hien_thi || x.ma },
       { nhan: 'Khách', lay: (x) => h('span', null, x.ten_khach, h('br'), h('small', null, x.dien_thoai || '')), xuat: (x) => x.ten_khach },
       { nhan: 'Nguồn', lay: (x) => (x.nguon_tt === 'khach' ? 'Ngoài BH' : x.hang_bh || 'Bảo hiểm'), xuat: (x) => (x.nguon_tt === 'khach' ? 'Ngoài BH' : x.hang_bh || 'Bảo hiểm') },
       { nhan: 'Giao xe', lay: (x) => (x.giao_luc ? h('span', null, ngay(x.giao_luc), h('br'), h('small', null, `${soNgay(x.giao_luc)} ngày`)) : (x.tu_excel ? 'Nợ cũ (Excel)' : h('span', { class: 'chu-cam' }, 'Chưa giao'))), xuat: (x) => (x.giao_luc ? ngay(x.giao_luc) : x.tu_excel ? 'Nợ cũ' : 'Chưa giao') },
       { nhan: 'Gửi hồ sơ BH', lay: (x) => (x.nguon_tt === 'khach' ? '' : x.gui_hs_ngay ? h('span', null, ngay(x.gui_hs_ngay), h('br'), h('small', null, `${soNgay(x.gui_hs_ngay)} ngày`)) : h('span', { class: 'chu-loi' }, 'Chưa gửi')), xuat: (x) => (x.gui_hs_ngay ? ngay(x.gui_hs_ngay) : '') },
-      { nhan: 'Khách còn nợ', so: true, lay: (x) => h('b', { class: so(x.con_no_khach) > 0 ? 'chu-loi' : null }, so(x.con_no_khach) > 0 ? tien(x.con_no_khach) : '0'), xuat: (x) => Math.max(so(x.con_no_khach), 0) },
-      { nhan: 'BH còn nợ', so: true, lay: (x) => (x.nguon_tt === 'khach' ? '' : h('b', { class: so(x.con_no_bh) > 0 ? 'chu-cam' : null }, tien(x.con_no_bh) || '0')), xuat: (x) => (x.nguon_tt === 'khach' ? '' : so(x.con_no_bh)) },
+      { nhan: 'Khách còn nợ', so: true, lay: (x) => h('b', { class: noKhachCua(x) > 0 ? 'chu-loi' : null }, tien(noKhachCua(x)) || '0',
+        huy(x) && noKhachCua(x) > 0 ? h('small', null, ' (hủy – đã trả lại quá số thu)') : null), xuat: (x) => noKhachCua(x) },
+      { nhan: 'BH còn nợ', so: true, lay: (x) => (x.nguon_tt === 'khach' ? '' : h('b', { class: noBHCua(x) > 0 ? 'chu-cam' : null }, tien(noBHCua(x)) || '0')), xuat: (x) => (x.nguon_tt === 'khach' ? '' : noBHCua(x)) },
       { nhan: 'Bước', lay: (x) => nhanTrangThai(x.trang_thai), xuat: (x) => x.trang_thai },
     ];
     const cotTraLai = [
@@ -208,31 +236,52 @@ export default async function trangDoanhThu(el) {
         xuat: (x) => (x.trang_thai === 'huy' ? 'Đã hủy' : x.giao_luc || x.trang_thai === 'dong' ? 'Trả dư' : 'Cọc xe đang làm') },
       { nhan: 'Khách đã trả', so: true, lay: (x) => tien(x.da_thu_khach) || '0', xuat: (x) => so(x.da_thu_khach) },
       { nhan: 'Khách phải trả', so: true, lay: (x) => tien(x.phai_thu_khach) || '0', xuat: (x) => so(x.phai_thu_khach) },
-      { nhan: 'Đang giữ của khách', so: true, lay: (x) => h('b', { class: 'chu-cam' }, tien(-so(x.con_no_khach))), xuat: (x) => -so(x.con_no_khach) },
+      { nhan: 'Đang giữ của khách', so: true, lay: (x) => h('b', { class: 'chu-cam' }, tien(dangGiu(x))), xuat: (x) => dangGiu(x) },
+      // Số tiền trả lại: trang Đề nghị chi hỏi máy chủ số đang giữ (trừ đề nghị trả lại đang chờ) rồi điền sẵn
       { nhan: '', lay: (x) => ((x.giao_luc || ['huy', 'dong'].includes(x.trang_thai)) && api.laNhanVien()
-        ? h('a', { class: 'nut nho', 'data-tra-coc': '', href: `#/de-nghi?lap=1&muc=${encodeURIComponent('Trả lại cọc cho khách')}&tien=${-so(x.con_no_khach)}&ho_so=${x.id}&nd=${encodeURIComponent(`Trả lại tiền ${x.trang_thai === 'huy' ? 'cọc' : 'dư'} – ${x.bien_so_hien_thi || x.ma}`)}&nhan=${encodeURIComponent(x.ten_khach || '')}` }, 'Đề nghị chi trả lại')
+        ? h('a', { class: 'nut nho', 'data-tra-coc': '', href: `#/de-nghi?lap=1&muc=${encodeURIComponent('Trả lại cọc cho khách')}&ho_so=${x.id}&nd=${encodeURIComponent(`Trả lại tiền ${x.trang_thai === 'huy' ? 'cọc' : 'dư'} – ${x.bien_so_hien_thi || x.ma}`)}&nhan=${encodeURIComponent(x.ten_khach || '')}` }, 'Đề nghị chi trả lại')
         : ''), xuat: () => '' },
     ];
-    const dsLoc = () => (loc === 'khach' ? noKhach : loc === 'bao_hiem' ? noBH : loc === 'chua_giao' ? chuaGiao : loc === 'tra_lai' ? traTruoc : hs);
-    const cotLoc = () => (loc === 'tra_lai' ? cotTraLai : cot);
+    // 043: bảo hiểm trả nhiều hơn phần bảo hiểm của xe – thường do chia nhầm xe (Thu chi → "Chuyển phần chia") hoặc hãng trả thừa
+    const cotBhDu = [
+      cot[0], cot[1],
+      { nhan: 'Hãng', lay: (x) => x.hang_bh || '', xuat: (x) => x.hang_bh || '' },
+      { nhan: 'BH phải trả', so: true, lay: (x) => tien(huy(x) ? 0 : x.phai_thu_bh) || '0', xuat: (x) => (huy(x) ? 0 : so(x.phai_thu_bh)) },
+      { nhan: 'BH đã trả', so: true, lay: (x) => tien(x.da_thu_bh) || '0', xuat: (x) => so(x.da_thu_bh) },
+      { nhan: 'Trả dư', so: true, lay: (x) => h('b', { class: 'chu-cam' }, tien(bhTraDu(x))), xuat: (x) => bhTraDu(x) },
+      { nhan: 'Bước', lay: (x) => nhanTrangThai(x.trang_thai), xuat: (x) => x.trang_thai },
+    ];
+    const dsLoc = () => (loc === 'khach' ? noKhach : loc === 'bao_hiem' ? noBH : loc === 'chua_giao' ? chuaGiao : loc === 'tra_lai' ? traTruoc : loc === 'bh_du' ? bhDu : hs);
+    const cotLoc = () => (loc === 'tra_lai' ? cotTraLai : loc === 'bh_du' ? cotBhDu : cot);
     const veBang = () => {
       const ds = dsLoc();
-      dat(kq, bang(cotLoc(), ds, { trong: loc === 'tra_lai' ? 'Không có khách nào đang trả trước, trả dư.' : 'Không có hồ sơ nào còn nợ.' }),
+      dat(kq, bang(cotLoc(), ds, { trong: loc === 'tra_lai' ? 'Không có khách nào đang trả trước, trả dư.' : loc === 'bh_du' ? 'Không có hồ sơ nào bảo hiểm trả dư.' : 'Không có hồ sơ nào còn nợ.' }),
         !ds.length ? null : loc === 'tra_lai'
           ? h('p', { class: 'mo-ta' }, `${ds.length} hồ sơ · cần trả lại ${tien(tongTraLai) || '0'} đ`, tongCoc ? ` · cọc của xe đang làm ${tien(tongCoc)} đ (trừ vào tiền khách trả khi giao xe)` : '')
-          : h('p', { class: 'mo-ta' }, `${ds.length} hồ sơ · Khách còn nợ ${tien(ds.reduce((s, x) => s + Math.max(so(x.con_no_khach), 0), 0))} đ · Bảo hiểm còn nợ ${tien(ds.reduce((s, x) => s + so(x.con_no_bh), 0))} đ`));
+          : loc === 'bh_du'
+            ? h('p', { class: 'mo-ta' }, `${ds.length} hồ sơ · bảo hiểm trả dư ${tien(tongBhDu)} đ. Chia nhầm xe: Thu chi → phiếu thu của hãng → "Chuyển phần chia" sang đúng xe; hãng trả thừa thì làm việc với hãng (trả lại hoặc trừ lần sau).`)
+            : h('p', { class: 'mo-ta' }, `${ds.length} hồ sơ · Khách còn nợ ${tien(ds.reduce((s, x) => s + noKhachCua(x), 0))} đ · Bảo hiểm còn nợ ${tien(ds.reduce((s, x) => s + noBHCua(x), 0))} đ`));
     };
     const oTuoi = (v, k) => (!v ? h('span', { class: 'mo' }, '–') : h('span', { class: k === 'd90' || k === 'tren90' ? 'chu-loi' : k === 'chua_giao' ? 'mo' : null }, tien(v)));
     dat(ketQua,
       h('section', { class: 'luoi-dem tien' },
         h('div', { class: 'o-dem', 'data-no-khach': '' }, h('b', { class: tongKhach > 0 ? 'chu-loi' : null }, tien(tongKhach) || '0'), h('span', null, `Khách hàng còn nợ · ${noKhach.length} xe`)),
         h('div', { class: 'o-dem', 'data-no-bh': '' }, h('b', { class: tongBH > 0 ? 'chu-cam' : null }, tien(tongBH) || '0'), h('span', null, `Hãng bảo hiểm còn nợ · ${noBH.length} hồ sơ`)),
-        h('div', { class: 'o-dem' }, h('b', null, tien(tongKhach + tongBH) || '0'), h('span', null, `Tổng phải thu · trong đó xe chưa giao ${tien(tongChuaGiao) || '0'} đ`)),
+        h('div', { class: 'o-dem' }, h('b', null, tien(tongKhach + tongBH - truChuaChia + tongDvn) || '0'),
+          h('span', null, `Tổng phải thu · trong đó xe chưa giao ${tien(tongChuaGiao) || '0'} đ`),
+          truChuaChia || tongDvn ? h('small', { class: 'o-dem-phu' }, [tongDvn ? `gồm ${tien(tongDvn)} đ dịch vụ nhanh chưa thu` : null,
+            truChuaChia ? `đã trừ ${tien(truChuaChia)} đ BH đã về chưa chia vào xe` : null].filter(Boolean).join(' · ')) : null),
+        tongChuaChia ? h('a', { class: 'o-dem', href: '#/thu-chi?chua_chia=1', 'data-bh-chua-chia': '' }, h('b', { class: 'chu-cam' }, tien(tongChuaChia)),
+          h('span', null, `Tiền bảo hiểm đã về, chưa chia vào xe · ${chuaChia.length} phiếu${tongChuaChia > tongBH ? ` – nhiều hơn nợ bảo hiểm theo xe ${tien(tongChuaChia - tongBH)} đ` : ''}`),
+          h('small', { class: 'o-dem-phu' }, Object.entries(chuaChiaTheoHang).map(([k, v]) => `${k} ${tien(v)}`).join(' · '))) : null,
+        tongDvn ? h('a', { class: 'o-dem', href: '#/dich-vu' }, h('b', { class: 'chu-loi' }, tien(tongDvn)), h('span', null, `Dịch vụ nhanh chưa thu · ${dvnChuaThu.length} lượt`)) : null,
         h('div', { class: 'o-dem', 'data-qua-han': '' }, h('b', { class: quaHan > 0 ? 'chu-loi' : null }, tien(quaHan) || '0'), h('span', null, 'Nợ quá 60 ngày (từ giao xe / gửi hồ sơ BH)')),
         traTruoc.length ? h('div', { class: 'o-dem', 'data-tra-lai': '' }, h('b', { class: tongTraLai > 0 ? 'chu-cam' : null }, tien(tongTraLai) || '0'),
           h('span', null, `Phải trả lại khách (trả dư, cọc hồ sơ hủy) · ${phaiTraLai.length} hồ sơ`), tongCoc ? h('small', { class: 'o-dem-phu' }, `Cọc của xe đang làm: ${tien(tongCoc)} đ`) : null) : null,
         ncc.length ? h('a', { class: 'o-dem', href: '#/kho?the=cong_no' }, h('b', null, tien(tongNcc) || '0'), h('span', null, `Nợ nhà cung cấp (phải trả) · ${noNcc.length} NCC`),
-          choKhopNcc ? h('small', { class: 'o-dem-phu' }, `+ ${tien(choKhopNcc)} đ hàng đã nhập chờ khớp hóa đơn`) : null) : null,
+          choKhopNcc || dangDeNghiNcc || traTruocNcc ? h('small', { class: 'o-dem-phu' }, [choKhopNcc ? `gồm ${tien(choKhopNcc)} đ hàng chờ khớp hóa đơn` : null,
+            dangDeNghiNcc ? `đã đề nghị chi ${tien(dangDeNghiNcc)} đ` : null, traTruocNcc ? `trả trước ${tien(traTruocNcc)} đ` : null].filter(Boolean).join(' · ')) : null) : null,
+        tongBhDu ? h('div', { class: 'o-dem' }, h('b', { class: 'chu-cam' }, tien(tongBhDu)), h('span', null, `Bảo hiểm trả dư (kiểm lại cách chia) · ${bhDu.length} hồ sơ`)) : null,
         noiBo.length ? h('div', { class: 'o-dem', 'data-noi-bo-thu': '' }, h('b', { class: phaiThuNoiBo > 0 ? 'chu-cam' : null }, tien(phaiThuNoiBo) || '0'), h('span', null, 'Nội bộ, cá nhân nợ công ty (phải thu)')) : null,
         noiBo.length ? h('div', { class: 'o-dem', 'data-noi-bo-tra': '' }, h('b', { class: phaiTraNoiBo > 0 ? 'chu-loi' : null }, tien(phaiTraNoiBo) || '0'), h('span', null, 'Công ty nợ nội bộ, cá nhân (phải trả)')) : null),
       dsBen.length ? h('section', { class: 'the', 'data-tuoi-no': '' }, h('h2', null, 'Tuổi nợ theo bên nợ'),
@@ -242,7 +291,10 @@ export default async function trangDoanhThu(el) {
           { nhan: 'Số hồ sơ', so: true, lay: (c) => c.so, xuat: (c) => c.so },
           ...khoangHien.map(([k, nhan]) => ({ nhan, so: true, lay: (c) => oTuoi(c[k], k), xuat: (c) => c[k] })),
           { nhan: 'Còn nợ', so: true, lay: (c) => h('b', { class: c.la_tong ? null : c.bh ? 'chu-cam' : 'chu-loi' }, tien(c.tong)), xuat: (c) => c.tong },
-        ], [...dsBen, { ten: 'Cộng', so: dsBen.reduce((s, c) => s + c.so, 0), tong: dsBen.reduce((s, c) => s + c.tong, 0), ...tongTuoi, la_tong: true }], { gon: true })) : null,
+          // 043: hãng đã trả nhưng kế toán chưa chia vào xe – nợ thực của hãng thấp hơn cột "Còn nợ" phần này
+          tongChuaChia ? { nhan: 'Đã về, chưa chia', so: true, lay: (c) => (c.la_tong ? tienO(tongChuaChia) : c.bh ? tienO(chuaChiaTheoHang[c.ten]) : ''),
+            xuat: (c) => (c.la_tong ? tongChuaChia : c.bh ? so(chuaChiaTheoHang[c.ten]) : '') } : null,
+        ].filter(Boolean), [...dsBen, { ten: 'Cộng', so: dsBen.reduce((s, c) => s + c.so, 0), tong: dsBen.reduce((s, c) => s + c.tong, 0), ...tongTuoi, la_tong: true }], { gon: true })) : null,
       noiBo.length ? h('section', { class: 'the', 'data-khoi-noi-bo': '' }, h('h2', null, 'Nội bộ & cá nhân'),
         h('p', { class: 'goi-y' }, 'Tiền vay mượn với công ty cùng hệ thống, giám đốc, cổ đông – không vào lãi lỗ. Ghi bằng Phiếu thu (mục "Công ty mượn tiền…", "…trả tiền mượn") và Đề nghị chi (mục "Cho cổ đông / cá nhân mượn", "Trả tiền mượn…"); giám đốc chi hộ thì chọn "Chi hộ bởi" lúc chi tiền. Nợ đầu kỳ sửa ở Danh mục → Đơn vị liên quan & cá nhân.'),
         bang([

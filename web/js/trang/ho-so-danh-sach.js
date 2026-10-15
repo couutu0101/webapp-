@@ -88,7 +88,8 @@ export default async function trangHoSo(el) {
         { nhan: 'Việc tiếp theo – Ai làm', lay: oViec },
         coTien ? { nhan: 'Còn nợ', so: true, lay: (d) => {
           const kh = Number(d.con_no_khach) || 0; const bh = Number(d.con_no_bh) || 0;
-          const oKhach = kh < 0 ? h('span', null, h('small', null, 'Khách dư '), h('b', { class: 'chu-tot' }, tien(-kh)))
+          // Chưa giao xe: tiền khách trả trước là cọc (trừ vào lúc giao), chưa phải "dư"
+          const oKhach = kh < 0 ? h('span', null, h('small', null, d.giao_luc || d.trang_thai === 'huy' ? 'Khách dư ' : 'Đã cọc '), h('b', { class: 'chu-tot' }, tien(-kh)))
             : h('span', null, h('small', null, 'Khách '), h('b', { class: kh > 0 ? 'chu-loi' : null }, tien(kh) || '0'));
           if (d.nguon_tt === 'khach') return h('span', { class: 'con-no' }, oKhach);
           return h('span', { class: 'con-no' }, oKhach,

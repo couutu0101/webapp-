@@ -15,6 +15,8 @@ const NHOM_DEM = [
   { nhan: 'Chờ bảo hiểm trả', tt: ['da_gui_hs'] },
 ];
 const MUC_DO = { cao: 'Cần làm ngay', vua: 'Trong tuần', thap: 'Bổ sung khi rảnh' };
+// Việc cần xử lý không gắn xe (hoặc cần xử lý ở trang khác): mở đúng chỗ làm
+const LIEN_KET_CANH_BAO = { thu_chua_phan_bo: '#/thu-chi?chua_chia=1', nhap_ngoai_de_nghi: '#/kho?the=nhap', de_nghi_cho_duyet: '#/de-nghi' };
 
 // Mọi thứ của trang tải MỘT đợt song song (040): trước đây ~19 lượt, 4 đợt nối tiếp, đọc hồ sơ 4 lần.
 // Phần nào tải lỗi (mạng, quyền) thì ghi lại và báo ở đầu trang, không để danh sách trống mà không nói gì.
@@ -36,7 +38,8 @@ async function taiDuLieu() {
     vp && api.coVaiTro('quan_ly', 'giam_doc', 'kho') ? an(api.doc('v_de_nghi_mua', (q) => q.in('trang_thai', ['cho_duyet', 'da_duyet']).order('id')), 'đề nghị mua') : [],
     vp && keToan ? an(api.doc('v_phieu_nhap', (q) => q.in('trang_thai', ['cho_khop', 'treo']).order('id')), 'phiếu nhập kho') : [],
     vp && api.coVaiTro('quan_ly', 'giam_doc', 'ke_toan') ? an(api.doc('v_de_nghi_chi', (q) => q.in('trang_thai', ['cho_duyet', 'da_duyet']).order('id')), 'đề nghị chi') : [],
-    vp && keToan ? an(api.doc('v_dich_vu_nhanh', (q) => q.eq('trang_thai', 'hieu_luc').gte('ngay', new Date(Date.now() - 60 * 864e5).toISOString().slice(0, 10)).order('ngay').limit(200)), 'dịch vụ nhanh') : [],
+    // 043: lượt dịch vụ nhanh còn phải thu – lọc ở máy chủ, không giới hạn 60 ngày (lượt cũ chưa thu trước đây bị sót)
+    vp && keToan ? an(api.doc('v_dich_vu_nhanh', (q) => q.eq('trang_thai', 'hieu_luc').gt('con_thu', 0).order('ngay').limit(200)), 'dịch vụ nhanh') : [],
     vp && xemKho ? an(api.doc('v_ton_kho', (q) => q.eq('duoi_toi_thieu', true).eq('hoat_dong', true), 'id'), 'tồn kho') : [],
     vp || api.coVaiTro('truong_nhom') ? an(viecTaiSanCuaToi(), 'đồ nghề') : [],
   ]);
@@ -80,10 +83,12 @@ function khoiCanhBao(ds) {
       const nhom = ds.filter((x) => x.muc_do === md);
       if (!nhom.length) return null;
       return h('div', { class: 'nhom-canh-bao' }, h('h3', { class: `muc-${md}` }, MUC_DO[md]),
-        h('ul', { class: 'ds-canh-bao' }, nhom.map((c) => h('li', null,
-          c.ho_so_id ? h('a', { href: `#/ho-so/${c.ho_so_id}`, class: 'lien-ket-xe' }, bienSo(c.bien_so, { maThay: c.ma })) :
-            h('a', { href: c.loai === 'thu_chua_phan_bo' ? '#/thu-chi' : '#/de-nghi' }, h('b', null, 'Xem'), ' '),
-          c.noi_dung))));
+        h('ul', { class: 'ds-canh-bao' }, nhom.map((c) => {
+          const href = LIEN_KET_CANH_BAO[c.loai] || (c.ho_so_id ? `#/ho-so/${c.ho_so_id}` : '#/de-nghi');
+          return h('li', null,
+            c.ho_so_id ? h('a', { href, class: 'lien-ket-xe' }, bienSo(c.bien_so, { maThay: c.ma })) : h('a', { href }, h('b', null, 'Xem'), ' '),
+            c.noi_dung);
+        })));
     }));
 }
 
@@ -198,8 +203,8 @@ function viecSauGiaoXe(d, daCo) {
     ds.push({ hoSoId: x.id, dau: bienSo(x.bien_so_hien_thi, { maThay: x.ma }), ten: 'Nhập hoa hồng GDV', phu: [x.xe, x.gdv ? `GDV ${x.gdv}` : null].filter(Boolean).join(' · '),
       luc: x.giao_luc, han: null, href: `#/ho-so/${x.id}` });
   }
-  for (const r of (keToan ? dvn : []).filter((v) => Number(v.da_thu) < Number(v.so_tien))) {
-    ds.push({ dau: r.bien_so_hien_thi ? bienSo(r.bien_so_hien_thi) : h('b', null, 'Dịch vụ nhanh'), ten: `Thu tiền dịch vụ nhanh ${tien(Number(r.so_tien) - Number(r.da_thu))} đ`,
+  for (const r of (keToan ? dvn : []).filter((v) => Number(v.con_thu ?? (Number(v.so_tien) - Number(v.da_thu))) > 0)) {
+    ds.push({ dau: r.bien_so_hien_thi ? bienSo(r.bien_so_hien_thi) : h('b', null, 'Dịch vụ nhanh'), ten: `Thu tiền dịch vụ nhanh ${tien(r.con_thu ?? (Number(r.so_tien) - Number(r.da_thu)))} đ`,
       phu: `${r.dich_vu} · ${r.nguoi_lam || ''}`, luc: r.tao_luc, han: null, href: `#/thu-chi?dvn=${r.id}` });
   }
   return ds;

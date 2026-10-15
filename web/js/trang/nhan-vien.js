@@ -23,6 +23,13 @@ function oVaiTro(daChon = []) {
     h('p', { class: 'goi-y' }, 'Cổ đông chỉ có một vai trò cổ đông. Trưởng nhóm phải chọn tổ.'));
 }
 const docVaiTro = (d) => Object.keys(VAI_TRO).filter((k) => d[`vt_${k}`]);
+// 043: tổ chỉ gắn cho trưởng nhóm (máy chủ cũng tự bỏ tổ của tài khoản không phải trưởng nhóm): ô Tổ chỉ hiện khi chọn Trưởng nhóm
+function oToTheoVai(form, truongTo) {
+  const capNhat = () => { truongTo.hidden = !docVaiTro(docForm(form)).includes('truong_nhom'); };
+  form.addEventListener('change', capNhat);
+  capNhat();
+}
+const toCuaVai = (vaiTro, toId) => (vaiTro.includes('truong_nhom') ? toId || null : null);
 
 // Hộp hiện tên đăng nhập + mật khẩu tạm để giám đốc đưa cho nhân viên
 function moThongTinDangNhap(tieuDe, ten, mk) {
@@ -53,7 +60,7 @@ export default async function trangNhanVien(el) {
         { nhan: 'Họ tên', lay: (r) => h('span', null, h('b', null, r.ho_ten), h('br'), h('small', null, r.ten_dang_nhap ? `Tên đăng nhập: ${r.ten_dang_nhap}` : (r.email || ''))) },
         { nhan: 'Bộ phận / vai trò', lay: (r) => (r.vai_tro.length ? r.vai_tro.map((v) => VAI_TRO[v]).join(', ') : h('span', { class: 'nhan tt-canh-bao' }, 'Chưa cấp quyền')) },
         { nhan: 'Chi nhánh', lay: (r) => api.dm.ten('chi_nhanh', r.chi_nhanh_id) },
-        { nhan: 'Tổ', lay: (r) => api.dm.ten('to_thuc_hien', r.to_id) },
+        { nhan: 'Tổ', lay: (r) => (r.vai_tro.includes('truong_nhom') ? api.dm.ten('to_thuc_hien', r.to_id) : '') },
         { nhan: 'Trạng thái', lay: (r) => h('span', null, r.hoat_dong ? 'Đang làm' : 'Đã khóa',
           r.phai_doi_mat_khau ? h('span', { class: 'nhan tt-canh-bao' }, 'Chờ đổi mật khẩu') : null) },
         { nhan: '', lay: (r) => h('span', { class: 'hang-nut' },
@@ -65,12 +72,13 @@ export default async function trangNhanVien(el) {
   function moTao() {
     const oTen = oChu('ten_dang_nhap', '', { autocapitalize: 'none', spellcheck: 'false', placeholder: 'vd: duy.cvdv' });
     const oMk = oChu('mat_khau', matKhauTam(), { autocomplete: 'off' });
-    const chonTo = oChon('to_id', api.dm.to_thuc_hien.map((t) => ({ value: t.id, label: t.ten })), '', { trong: '— Không —' });
+    const chonTo = oChon('to_id', api.dm.to_thuc_hien.map((t) => ({ value: t.id, label: t.ten })), '', { trong: '— Chọn tổ —' });
+    const truongTo = truong('Tổ của trưởng nhóm', chonTo, null, { batBuoc: true });
     const form = h('form', { class: 'luoi-o', novalidate: true },
       truong('Họ tên', oChu('ho_ten', '', { placeholder: 'vd: Nguyễn Trọng Duy' }), null, { batBuoc: true }),
       truong('Chi nhánh', oChon('chi_nhanh_id', api.dm.chi_nhanh.map((c) => ({ value: c.id, label: c.ten })), api.toi.chi_nhanh_id)),
       oVaiTro(),
-      truong('Tổ (cho trưởng nhóm)', chonTo),
+      truongTo,
       truong('Tên đăng nhập', oTen, 'Tự gợi ý theo tên + bộ phận, sửa được. Chữ không dấu, số, dấu chấm.', { batBuoc: true }),
       truong('Mật khẩu tạm', oMk, 'Ít nhất 6 ký tự. Nhân viên phải đổi ở lần đăng nhập đầu.', { batBuoc: true }));
     let daSuaTen = false;
@@ -78,6 +86,7 @@ export default async function trangNhanVien(el) {
     const capNhatTen = () => { if (!daSuaTen) { const d = docForm(form); oTen.value = goiYTen(d.ho_ten, docVaiTro(d), d.to_id); } };
     form.addEventListener('input', (e) => { if (e.target !== oTen) capNhatTen(); });
     form.addEventListener('change', (e) => { if (e.target !== oTen) capNhatTen(); });
+    oToTheoVai(form, truongTo);
     moModal('Tạo tài khoản nhân viên', form, {
       rong: true, nhanNut: 'Tạo tài khoản',
       nutChinh: async () => {
@@ -88,7 +97,8 @@ export default async function trangNhanVien(el) {
         if (!d.ten_dang_nhap?.trim()) { toast('Nhập tên đăng nhập.', 'loi'); return false; }
         if ((d.mat_khau || '').length < 6) { toast('Mật khẩu tạm cần ít nhất 6 ký tự.', 'loi'); return false; }
         const ten = d.ten_dang_nhap.trim().toLowerCase();
-        await api.taoTaiKhoan({ ho_ten: d.ho_ten, ten_dang_nhap: ten, mat_khau: d.mat_khau, chi_nhanh_id: d.chi_nhanh_id, vai_tro, to_id: d.to_id || null });
+        if (vai_tro.includes('truong_nhom') && !d.to_id) { toast('Trưởng nhóm: chọn tổ.', 'loi'); return false; }
+        await api.taoTaiKhoan({ ho_ten: d.ho_ten, ten_dang_nhap: ten, mat_khau: d.mat_khau, chi_nhanh_id: d.chi_nhanh_id, vai_tro, to_id: toCuaVai(vai_tro, d.to_id) });
         await api.taiDanhMuc();
         await tai();
         setTimeout(() => moThongTinDangNhap(`Đã tạo tài khoản ${d.ho_ten}`, ten, d.mat_khau));
@@ -97,19 +107,24 @@ export default async function trangNhanVien(el) {
   }
 
   function moSua(r) {
+    const truongTo = truong('Tổ của trưởng nhóm', oChon('to_id', api.dm.to_thuc_hien.map((t) => ({ value: t.id, label: t.ten })), r.to_id, { trong: '— Chọn tổ —' }),
+      null, { batBuoc: true });
     const form = h('form', { class: 'luoi-o' },
       truong('Họ tên', oChu('ho_ten', r.ho_ten)),
       truong('Chi nhánh', oChon('chi_nhanh_id', api.dm.chi_nhanh.map((c) => ({ value: c.id, label: c.ten })), r.chi_nhanh_id || api.toi.chi_nhanh_id)),
       oVaiTro(r.vai_tro),
-      truong('Tổ (cho trưởng nhóm)', oChon('to_id', api.dm.to_thuc_hien.map((t) => ({ value: t.id, label: t.ten })), r.to_id, { trong: '— Không —' })),
+      truongTo,
       // 041: không tự khóa tài khoản của chính mình (khóa rồi không ai mở lại được)
       r.id === api.toi.id ? h('p', { class: 'goi-y' }, 'Tài khoản của anh/chị – không tự khóa được.')
         : h('div', { class: 'truong' }, oCheck('hoat_dong', r.hoat_dong, 'Đang làm (bỏ chọn để khóa tài khoản)')));
+    oToTheoVai(form, truongTo);
     moModal(`Quyền của ${r.ho_ten}`, form, {
       rong: true,
       nutChinh: async () => {
         const d = docForm(form);
-        await api.luuNhanVien(r.id, { ho_ten: d.ho_ten, chi_nhanh_id: d.chi_nhanh_id, vai_tro: docVaiTro(d), to_id: d.to_id, hoat_dong: d.hoat_dong });
+        const vai_tro = docVaiTro(d);
+        if (vai_tro.includes('truong_nhom') && !d.to_id) { toast('Trưởng nhóm: chọn tổ.', 'loi'); return false; }
+        await api.luuNhanVien(r.id, { ho_ten: d.ho_ten, chi_nhanh_id: d.chi_nhanh_id, vai_tro, to_id: toCuaVai(vai_tro, d.to_id), hoat_dong: d.hoat_dong });
         await api.taiDanhMuc();
         toast('Đã lưu.'); await tai();
       },

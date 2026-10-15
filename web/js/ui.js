@@ -46,10 +46,13 @@ export function tien(n) {
   const so = Math.round(Number(n));
   return (so < 0 ? '−' : '') + Math.abs(so).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 }
+// Đọc số tiền từ ô: bỏ dấu chấm ngàn; dấu trừ đứng đầu (− do tien() in ra, hoặc -) là số âm
 export function docTien(s) {
   if (s === null || s === undefined) return null;
-  const chi = String(s).replace(/[^\d-]/g, '');
-  return chi === '' || chi === '-' ? null : Number(chi);
+  const t = String(s).trim();
+  const chi = t.replace(/\D/g, '');
+  if (chi === '') return null;
+  return /^[-−]/.test(t) ? -Number(chi) : Number(chi);
 }
 const hai = (x) => String(x).padStart(2, '0');
 export function ngay(d) {
@@ -107,8 +110,9 @@ export const BUOC_XE = ['Tiếp nhận', 'Báo giá', 'Duyệt giá', 'Lệnh s�
 // Chăm sóc làm trước khi gửi hồ sơ BH vẫn tính xong.
 export function buocXe(hs) {
   if (!hs || hs.trang_thai === 'huy') return { dang: null, boQua: [], xong: () => false };
-  const boQua = hs.nguon_tt === 'khach' ? [8] : [];
-  if (hs.loai === 'bao_hanh' && !['tiep_nhan', 'bao_gia'].includes(hs.trang_thai)) boQua.unshift(2, 3);
+  const daDuyet = !['tiep_nhan', 'bao_gia'].includes(hs.trang_thai);
+  const boQua = coBuocHoSoBH(hs) ? [] : [8];
+  if (hs.loai === 'bao_hanh' && daDuyet) boQua.unshift(2, 3);
   const chamSoc = !!hs.cham_soc_luc;
   let dang;
   if (hs.tu_excel) dang = 0;
@@ -119,12 +123,21 @@ export function buocXe(hs) {
     case 'dang_sua': dang = 5; break;
     case 'cho_kcs': dang = 6; break;
     case 'dat_kcs': dang = 7; break;
-    case 'da_giao': dang = hs.nguon_tt !== 'khach' && !hs.gui_hs_ngay ? 8 : chamSoc ? 0 : 9; break;
+    case 'da_giao': dang = coBuocHoSoBH(hs) && !hs.gui_hs_ngay ? 8 : chamSoc ? 0 : 9; break;
     case 'da_gui_hs': case 'dong': dang = chamSoc ? 0 : 9; break;
     default: dang = 1;
   }
   const xong = (so) => !boQua.includes(so) && (dang === 0 || so < dang || (so === 9 && chamSoc));
   return { dang, boQua, xong };
+}
+// Có bước 8 "Hồ sơ BH" không (043, khớp máy chủ): xe khách ngoài bảo hiểm, hồ sơ bảo hành, hoặc đã duyệt giá mà phần
+// bảo hiểm chi trả (sau khấu trừ) bằng 0 thì không có hồ sơ gửi bảo hiểm
+export function coBuocHoSoBH(hs) {
+  if (!hs || hs.nguon_tt === 'khach') return false;
+  const daDuyet = !['tiep_nhan', 'bao_gia'].includes(hs.trang_thai);
+  if (!daDuyet) return true;
+  if (hs.loai === 'bao_hanh') return false;
+  return hs.phai_thu_bh === undefined || hs.phai_thu_bh === null || Number(hs.phai_thu_bh) > 0;
 }
 // Thanh 9 vạch thu nhỏ: danh sách hồ sơ, thẻ xe ở bảng việc
 export function thanhBuocNho(hs) {
@@ -387,14 +400,16 @@ export function oChu(name, value = '', attrs = {}) {
 }
 // Ô tiền: tự chèn dấu chấm ngàn, giữ đúng vị trí con trỏ theo SỐ CHỮ SỐ trước con trỏ (không theo ký tự),
 // tự xử lý gõ số / xóa (beforeinput) để bàn phím điện thoại không bị nhân đôi số và Backspace xóa được số đứng trước dấu chấm.
-export function oTien(name, value, attrs = {}) {
-  const el = h('input', { type: 'text', inputmode: 'numeric', name, class: 'o-tien', autocomplete: 'off', ...attrs });
+// choAm: cho gõ dấu trừ (số dư đầu kỳ âm…): gõ "-" ở bất kỳ đâu thì đổi dấu.
+export function oTien(name, value, { choAm = false, ...attrs } = {}) {
+  const el = h('input', { type: 'text', inputmode: choAm ? 'text' : 'numeric', name, class: 'o-tien', autocomplete: 'off', ...attrs });
   el.value = value === null || value === undefined ? '' : tien(value);
+  const duocAm = choAm || Number(value) < 0;
   const chuSo = (s) => s.replace(/\D/g, '');
-  const am = () => /^[-−]/.test(el.value);
+  const am = () => duocAm && /^[-−]/.test(el.value);
   // Đặt lại giá trị từ chuỗi chữ số, con trỏ đứng sau n chữ số
   const dat_ = (so, n, laAm) => {
-    const moi = so === '' ? '' : (laAm ? '−' : '') + tien(Number(so));
+    const moi = so === '' ? (laAm ? '−' : '') : (laAm ? '−' : '') + tien(Number(so));
     if (el.value !== moi) el.value = moi;
     let p = moi.length;
     if (n <= 0) p = laAm && moi ? 1 : 0;
@@ -409,6 +424,11 @@ export function oTien(name, value, attrs = {}) {
     const dau = el.selectionStart ?? el.value.length; const cuoi = el.selectionEnd ?? dau;
     const truoc = chuSo(el.value.slice(0, dau)); const chon = chuSo(el.value.slice(dau, cuoi)); const sau = chuSo(el.value.slice(cuoi));
     if (loai === 'insertText' && e.data) {
+      if (duocAm && /^[-−]$/.test(e.data)) {                             // đổi dấu, giữ nguyên các chữ số
+        e.preventDefault(); tuXuLy = true;
+        datVaBao(chuSo(el.value), truoc.length, !am());
+        return;
+      }
       if (!/^\d+$/.test(e.data)) { e.preventDefault(); return; }       // chỉ nhận chữ số
       e.preventDefault(); tuXuLy = true;
       datVaBao((truoc + e.data + sau).replace(/^0+(?=\d)/, ''), truoc.length + e.data.length, am());

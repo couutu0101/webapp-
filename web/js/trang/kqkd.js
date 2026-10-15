@@ -45,7 +45,8 @@ const soTien = (x, donVi = 1) => {
   return `${v < 0 ? '−' : ''}${Math.abs(v).toLocaleString('vi-VN', { minimumFractionDigits: le, maximumFractionDigits: le })}`;
 };
 const TEN_DON_VI = { 1: 'đồng', 1000: 'nghìn đồng', 1000000: 'triệu đồng' };
-export const NHAN_TT = { dang_mo: ['Đang mở', 'tt-mo'], cho_chot: ['Chờ chốt', 'tt-canh-bao'], da_chot: ['Đã chốt', 'tt-tot'] };
+// 043: 'da_khoa' – tháng nằm trước tháng đã chốt mà không có số chốt riêng (tháng trống): khóa sổ theo, không phải chốt
+export const NHAN_TT = { dang_mo: ['Đang mở', 'tt-mo'], cho_chot: ['Chờ chốt', 'tt-canh-bao'], da_chot: ['Đã chốt', 'tt-tot'], da_khoa: ['Đã khóa', 'tt-khoa'] };
 export function tenCongTy() {
   const cn = api.dm.ten ? api.dm.ten('chi_nhanh', api.toi?.chi_nhanh_id) : '';
   return /hoàng sơn/i.test(cn || '') ? cn : `${TEN_GARA}${cn ? ` – ${cn}` : ''}`;
@@ -78,7 +79,7 @@ export const DONG = [
   { nhan: 'Chi phí cố định (điện, mặt bằng…)', k: 'chi_co_dinh', dau: '−', ct: 'chi_co_dinh' },
   { nhan: 'TỔNG CHI PHÍ HOẠT ĐỘNG', k: 'tong_chi_phi', dau: '−', kieu: 'tong' },
   { muc: 'IV. THU NHẬP KHÁC' },
-  { nhan: 'Trạm sạc, thu khác', goiY: 'mục thu có tích "Vào lãi lỗ"', k: 'thu_khac', dau: '+', ct: 'thu_khac' },
+  { nhan: 'Trạm sạc, thu khác', goiY: 'mục thu "Thu khác" có tích "Vào lãi lỗ"', k: 'thu_khac', dau: '+', ct: 'thu_khac' },
   { nhan: 'LÃI TRƯỚC THUẾ (số gồm VAT)', k: 'lai_truoc_thue', kieu: 'ket_qua' },
   { nhan: 'Tỷ suất lãi trước thuế', tu: 'lai_truoc_thue', kieu: 'ty_le' },
   { muc: 'V. BỎ VAT KHỎI LÃI (ước tính)' },
@@ -91,16 +92,21 @@ export const DONG = [
   { nhan: 'VAT đầu ra', k: 'vat_ra', ct: 'vat_ra', trung: true },
   { nhan: 'VAT đầu vào – hóa đơn nhập hàng', k: 'vat_vao_hang', dau: '−', ct: 'vat_vao_hang', trung: true },
   { nhan: 'VAT đầu vào – hóa đơn chi phí', k: 'vat_vao_chi_phi', dau: '−', ct: 'vat_vao_chi_phi', trung: true },
-  { nhan: 'VAT PHẢI NỘP', goiY: 'âm = còn được khấu trừ tháng sau', k: 'vat_phai_nop', kieu: 'tong', trung: true },
+  { nhan: 'VAT của tháng', goiY: 'âm = được khấu trừ, chuyển sang tháng sau', k: 'vat_phai_nop', kieu: 'tong', trung: true },
+  // 043: phần còn được khấu trừ của các tháng trước trừ vào tháng này; cột lũy kế / cùng kỳ không cộng dòng này (là số dư, không phải số phát sinh)
+  { nhan: 'Khấu trừ chuyển từ tháng trước', k: 'vat_khau_tru_ky_truoc', dau: '−', trung: true, khongCong: true },
+  { nhan: 'VAT PHẢI NỘP', goiY: 'sau khi trừ khấu trừ chuyển kỳ, không âm', k: 'vat_nop_sau_khau_tru', kieu: 'tong', trung: true },
   { muc: 'CHỈ SỐ' },
   { nhan: 'Xe sửa chữa', goiY: 'tính ở tháng duyệt giá đầu tiên', k: 'so_xe', kieu: 'dem', ct: 'so_xe' },
   { nhan: 'Lượt dịch vụ nhanh', k: 'so_luot_dvn', kieu: 'dem', ct: 'doanh_thu_dvn' },
-  { nhan: 'Doanh thu bình quân một xe sửa chữa', tinh: 'binh_quan_xe', kieu: 'chi_so' },
+  // 043: tổng giá duyệt (gồm VAT) của chính các xe tính trong tháng / số xe (trước đây lấy doanh thu của tháng chia số xe mới – lệch khi xe cũ có phát sinh)
+  { nhan: 'Giá trị bình quân một xe sửa chữa', goiY: 'giá duyệt gồm VAT', tinh: 'binh_quan_xe', kieu: 'chi_so' },
   { nhan: 'Chi phí hoạt động / doanh thu', tu: 'tong_chi_phi', kieu: 'ty_le', xau: true },
 ];
 // Các cột số được cộng khi tính lũy kế / cùng kỳ
-const KHOA_SO = [...new Set([...DONG.flatMap((r) => [r.k, r.tu]).filter(Boolean), 'doanh_thu', 'vat_ra', 'so_xe', 'doanh_thu_bh', 'doanh_thu_khach', 'giam_gia', 'lai_truoc_thue_song'])];
-export const congThang = (dsThang) => Object.fromEntries(KHOA_SO.map((k) => [k, dsThang.reduce((t, d) => t + so(d[k]), 0)]));
+const KHOA_SO = [...new Set([...DONG.flatMap((r) => [r.k, r.tu]).filter(Boolean), 'doanh_thu', 'vat_ra', 'so_xe', 'doanh_thu_bh', 'doanh_thu_khach', 'giam_gia', 'lai_truoc_thue_song', 'gia_tri_xe_moi'])];
+const KHONG_CONG = new Set(DONG.filter((r) => r.khongCong).map((r) => r.k));
+export const congThang = (dsThang) => Object.fromEntries(KHOA_SO.map((k) => [k, KHONG_CONG.has(k) ? null : dsThang.reduce((t, d) => t + so(d[k]), 0)]));
 
 const mauSo = (r, d) => (r.mau === 'chua_vat' ? so(d.doanh_thu) - so(d.vat_ra) : so(d.doanh_thu));
 const laTyLe = (r, pt) => r.kieu === 'ty_le' || (pt && !['dem', 'chi_so'].includes(r.kieu));
@@ -108,7 +114,8 @@ const laTyLe = (r, pt) => r.kieu === 'ty_le' || (pt && !['dem', 'chi_so'].includ
 export function giaTri(r, d, pt = false) {
   if (!d || r.muc) return null;
   if (r.kieu === 'ty_le') { const m = mauSo(r, d); return m ? so(d[r.tu]) / Math.abs(m) : null; }
-  if (r.tinh === 'binh_quan_xe') { const x = so(d.so_xe); return x ? (so(d.doanh_thu_bh) + so(d.doanh_thu_khach) + so(d.giam_gia)) / x : null; }
+  if (r.tinh === 'binh_quan_xe') { const x = so(d.so_xe); return x ? so(d.gia_tri_xe_moi) / x : null; }
+  if (r.khongCong && (d[r.k] === null || d[r.k] === undefined)) return null;
   const v = so(d[r.k]);
   if (pt && r.kieu !== 'dem') { const m = so(d.doanh_thu); return m ? v / Math.abs(m) : null; }
   return v;
@@ -156,7 +163,9 @@ export async function veKqkd(ketQua, { veLai, conMoi = () => true }) {
   if (!tatCa.length) { dat(ketQua, h('p', { class: 'trong' }, 'Chưa có số liệu.')); return; }
   const namCua = (d) => String(d.thang).slice(0, 4);
   const cacNam = [...new Set(tatCa.map(namCua))].sort().reverse();
-  let nam = nhoPhien.doc('kqkd_nam') || homNay().slice(0, 4);
+  // 043: mặc định năm của tháng đã qua gần nhất (đầu tháng 1 vẫn xem được năm cũ đang chờ chốt tháng 12)
+  const namMacDinh = namCua([...tatCa].reverse().find((d) => d.trang_thai !== 'dang_mo') || tatCa[tatCa.length - 1]);
+  let nam = nhoPhien.doc('kqkd_nam') || namMacDinh;
   if (!cacNam.includes(nam)) nam = cacNam[0];
   const ds = tatCa.filter((d) => namCua(d) === nam);
   const theoThang = new Map(tatCa.map((d) => [String(d.thang), d]));
@@ -174,15 +183,16 @@ export async function veKqkd(ketQua, { veLai, conMoi = () => true }) {
   const cn = api.toi?.chi_nhanh_id;
   const tuNam = `${nam}-01-01`; const denNam = `${nam}-12-31`;
   const coSoDuChot = (d) => !!(d.da_chot && d._chot?.so_lieu?.so_du);
+  // Số chốt, lịch sử mở lại: mọi năm (mục "Khóa sổ" hiện cả tháng năm trước còn chờ chốt)
   const [chot, lichSu, dsTo, dsMuc] = await Promise.all([
-    api.doc('chot_thang', (q) => q.eq('chi_nhanh_id', cn).gte('thang', tuNam).lte('thang', denNam)).catch(() => []),
-    api.doc('chot_thang_lich_su', (q) => q.eq('chi_nhanh_id', cn).gte('thang', tuNam).lte('thang', denNam).order('mo_lai_luc', { ascending: false })).catch(() => []),
+    api.doc('chot_thang', (q) => q.eq('chi_nhanh_id', cn)).catch(() => []),
+    api.doc('chot_thang_lich_su', (q) => q.eq('chi_nhanh_id', cn).order('mo_lai_luc', { ascending: false })).catch(() => []),
     api.laiGopTheoTo(tuNam, denNam).catch(() => null),
     api.chiPhiTheoMuc(thangLui(tuNam, 1), denNam).catch(() => null),
   ]);
   if (!conMoi()) return;
   const dsChot = new Map(chot.map((c) => [String(c.thang), c]));
-  for (const d of ds) d._chot = dsChot.get(String(d.thang)) || null;
+  for (const d of tatCa) d._chot = dsChot.get(String(d.thang)) || null;
   // Số dư: tháng chốt có số lưu lúc chốt; còn lại tính tại ngày cuối tháng (tối đa 3 tháng gần nhất, đỡ nặng máy chủ)
   const canTinh = ds.filter((d) => !coSoDuChot(d)).slice(-3);
   const soDuSong = await Promise.all(canTinh.map((d) => api.soDuCuoiThang(d.thang).catch(() => null)));
@@ -223,7 +233,8 @@ export async function veKqkd(ketQua, { veLai, conMoi = () => true }) {
     oKpi(`Doanh thu thuần tháng ${nhanThang(ky.thang)}${tamTinh}`, tien(ky.doanh_thu) || '0', soSanhKy('doanh_thu')),
     oKpi(`Lãi gộp tháng ${nhanThang(ky.thang)}`, tien(ky.lai_gop) || '0', [`Tỷ suất ${phanTram(ts('lai_gop', ky))} `, ...soSanhKy('lai_gop')], { mau: so(ky.lai_gop) < 0 ? 'chu-loi' : null }),
     oKpi(`Lãi trước thuế tháng ${nhanThang(ky.thang)}`, tien(ky.lai_truoc_thue) || '0', [`Tỷ suất ${phanTram(ts('lai_truoc_thue', ky))} `, ...soSanhKy('lai_truoc_thue')], { mau: mauLai(ky.lai_truoc_thue) }),
-    oKpi(`Lãi không gồm VAT tháng ${nhanThang(ky.thang)}`, tien(ky.lai_sau_vat) || '0', `VAT phải nộp ước ${tien(ky.vat_phai_nop) || '0'} đ`, { mau: mauLai(ky.lai_sau_vat) }),
+    oKpi(`Lãi không gồm VAT tháng ${nhanThang(ky.thang)}`, tien(ky.lai_sau_vat) || '0',
+      `VAT phải nộp ước ${tien(ky.vat_nop_sau_khau_tru ?? Math.max(0, so(ky.vat_phai_nop))) || '0'} đ`, { mau: mauLai(ky.lai_sau_vat) }),
     oKpi(`Lãi trước thuế lũy kế năm ${nam}`, tien(luyKe.lai_truoc_thue) || '0',
       [`Doanh thu ${tien(luyKe.doanh_thu) || '0'} đ · ${ds.length} tháng`, cungKy ? h('span', null, ' · ', oChenh(luyKe.lai_truoc_thue, cungKy.lai_truoc_thue), ' so cùng kỳ') : null],
       { mau: mauLai(luyKe.lai_truoc_thue) }),
@@ -269,15 +280,22 @@ export async function veKqkd(ketQua, { veLai, conMoi = () => true }) {
   veBang();
 
   // ----- Tiền – công nợ – tồn kho cuối tháng -----
+  // 043: thêm tiền BH đã về chưa chia (trừ khỏi phải thu BH – trước đây đếm hai lần), dịch vụ nhanh chưa thu, nội bộ ròng,
+  //      chi phí đã tính vào lãi lỗ mà chưa chi (lương, hoa hồng GDV, chi phí của tháng chi sau). Số chốt trước 043 không có các dòng này ("—").
   const SO_DU = [
     { nhan: 'Tiền (quỹ tiền mặt, ngân hàng)', k: 'so_du_quy', dau: 1 },
     { nhan: 'Tồn kho (giá vốn)', k: 'ton_kho', dau: 1 },
     { nhan: 'Phải thu khách', k: 'phai_thu_khach', dau: 1 },
-    { nhan: 'Phải thu bảo hiểm', k: 'phai_thu_bh', dau: 1 },
+    { nhan: 'Phải thu bảo hiểm (theo xe)', k: 'phai_thu_bh', dau: 1 },
+    { nhan: 'Tiền bảo hiểm đã về chưa chia vào xe', goiY: 'trừ khỏi phải thu bảo hiểm', k: 'bh_chua_chia', dau: -1, moi: true },
+    { nhan: 'Dịch vụ nhanh chưa thu', k: 'phai_thu_dvn', dau: 1, moi: true },
+    { nhan: 'Nội bộ, cá nhân (ròng)', goiY: 'dương = họ nợ công ty', k: 'no_noi_bo_rong', dau: 1, moi: true },
     { nhan: 'Khách đã trả trước, trả dư', goiY: 'cọc, tiền dư phải trả lại', k: 'khach_tra_du', dau: -1 },
     { nhan: 'Phải trả nhà cung cấp', k: 'phai_tra_ncc', dau: -1 },
+    { nhan: 'Chi phí đã tính, chưa chi', goiY: 'lương chưa trả, hoa hồng GDV chưa chi, chi phí của tháng chi sau', k: 'chi_phi_phai_tra', dau: -1, moi: true },
   ];
   const vonLuuDong = (x) => (x ? SO_DU.reduce((t, r) => t + r.dau * so(x[r.k]), 0) : null);
+  const coKhoa = (x, r) => !r.moi || (x && x[r.k] !== undefined && x[r.k] !== null);
   // Chỉ các tháng có số dư (tháng chốt có số lưu, hoặc 3 tháng chưa chốt gần nhất)
   const dsSoDu = ds.filter((d) => soDu.has(String(d.thang)));
   const coSoDu = dsSoDu.length > 0;
@@ -288,7 +306,7 @@ export async function veKqkd(ketQua, { veLai, conMoi = () => true }) {
     return { dau: ['Khoản mục', ...cot.map((c) => h('span', { class: 'cot-thang' }, nhanThang(c.d.thang), h('br'),
       h('small', { class: 'mo' }, coSoDuChot(c.d) ? 'số lúc chốt' : `đến ${ngay(c.x.ngay)}`)))],
     dong: [
-      ...SO_DU.map((r) => ({ loai: 'dong', nhan: r.nhan, goiY: r.goiY, o: cot.map((c) => o(so(c.x[r.k]), r.dau)) })),
+      ...SO_DU.map((r) => ({ loai: 'dong', nhan: r.nhan, goiY: r.goiY, o: cot.map((c) => (coKhoa(c.x, r) ? o(so(c.x[r.k]), r.dau) : h('span', { class: 'mo', title: 'Số chốt trước bản cập nhật 043 chưa có dòng này' }, '—'))) })),
       { loai: 'ket_qua', nhan: 'VỐN LƯU ĐỘNG RÒNG', o: cot.map((c) => { const v = vonLuuDong(c.x); return h('span', { class: v < 0 ? 'chu-loi' : null }, v ? soTien(v, donVi) : '–'); }) },
       { loai: 'dong', nhan: 'Tăng / giảm vốn lưu động trong tháng', o: cot.map((c) => oKy(c.truoc ? vonLuuDong(c.x) - vonLuuDong(c.truoc) : null)) },
       { loai: 'dong', nhan: 'Lãi trước thuế trong tháng (để so)', o: cot.map((c) => oKy(so(c.d.lai_truoc_thue))) },
@@ -296,8 +314,9 @@ export async function veKqkd(ketQua, { veLai, conMoi = () => true }) {
   };
   const khoiSoDu = h('section', { class: 'the' },
     h('h2', null, 'Tiền – công nợ – tồn kho cuối tháng'),
-    h('p', { class: 'goi-y' }, 'Số tại ngày cuối tháng (tháng đang mở: đến hôm nay); tháng đã chốt lấy số lưu lúc chốt. Vốn lưu động ròng = tiền + tồn kho + phải thu − tiền khách trả trước − nợ nhà cung cấp. '
-      + 'So "tăng / giảm vốn lưu động" với lãi của tháng: lãi đã thành tiền, nằm ở công nợ, tồn kho, hay đã rút ra (trả nợ nội bộ, mua tài sản…).'),
+    h('p', { class: 'goi-y' }, 'Số tại ngày cuối tháng (tháng đang mở: đến hôm nay); tháng đã chốt lấy số lưu lúc chốt. Vốn lưu động ròng = tiền + tồn kho + phải thu (khách, bảo hiểm trừ phần tiền đã về chưa chia, dịch vụ nhanh) '
+      + '± nội bộ, cá nhân − tiền khách trả trước − nợ nhà cung cấp − chi phí đã tính vào lãi lỗ mà chưa chi (lương, hoa hồng GDV, hóa đơn của tháng chi sau). '
+      + 'So "tăng / giảm vốn lưu động" với lãi của tháng: lãi đã thành tiền, nằm ở công nợ, tồn kho, hay đã rút ra (mua tài sản…).'),
     coSoDu ? (() => { const x = dongSoDu(); return bangBC(x.dau, x.dong, { lop: 'bc-so-du' }); })() : h('p', { class: 'trong' }, 'Chưa tính được số dư.'));
 
   // ----- Phân tích: lãi gộp theo tổ, chi phí theo mục -----
@@ -382,7 +401,8 @@ export async function veKqkd(ketQua, { veLai, conMoi = () => true }) {
     h('div', { class: 'the-dau' }, h('h2', null, 'Phân tích'), chonKyPT), khungPT);
 
   // ----- Khóa sổ từng tháng: chốt lần lượt, mở lại từ tháng sau cùng, lưu lịch sử -----
-  const coSoLieu = (x) => so(x.doanh_thu) || so(x.tong_gia_von) || so(x.tong_chi_phi) || so(x.thu_khac) || x.luong_da_nhap;
+  // Khớp máy chủ (chốt lần lượt): tháng có số liệu = có doanh thu, giá vốn, chi phí, thu khác, VAT nhập hàng hoặc lương
+  const coSoLieu = (x) => so(x.doanh_thu) || so(x.tong_gia_von) || so(x.tong_chi_phi) || so(x.thu_khac) || so(x.vat_vao_hang) || x.luong_da_nhap;
   const phaiChotTruoc = (d) => tatCa.find((x) => x.thang < d.thang && x.trang_thai === 'cho_chot' && coSoLieu(x)) || null;
   const thangChotCuoi = [...tatCa].reverse().find((x) => x.da_chot) || null;
   const dongThang = (d) => {
@@ -393,16 +413,17 @@ export async function veKqkd(ketQua, { veLai, conMoi = () => true }) {
     const nutLap = (ten) => (api.laCoDong() ? h('span', null, ten) : h('a', { class: 'nut nho', href: `#/de-nghi?lap=1&muc=${encodeURIComponent(ten)}&ky=${String(d.thang).slice(0, 10)}` }, `+ ${ten}`));
     return h('div', { class: `dong-thang ${d.trang_thai}` },
       h('div', { class: 'dong-thang-dau' }, h('b', null, `Tháng ${nhanThang(d.thang)}`), h('small', null, ` kỳ 01/${nhanThang(d.thang)} – ${ngay(d.ngay_cuoi)}`), theTT(d), theLech(d),
-        d.da_chot ? h('small', null, ` · chốt lúc ${ngayGio(d.chot_luc)}${nguoiChot ? ` · ${nguoiChot}` : ''}`) : null),
+        d.da_chot ? h('small', null, ` · chốt lúc ${ngayGio(d.chot_luc)}${nguoiChot ? ` · ${nguoiChot}` : ''}`) : null,
+        d.trang_thai === 'da_khoa' ? h('small', null, ' · khóa sổ theo tháng chốt sau, không cần chốt riêng') : null),
       d.lech_chot ? h('p', { class: 'thong-bao canh-bao' }, lyDoLech(d)) : null,
-      d.da_chot ? null : h('ul', { class: 'checklist' },
+      d.da_chot || d.trang_thai === 'da_khoa' ? null : h('ul', { class: 'checklist' },
         h('li', { class: d.luong_da_nhap ? 'xong' : 'thieu' }, d.luong_da_nhap ? `✓ Lương tháng: ${tien(d.luong)} đ` : '✗ Chưa nhập bảng lương tháng',
           kt ? h('button', { class: 'nut nho', type: 'button', onclick: () => moLuong(d) }, d.luong_da_nhap ? 'Sửa lương' : 'Nhập lương') : null),
         h('li', { class: thieu.length ? 'thieu' : 'xong' }, thieu.length ? ['✗ Chi phí định kỳ chưa có: ', thieu.map((t) => nutLap(t))] : '✓ Chi phí định kỳ (điện, nước, mặt bằng…) đã có đủ'),
         h('li', { class: so(d.de_nghi_cho_chi) ? 'thieu' : 'xong' }, so(d.de_nghi_cho_chi) ? ['✗ ', h('a', { href: '#/de-nghi' }, `${d.de_nghi_cho_chi} đề nghị chi của kỳ chưa chi`)] : '✓ Không còn đề nghị chi chờ của kỳ')),
       h('div', { class: 'hang-nut' },
         gd && d.trang_thai === 'cho_chot' && !truoc ? h('button', { class: 'nut nho chinh', type: 'button', 'data-chot': String(d.thang), onclick: async () => {
-          if (!(await xacNhan(`Chốt tháng ${nhanThang(d.thang)} (kỳ 01/${nhanThang(d.thang)} – ${ngay(d.ngay_cuoi)})? Sau khi chốt không ghi hay sửa được phiếu, hồ sơ, chi phí của tháng này; số liệu và tiền – công nợ – tồn kho cuối tháng được lưu lại, tháng này vào Báo cáo cổ đông.`, 'Chốt tháng'))) return;
+          if (!(await xacNhan(`Chốt tháng ${nhanThang(d.thang)} (kỳ 01/${nhanThang(d.thang)} – ${ngay(d.ngay_cuoi)})? Sau khi chốt không ghi hay sửa được phiếu, hồ sơ, chi phí của tháng này và các tháng trước nó; số liệu và tiền – công nợ – tồn kho cuối tháng được lưu lại, tháng này vào Báo cáo cổ đông.`, 'Chốt tháng'))) return;
           await chay((boQua) => api.chotThang(d.thang, boQua), { thanhCong: `Đã chốt tháng ${nhanThang(d.thang)}.` }).then(veLai, () => {});
         } }, 'Chốt tháng') : null,
         gd && truoc ? h('small', { class: 'mo' }, `Chốt tháng ${nhanThang(truoc.thang)} trước (chốt lần lượt từng tháng).`) : null,
@@ -415,8 +436,9 @@ export async function veKqkd(ketQua, { veLai, conMoi = () => true }) {
   const khoiKhoaSo = h('section', { class: 'the' },
     h('h2', null, 'Khóa sổ tháng'),
     h('p', { class: 'goi-y' }, 'Kỳ báo cáo khóa ở ngày cuối tháng; các khoản nhập sau (tiền điện, lương…) chọn đúng tháng là vẫn tính vào tháng đó. Chốt lần lượt từ tháng cũ đến tháng mới; '
-      + 'mở lại thì mở từ tháng chốt sau cùng, lý do và số cũ được lưu lại. Chốt xong không ghi, sửa gì vào tháng đó nữa.'),
-    h('div', { class: 'ds-thang-kqkd' }, [...ds].reverse().map(dongThang)));
+      + 'chốt một tháng thì mọi tháng trước nó cũng khóa sổ. Mở lại thì mở từ tháng chốt sau cùng, lý do và số cũ được lưu lại. Chốt xong không ghi, sửa gì vào tháng đó nữa.'),
+    // 043: các tháng của năm đang xem + tháng còn chờ chốt / đang mở của năm khác (vd đầu năm mới vẫn thấy tháng 12 chờ chốt)
+    h('div', { class: 'ds-thang-kqkd' }, [...tatCa].filter((d) => namCua(d) === nam || ['cho_chot', 'dang_mo'].includes(d.trang_thai)).reverse().map(dongThang)));
 
   if (!conMoi()) return;
   dat(ketQua,
@@ -426,8 +448,8 @@ export async function veKqkd(ketQua, { veLai, conMoi = () => true }) {
     h('section', { class: 'the bc-the' },
       h('div', { class: 'the-dau' }, h('h2', null, `Kết quả kinh doanh năm ${nam}`)),
       h('p', { class: 'goi-y' }, 'Đơn vị: đồng. Số gồm VAT như sổ của gara: doanh thu theo ngày duyệt giá (xe bảo hiểm) hoặc ngày khách đồng ý báo giá (khách lẻ); vật tư theo tháng xuất kho; '
-        + 'chi phí theo "chi phí của tháng"; lương theo bảng lương tháng; hoa hồng GDV theo tháng duyệt giá đầu của xe. Phần V bỏ VAT để ra lãi gần với sổ thuế; phần VI là VAT phải nộp ước tính '
-        + '(hóa đơn nhập hàng được khấu trừ ngay tháng nhập). Tháng đã chốt hiện số lúc chốt. Bấm vào số của một tháng để xem chi tiết.'
+        + 'chi phí theo "chi phí của tháng"; lương theo bảng lương tháng; hoa hồng GDV theo tháng duyệt giá đầu của xe (tháng đó đã chốt sổ lúc nhập thì theo tháng nhập). Phần V bỏ VAT để ra lãi gần với sổ thuế; phần VI là VAT phải nộp ước tính '
+        + '(hóa đơn nhập hàng được khấu trừ ngay tháng nhập; tháng được khấu trừ nhiều hơn thì chuyển sang tháng sau). Tháng đã chốt hiện số lúc chốt. Bấm vào số của một tháng để xem chi tiết.'
         + (dangMo && cungKy ? ` Tháng ${nhanThang(dangMo.thang)} chưa hết tháng nên lũy kế và "± so cùng kỳ" còn thấp hơn thực tế.` : '')),
       khungBang),
     khoiSoDu,
@@ -484,7 +506,7 @@ export async function veKqkd(ketQua, { veLai, conMoi = () => true }) {
         h('p', { class: 'bb-phu' }, `Từ tháng ${nhanThang(ds[0].thang)} đến tháng ${nhanThang(ds[ds.length - 1].thang)} · Đơn vị: ${TEN_DON_VI[donVi]}${pt ? ' (theo % doanh thu)' : ''} · Số gồm VAT; tháng đã chốt lấy số lúc chốt`),
         bangBC(bc.dau, bc.dong, { lop: 'bc-kqkd' }),
         sd ? [h('h4', { class: 'bc-in-muc' }, 'TIỀN – CÔNG NỢ – TỒN KHO CUỐI THÁNG'), bangBC(sd.dau, sd.dong, { lop: 'bc-so-du' })] : null,
-        h('p', { class: 'goi-y' }, 'Phần V bỏ VAT khỏi lãi (ước tính); phần VI là VAT phải nộp ước tính của tháng. Tháng "Đang mở" là số tạm tính đến ngày in.'),
+        h('p', { class: 'goi-y' }, 'Phần V bỏ VAT khỏi lãi (ước tính); phần VI là VAT phải nộp ước tính của tháng, đã trừ phần khấu trừ chuyển từ tháng trước. Tháng "Đang mở" là số tạm tính đến ngày in.'),
         h('div', { class: 'bb-ky' }, ['Người lập', 'Kế toán', 'Giám đốc'].map((x) => h('div', null, h('b', null, x), h('small', null, '(ký, ghi rõ họ tên)')))),
         h('p', { class: 'goi-y bc-in-luc' }, `In lúc ${ngayGio(new Date())} · ${tenCongTy()}`));
     };
@@ -526,7 +548,10 @@ export async function veKqkd(ketQua, { veLai, conMoi = () => true }) {
       const dam = r.kieu === 'tong' || r.kieu === 'ket_qua';
       let ss;
       if (cungKy) {
-        const a = giaTri(r, luyKe); const b = giaTri(r, cungKy);
+        // 043: so trên số có dấu như ô Excel (khoản trừ là số âm) – chênh lệch cùng chiều với số người xem thấy
+        const dau = r.kieu !== 'ty_le' && r.dau === '−' ? -1 : 1;
+        const a0 = giaTri(r, luyKe); const b0 = giaTri(r, cungKy);
+        const a = a0 === null ? null : dau * a0; const b = b0 === null ? null : dau * b0;
         // tỷ suất: chênh lệch điểm %; số tiền: % khi cả hai không âm và nền dương, không thì chênh lệch tuyệt đối (đồng)
         ss = a === null || b === null ? null : r.kieu === 'ty_le' ? { v: a - b, kieu: 'phan_tram', nghieng: true }
           : b > 0 && a >= 0 ? { v: (a - b) / b, kieu: 'phan_tram' } : { v: Math.round(a - b), kieu: 'tien' };
@@ -575,7 +600,7 @@ export async function veKqkd(ketQua, { veLai, conMoi = () => true }) {
       const cot = [{ nhan: 'Khoản mục', rong: 44, kieu: 'chu' }, ...dsSoDu.map((d) => ({ nhan: nhanThang(d.thang), rong: 15, kieu: 'tien' }))];
       const x = (d) => soDu.get(String(d.thang));
       const dong = [
-        ...SO_DU.map((r) => [r.goiY ? `${r.nhan} (${r.goiY})` : r.nhan, ...dsSoDu.map((d) => r.dau * so(x(d)[r.k]))]),
+        ...SO_DU.map((r) => [r.goiY ? `${r.nhan} (${r.goiY})` : r.nhan, ...dsSoDu.map((d) => (coKhoa(x(d), r) ? r.dau * so(x(d)[r.k]) : null))]),
         [{ v: 'VỐN LƯU ĐỘNG RÒNG', dam: true, nen: true }, ...dsSoDu.map((d) => ({ v: vonLuuDong(x(d)), dam: true, nen: true }))],
         ['Lãi trước thuế trong tháng (để so)', ...dsSoDu.map((d) => so(d.lai_truoc_thue))],
       ];
@@ -589,17 +614,19 @@ export async function veKqkd(ketQua, { veLai, conMoi = () => true }) {
 }
 
 const GIAI_THICH = [
-  ['Doanh thu', 'Giá đã duyệt gồm VAT, ghi vào ngày duyệt giá (xe bảo hiểm) hoặc ngày khách đồng ý báo giá (khách lẻ); dịch vụ nhanh theo ngày làm; giảm giá theo ngày duyệt giảm giá. Không gồm xe bảo hành, hồ sơ chuyển từ Excel.'],
+  ['Doanh thu', 'Giá đã duyệt gồm VAT, ghi vào ngày duyệt giá (xe bảo hiểm) hoặc ngày khách đồng ý báo giá (khách lẻ); dịch vụ nhanh theo ngày làm; giảm giá theo ngày duyệt từng lần giảm (lần giảm thêm sau ghi vào ngày đó, lần trước giữ ở tháng cũ). Không gồm xe bảo hành, hồ sơ chuyển từ Excel.'],
   ['Vật tư xuất cho xe, dùng chung', 'Giá vốn (gồm VAT) các phiếu xuất kho trong tháng, theo lô nhập trước xuất trước.'],
-  ['Hao hụt kiểm kê', 'Giá vốn hàng kiểm kê thiếu trừ giá trị hàng kiểm kê thừa trong tháng (âm = thừa nhiều hơn thiếu).'],
-  ['Chi phí nhóm giá vốn / vận hành / cố định', 'Phiếu chi có tính chất "Chi phí", theo nhóm của mục chi; tính vào tháng ghi ở "Chi phí của tháng" (không có thì theo ngày chi).'],
+  ['Hao hụt kiểm kê', 'Giá vốn hàng kiểm kê thiếu trừ giá trị hàng kiểm kê thừa trong tháng (âm = thừa nhiều hơn thiếu); chênh lệch tính theo tồn sổ sách lúc nhập số đếm.'],
+  ['Chi phí nhóm giá vốn / vận hành / cố định', 'Phiếu chi có tính chất "Chi phí", theo nhóm của mục chi; tính vào tháng ghi ở "Chi phí của tháng" (không có thì theo ngày chi). Tháng đó đã chốt sổ lúc chi thì tính vào tháng đang mở.'],
   ['Lương', 'Tổng lương nhập ở bảng lương tháng (phiếu chi trả lương chỉ là chi tiền, không tính hai lần).'],
-  ['Hoa hồng GDV', 'Hoa hồng ghi ở hồ sơ, tính vào tháng duyệt giá đầu tiên của xe.'],
-  ['Thu nhập khác', 'Phiếu thu của các mục có tích "Vào lãi lỗ" (trạm sạc, thu khác). Tiền bo của thợ, phí bảo hiểm thu hộ không tính.'],
+  ['Hoa hồng GDV', 'Hoa hồng ghi ở hồ sơ, tính vào tháng duyệt giá đầu tiên của xe; tháng đó đã chốt sổ lúc nhập hoa hồng thì tính vào tháng nhập.'],
+  ['Thu nhập khác', 'Phiếu thu của các mục tính chất "Thu khác" có tích "Vào lãi lỗ" (trạm sạc, bán phế liệu…). Tiền bo của thợ, phí bảo hiểm thu hộ, tiền khách / bảo hiểm (đã ở doanh thu) không tính.'],
   ['Lãi trước thuế (số gồm VAT)', 'Lãi gộp − tổng chi phí hoạt động + thu nhập khác.'],
   ['Lãi không gồm VAT', 'Lãi trước thuế − VAT đầu ra + VAT nằm trong giá vốn vật tư đã xuất + VAT trong chi phí. Gần với lãi trên sổ thuế (trước thuế TNDN); là số ước tính.'],
-  ['VAT phải nộp', 'VAT đầu ra − VAT hóa đơn nhập hàng trong tháng − VAT hóa đơn chi phí. Âm = còn được khấu trừ sang tháng sau. Số ước tính, kế toán thuế đối chiếu khi khai.'],
+  ['VAT của tháng', 'VAT đầu ra − VAT hóa đơn nhập hàng trong tháng − VAT hóa đơn chi phí. Âm = được khấu trừ, chuyển sang các tháng sau.'],
+  ['VAT phải nộp', 'VAT của tháng − khấu trừ còn chuyển từ các tháng trước, không âm (phần khấu trừ chưa dùng hết tiếp tục chuyển sang tháng sau). Số ước tính, kế toán thuế đối chiếu khi khai.'],
   ['Xe sửa chữa', 'Số hồ sơ có lần duyệt giá đầu tiên trong tháng (cộng lũy kế không bị trùng).'],
-  ['Tháng đã chốt', 'Hiện số lưu lúc chốt. Nếu số hiện tại khác, báo "Lệch": mở lại tháng, kiểm tra rồi chốt lại. Chốt lần lượt từng tháng; mở lại từ tháng chốt sau cùng.'],
-  ['Vốn lưu động ròng', 'Tiền + tồn kho + phải thu khách, bảo hiểm − tiền khách trả trước / trả dư − nợ nhà cung cấp, tại ngày cuối tháng.'],
+  ['Giá trị bình quân một xe', 'Tổng giá đã duyệt (gồm VAT) của chính các xe tính trong tháng / số xe đó.'],
+  ['Tháng đã chốt', 'Hiện số lưu lúc chốt. Nếu số hiện tại khác, báo "Lệch": mở lại tháng, kiểm tra rồi chốt lại. Chốt lần lượt từng tháng; chốt một tháng thì các tháng trước nó cũng khóa sổ ("Đã khóa" với tháng không có số liệu); mở lại từ tháng chốt sau cùng.'],
+  ['Vốn lưu động ròng', 'Tiền + tồn kho + phải thu khách, bảo hiểm (trừ tiền bảo hiểm đã về chưa chia vào xe), dịch vụ nhanh ± nội bộ, cá nhân − tiền khách trả trước / trả dư − nợ nhà cung cấp − chi phí đã tính vào lãi lỗ mà chưa chi (lương, hoa hồng GDV, hóa đơn của tháng chi sau), tại ngày cuối tháng.'],
 ];

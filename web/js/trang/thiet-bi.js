@@ -425,7 +425,9 @@ export default async function veThietBi(el, nut = null) {
       truong('Người làm', oChu('nguoi_lam', ''), 'Thợ trong tổ hoặc nơi sửa ngoài', { co: 'lon' }),
       truong('Chi phí', oTien('chi_phi', null), null, { co: 'vua' }),
       h('div', { class: 'truong' }, oCheck('thue_ngoai', false, 'Thuê ngoài (lập đề nghị chi)')),
-      hong ? h('div', { class: 'truong' }, oCheck('xong', true, 'Đã dùng lại được')) : null);
+      // 043: máy về "Tốt"; sự cố hỏng vẫn chờ giám đốc / quản lý chung xử lý (có thể ghi người chịu, bồi thường)
+      hong ? h('div', { class: 'truong rong' }, oCheck('xong', true, 'Đã dùng lại được'),
+        h('small', { class: 'goi-y' }, 'Máy trở về "Tốt". Sự cố hỏng vẫn chờ giám đốc / quản lý chung xử lý ("Đã sửa xong", ghi người chịu nếu có).')) : null);
     moModal(`${l ? 'Đã làm' : 'Ghi bảo dưỡng / sửa chữa'} – ${t.ten}`, form, {
       rong: true, nhanNut: 'Lưu', nutChinh: async () => {
         const d = docForm(form);

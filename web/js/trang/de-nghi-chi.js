@@ -89,19 +89,24 @@ export default async function trangDeNghi(el) {
     } });
   }
 
-  // Các kỳ chi phí chọn được: tháng này, 2 tháng trước
-  function cacKy() {
+  // Các kỳ chi phí chọn được (khớp máy chủ): tháng này và 3 tháng trước; tháng đã chốt sổ (và các tháng trước nó) không chọn được
+  function cacKy(daChotDen = null) {
     const d = new Date(); const ds = [];
-    for (let i = 0; i < 3; i++) {
+    const TEN = ['Tháng này', 'Tháng trước', 'Hai tháng trước', 'Ba tháng trước'];
+    for (let i = 0; i < 4; i++) {
       const t = new Date(d.getFullYear(), d.getMonth() - i, 1);
       const v = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-01`;
-      ds.push({ value: v, label: `${i === 0 ? 'Tháng này' : i === 1 ? 'Tháng trước' : 'Hai tháng trước'} (${String(t.getMonth() + 1).padStart(2, '0')}/${t.getFullYear()})` });
+      const khoa = !!daChotDen && v <= daChotDen;
+      ds.push({ value: v, khoa, label: `${TEN[i]} (${String(t.getMonth() + 1).padStart(2, '0')}/${t.getFullYear()})${khoa ? ' – đã chốt sổ' : ''}` });
     }
     return ds;
   }
 
   async function moLap({ mucTen = null, kyMacDinh = null, soTien = null, noiDung = '', nguoiNhan = '', hoSoId = null } = {}) {
     const mucChi = api.dm.muc_thu_chi.filter((m) => m.loai === 'chi' && m.hoat_dong);
+    // Tháng chốt sổ gần nhất của chi nhánh (giám đốc / quản lý chung / kế toán đọc được; vai khác máy chủ tự chặn)
+    const daChotDen = (await api.doc('chot_thang', (q) => q.eq('chi_nhanh_id', api.toi.chi_nhanh_id).order('thang', { ascending: false }).limit(1), 'thang')
+      .catch(() => []))[0]?.thang || null;
     const NHOM = { gia_von: 'Giá vốn', co_dinh: 'Chi phí cố định', van_hanh: 'Chi phí vận hành' };
     const chonMuc = h('select', { name: 'muc_id' }, h('option', { value: '' }, '— Chọn —'),
       [...new Set(mucChi.map((m) => m.nhom || 'khac'))].map((n) => h('optgroup', { label: NHOM[n] || 'Không tính vào lãi lỗ' },
@@ -121,14 +126,25 @@ export default async function trangDeNghi(el) {
         const traCoc = m.tinh_chat === 'tra_coc';
         const ds = traCoc && hoSoDu.length ? hoSoDu : hoSo;
         const chonXe = oChon('ho_so_id', ds.map((x) => ({ value: x.id, label: `${x.bien_so_hien_thi || x.ma} – ${x.ten_khach}${x.gdv ? ` – GDV ${x.gdv}` : ''}`
-          + (Number(x.con_no_khach) < 0 ? ` – khách dư ${tien(-x.con_no_khach)} đ${x.trang_thai === 'huy' ? ' (hồ sơ đã hủy)' : ''}` : '') })), hoSoId);
-        // Trả lại cọc / tiền dư: chọn xe thì điền sẵn số tiền khách dư
-        if (traCoc) chonXe.addEventListener('change', () => {
-          const x = hoSo.find((r) => String(r.id) === chonXe.value);
-          const oSo = form.querySelector('[name=so_tien]');
-          if (x && Number(x.con_no_khach) < 0 && !docTien(oSo.value)) { oSo.value = tien(-x.con_no_khach); }
-        });
-        vungRieng.append(truong('Xe', chonXe, traCoc ? 'Danh sách xe khách đang dư tiền (trả dư, đặt cọc, hồ sơ đã hủy)' : null, { batBuoc: true }));
+          + (Number(x.con_no_khach) < 0 ? ` – ${x.trang_thai === 'huy' ? 'đang giữ' : 'khách dư'} ${tien(-x.con_no_khach)} đ${x.trang_thai === 'huy' ? ' (hồ sơ đã hủy)' : ''}` : '') })), hoSoId);
+        const goiYXe = h('span', null, traCoc ? 'Danh sách xe đang giữ tiền của khách (trả dư, đặt cọc, hồ sơ đã hủy)' : '');
+        // 043: trả lại cọc / tiền dư – hỏi máy chủ số đang giữ (trừ đề nghị trả lại đang chờ) rồi điền sẵn số tối đa
+        if (traCoc) {
+          const capNhatCoc = async () => {
+            const id = chonXe.value;
+            if (!id) return;
+            const t = await api.soTienTraLaiKhach(Number(id)).catch(() => null);
+            if (!t || chonXe.value !== id) return;
+            dat(goiYXe, `Đang giữ ${tien(t.dang_giu) || '0'} đ của khách`,
+              Number(t.dang_de_nghi) > 0 ? `, đã có đề nghị trả lại ${tien(t.dang_de_nghi)} đ chờ duyệt / chờ chi` : '',
+              h('b', null, ` → trả lại tối đa ${tien(t.toi_da) || '0'} đ.`));
+            const oSo = form.querySelector('[name=so_tien]');
+            if (oSo && !docTien(oSo.value) && Number(t.toi_da) > 0) { oSo.value = tien(t.toi_da); }
+          };
+          chonXe.addEventListener('change', capNhatCoc);
+          if (hoSoId) setTimeout(capNhatCoc);
+        }
+        vungRieng.append(truong('Xe', chonXe, goiYXe, { batBuoc: true }));
       }
       if (m.tinh_chat === 'tra_hoa_hong') vungRieng.append(truong('Giám định viên', oChon('gdv_id', api.dm.giam_dinh_vien.filter((g) => !g.la_cho_them).map((g) => ({ value: g.id, label: `${g.ten}${g.hang_id ? ` (${api.dm.ten('hang_bao_hiem', g.hang_id)})` : ''}` })), null), null, { batBuoc: true }));
       if (m.tinh_chat === 'tra_ncc') vungRieng.append(truong('Nhà cung cấp', oChon('nha_cung_cap_id', api.dm.nha_cung_cap.filter((x) => x.hoat_dong).map((x) => ({ value: x.id, label: x.ten })), null), null, { batBuoc: true }));
@@ -136,7 +152,13 @@ export default async function trangDeNghi(el) {
       if (m.tinh_chat === 'chi_phi') {
         vungRieng.append(truong('VAT trên hóa đơn (nếu có)', oTien('vat_dau_vao', null), 'Phần VAT đã nằm trong số tiền, dùng để tính VAT phải nộp'));
         // Kỳ chi phí: tiền điện, nước… của tháng trước nhưng chi tháng này thì chọn tháng trước → tính vào lãi lỗ tháng trước
-        const kyChon = oChon('ky_chi_phi', cacKy(), kyMacDinh || cacKy()[0].value, { trong: null, 'aria-label': 'Chi phí của tháng' });
+        const ky = cacKy(daChotDen);
+        const kyMo = ky.filter((k) => !k.khoa);
+        if (kyMacDinh && !ky.some((k) => k.value === kyMacDinh)) toast(`Kỳ chi phí tháng ${kyMacDinh.slice(5, 7)}/${kyMacDinh.slice(0, 4)} quá xa (chỉ chọn được tháng này và 3 tháng trước) – chọn lại kỳ.`, 'loi', 8000);
+        else if (kyMacDinh && ky.find((k) => k.value === kyMacDinh)?.khoa) toast(`Tháng ${kyMacDinh.slice(5, 7)}/${kyMacDinh.slice(0, 4)} đã chốt sổ – khoản này ghi vào tháng đang mở.`, 'loi', 8000);
+        const kyChon = h('select', { name: 'ky_chi_phi', 'aria-label': 'Chi phí của tháng' },
+          ky.map((k) => h('option', { value: k.value, disabled: k.khoa }, k.label)));
+        kyChon.value = kyMo.some((k) => k.value === kyMacDinh) ? kyMacDinh : (kyMo[0] || ky[0]).value;
         vungRieng.append(truong('Chi phí của tháng', kyChon, 'Hóa đơn của tháng trước (điện, nước, mặt bằng…) thì chọn tháng trước để tính đúng kỳ. Tháng đã chốt sổ thì không chọn được.'));
       }
     });
@@ -146,11 +168,16 @@ export default async function trangDeNghi(el) {
       truong('Số tiền', oTien('so_tien', soTien), null, { batBuoc: true }),
       truong('Nội dung', oChu('noi_dung', noiDung || ''), null, { batBuoc: true, rong: true }),
       truong('Người nhận tiền', oChu('nguoi_nhan', nguoiNhan || '')),
-      truong('Ngày', oNgay('ngay', homNay())),
       vungRieng);
+    // 043: ngày đề nghị = hôm nay (máy chủ tự lấy, không chọn được – tránh lùi ngày để lách duyệt); khoản tính cho tháng nào chọn ở "Chi phí của tháng".
+    // Trả NCC vượt số còn nợ / chi hoa hồng chưa ghi ở hồ sơ: máy chủ hỏi lại.
     moModal('Lập đề nghị chi', form, {
       rong: true, nhanNut: 'Gửi đề nghị',
-      nutChinh: async () => { await api.lapDeNghiChi(docForm(form)); toast('Đã gửi đề nghị.'); loc = 'cua_toi'; for (const b of tabs.children) b.setAttribute('aria-selected', String(b.dataset.ma === loc)); await tai(); },
+      nutChinh: async () => {
+        const d = docForm(form);
+        await chay((boQua) => api.lapDeNghiChi({ ...d, bo_qua_canh_bao: boQua }), { thanhCong: 'Đã gửi đề nghị.' });
+        loc = 'cua_toi'; for (const b of tabs.children) b.setAttribute('aria-selected', String(b.dataset.ma === loc)); await tai();
+      },
     });
   }
 
