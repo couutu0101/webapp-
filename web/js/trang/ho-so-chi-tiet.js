@@ -7,6 +7,7 @@ import { khungGiaoViec, giaoSauKhiLuu, dongDangCho, nguoiLamTungBuoc, tenGoi, VA
 import { hanHoSo, chuHan } from '../han-viec.js';
 import * as api from '../api.js';
 import { ghiTiep, tuGhiNgayKhiBam, nhacHetHan, layLichSu, khoiLichSu } from './lich-su-xe.js';
+import { khungChonBaoHiem } from '../chon-bao-hiem.js';
 import { khungAnhNhanXe, anhNhanXeThieu, coFileBaoGiaMoi, coFileDuyetMoi, soAnhKcs, SO_ANH_KCS, NHAN_BUOC_MOI, ANH_NHAN_XE, taiVaoBuoc, oDinhKem } from '../anh-bat-buoc.js';
 
 const TT_DONG = { cho_duyet: 'Chờ duyệt', duyet: 'Đã duyệt', tu_choi: 'Không duyệt', dang_lam: 'Đang làm', xong: 'Xong' };
@@ -226,7 +227,7 @@ function theBaoGia({ hs, hm, ve, tep }) {
     bang(cot, hm, { trong: hs.trang_thai === 'tiep_nhan' ? 'Chưa có báo giá.' : 'Chưa có dòng nào.', gon: true }),
     hs.bat_buoc_anh && (goc || boSung) && anhNhanXeThieu(tep).length
       ? h('p', { class: 'thong-bao canh-bao' }, `Chưa đủ 6 ảnh nhận xe (thiếu ${anhNhanXeThieu(tep).map((a) => a.ten.toLowerCase()).join(', ')}) – chụp ở mục "Ảnh nhận xe" trước khi lập báo giá.`) : null,
-    thieuGdv ? h('p', { class: 'thong-bao canh-bao' }, 'Chưa có giám định viên – bấm "Sửa" ở mục Thông tin xe và khách để ghi GDV trước khi nhập kết quả duyệt giá.') : null,
+    thieuGdv ? h('p', { class: 'goi-y' }, 'Hãng bảo hiểm và giám định viên chọn trong hộp "Nhập kết quả duyệt".') : null,
     khach ? h('p', { class: 'goi-y' }, 'Khách ngoài bảo hiểm không qua bước duyệt giá: lưu báo giá là duyệt luôn, lập lệnh sửa chữa được ngay.')
       : hs.trang_thai === 'bao_gia' ? h('p', { class: 'goi-y' }, 'Xe bảo hiểm: quá 3 ngày chưa duyệt thì báo giám đốc làm việc với bảo hiểm.') : null);
 }
@@ -325,7 +326,7 @@ function moBaoGia(hs, hm, ve, boSung, tep = []) {
     boSung ? h('p', { class: 'thong-bao canh-bao' }, khach ? 'Báo giá bổ sung cho phần phát sinh.' : 'Báo giá bổ sung: phần phát sinh chỉ được làm sau khi duyệt xong.') : null,
     h('div', { class: 'khoi-bao-gia' },
       h('div', { class: 'luoi-o dau-bao-gia' },
-        khach ? chiXem('Nguồn', 'Khách ngoài bảo hiểm – không qua duyệt giá') : chiXem('Hãng bảo hiểm', hs.hang_bh || '—'),
+        khach ? chiXem('Nguồn', 'Khách ngoài bảo hiểm – không qua duyệt giá') : chiXem('Hãng bảo hiểm', hs.hang_bh || 'Chọn khi nhập kết quả duyệt giá'),
         truong('VAT', chonVat)),
       tong),
     danhSach, nut('+ Thêm dòng', themDong),
@@ -362,6 +363,8 @@ function moDuyetGia(hs, choDuyet, ve, hm = [], tep = []) {
   // 047: xe bảo hiểm (hồ sơ bắt ảnh) → kèm ảnh / file duyệt giá của bảo hiểm tải lên sau lần báo giá gần nhất
   let daCoFile = coFileDuyetMoi(hs, tep);
   const canFile = bh && hs.bat_buoc_anh;
+  // 048: xe bảo hiểm – chọn hãng bảo hiểm + giám định viên ngay trong hộp này (bắt buộc), lưu vào hồ sơ trước khi duyệt
+  const chonBH = bh ? khungChonBaoHiem({ hangId: hs.hang_bh_id, gdvId: hs.gdv_id, gdvTenTam: hs.gdv_cho_them ? hs.gdv : '' }) : null;
   const oFileDuyet = oDinhKem('Ảnh / file duyệt giá của bảo hiểm', { batBuoc: canFile && !daCoFile,
     goiY: daCoFile ? 'Đã có file duyệt giá tải lên – chọn thêm nếu cần.' : 'Bản duyệt giá, biên bản giám định, HĐ 3 bên (ảnh hoặc PDF).' });
   // Ngày luôn dd/mm/yyyy (ô date của trình duyệt đổi theo ngôn ngữ máy, dễ nhầm ngày/tháng); không trước ngày nhận xe, không sau hôm nay
@@ -408,6 +411,7 @@ function moDuyetGia(hs, choDuyet, ve, hm = [], tep = []) {
     truong('Khách hàng chi trả', oKhach, h('span', null, 'Khấu trừ, miễn thường, giảm trừ, chế tài của hãng + các dòng khách tự trả', soKhachDong)),
   ) : null;
   const noiDung = h('div', null,
+    chonBH ? chonBH.el : null,
     truong('Ngày duyệt', oNgayDuyet, `Doanh thu tính vào tháng của ngày duyệt (từ ngày nhận xe ${ngay(hs.ngay_vao)} đến hôm nay)`, { batBuoc: true }),
     h('div', { class: 'bang-cuon' }, h('table', { class: 'bang' },
       h('thead', null, h('tr', null, h('th', null, 'Hạng mục (bỏ chọn nếu không duyệt)'), h('th', { class: 'so' }, 'Giá báo'), h('th', null, 'Giá duyệt (chưa VAT)'))),
@@ -422,10 +426,22 @@ function moDuyetGia(hs, choDuyet, ve, hm = [], tep = []) {
     nutChinh: async () => {
       const ngayDuyet = vnSangIso(oNgayDuyet.value);
       if (!ngayDuyet) { toast('Ngày duyệt không đúng (dd/mm/yyyy).', 'loi'); oNgayDuyet.focus(); return false; }
+      if (chonBH) {
+        const loi = chonBH.kiemTra();
+        if (loi) { toast(loi, 'loi'); return false; }
+      }
       const files = bh ? oFileDuyet.input.files : [];
       if (canFile && !daCoFile && !files.length) {
         oFileDuyet.classList.add('thieu'); oFileDuyet.scrollIntoView({ block: 'center' });
         toast('Đính kèm ảnh hoặc file duyệt giá của bảo hiểm.', 'loi'); return false;
+      }
+      if (chonBH) {
+        const bhMoi = chonBH.giaTri();
+        if (String(bhMoi.hang_bh_id) !== String(hs.hang_bh_id ?? '') || String(bhMoi.gdv_id) !== String(hs.gdv_id ?? '')
+          || (bhMoi.gdv_ten_tam || '') !== (hs.gdv_cho_them ? hs.gdv || '' : '')) {
+          await api.suaThongTin(hs.id, bhMoi);
+          Object.assign(hs, { hang_bh_id: bhMoi.hang_bh_id, gdv_id: bhMoi.gdv_id, gdv_cho_them: !!bhMoi.gdv_ten_tam, gdv: bhMoi.gdv_ten_tam || hs.gdv });
+        }
       }
       if (files.length) {
         if (await taiVaoBuoc(hs, 'duyet_gia', files)) return false;

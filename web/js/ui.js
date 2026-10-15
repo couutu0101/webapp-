@@ -480,15 +480,82 @@ export function vnSangIso(s) {
   return `${n}-${String(t).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
 export function oNgayVN(name, isoValue, attrs = {}) {
+  // 048: tự xử lý từng phím như ô tiền (beforeinput) – con trỏ không nhảy về cuối, xóa qua dấu "/" được,
+  // bộ gõ tiếng Việt (gõ kiểu ghép) không chèn thêm số; gõ liền 8 số hoặc gõ cả dấu "/" (1/3/2027 → 01/03/2027)
   const el = h('input', { type: 'text', name, inputmode: 'numeric', placeholder: 'dd/mm/yyyy', maxlength: 10, autocomplete: 'off',
     class: 'o-ngay-vn', ...attrs });
   el.value = isoSangVN(isoValue);
-  el.addEventListener('input', (e) => {
-    if (e.inputType && e.inputType.startsWith('delete')) return;
-    const so = el.value.replace(/\D/g, '').slice(0, 8);
-    el.value = [so.slice(0, 2), so.slice(2, 4), so.slice(4)].filter(Boolean).join('/');
+  const chuSo = (s) => s.replace(/\D/g, '').slice(0, 8);
+  // "15" → "15/" (đủ ngày thì tự hiện dấu /), "1510" → "15/10/", "15102026" → "15/10/2026"
+  const dinhDang = (so, duoi) => {
+    const kq = [so.slice(0, 2), so.slice(2, 4), so.slice(4, 8)].filter(Boolean).join('/');
+    return duoi && (so.length === 2 || so.length === 4) ? `${kq}/` : kq;
+  };
+  const dat_ = (so, n, duoi = false) => {
+    so = so.slice(0, 8);
+    const moi = dinhDang(so, duoi && n >= so.length);
+    if (el.value !== moi) el.value = moi;
+    n = Math.min(Math.max(n, 0), so.length);
+    let p = 0;
+    if (n > 0) { let dem = 0; for (let i = 0; i < moi.length; i++) { if (/\d/.test(moi[i]) && ++dem === n) { p = i + 1; break; } } }
+    if (n === so.length && moi.endsWith('/')) p = moi.length;
+    try { el.setSelectionRange(p, p); } catch { /* bỏ qua */ }
+  };
+  const datVaBao = (so, n, duoi) => { dat_(so, n, duoi); el.dispatchEvent(new Event('input', { bubbles: true })); };
+  let tuXuLy = false;
+  el.addEventListener('beforeinput', (e) => {
+    const loai = e.inputType || '';
+    const dau = el.selectionStart ?? el.value.length; const cuoi = el.selectionEnd ?? dau;
+    const truoc = chuSo(el.value.slice(0, dau)); const chon = chuSo(el.value.slice(dau, cuoi)); const sau = chuSo(el.value.slice(cuoi));
+    if (loai === 'insertText' && e.data) {
+      e.preventDefault();
+      if (/^\d+$/.test(e.data)) {
+        const so = (truoc + e.data + sau).slice(0, 8);
+        tuXuLy = true; datVaBao(so, Math.min(truoc.length + e.data.length, so.length), !sau);
+      } else if (/^[/.\-\s]$/.test(e.data) && !sau && (truoc.length === 1 || truoc.length === 3)) {
+        // gõ dấu "/" sau ngày / tháng 1 chữ số: tự thêm số 0 phía trước (1/ → 01/)
+        const so = truoc.length === 1 ? `0${truoc}` : `${truoc.slice(0, 2)}0${truoc[2]}`;
+        tuXuLy = true; datVaBao(so, so.length, true);
+      } else if (e.data.length > 1) {
+        // cả chuỗi một lần (tự điền, dán bằng bàn phím điện thoại): đọc như ngày dán vào
+        tuXuLy = true; datTuChuoi(el.value.slice(0, dau) + e.data + el.value.slice(cuoi)); el.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    } else if (loai === 'deleteContentBackward') {
+      e.preventDefault(); tuXuLy = true;
+      if (chon) datVaBao(truoc + sau, truoc.length);
+      else if (truoc) datVaBao(truoc.slice(0, -1) + sau, truoc.length - 1);
+      else tuXuLy = false;
+    } else if (loai === 'deleteContentForward') {
+      e.preventDefault(); tuXuLy = true;
+      if (chon) datVaBao(truoc + sau, truoc.length);
+      else datVaBao(truoc + sau.slice(1), truoc.length);
+    }
+    // dán, kéo thả, bộ gõ kiểu ghép: để trình duyệt làm rồi chỉnh lại ở 'input'
   });
-  el.addEventListener('blur', () => { el.setCustomValidity(el.value && !vnSangIso(el.value) ? 'Ngày không đúng (dd/mm/yyyy)' : ''); });
+  let dangGhep = false;
+  // Đọc một chuỗi ngày bất kỳ: 2027-03-01, 1/3/2027, 01.03.2027, 01032027
+  function datTuChuoi(chuoi, n = null) {
+    const iso = /^\s*(\d{4})-(\d{1,2})-(\d{1,2})\s*$/.exec(chuoi);
+    if (iso) { dat_(`${iso[3].padStart(2, '0')}${iso[2].padStart(2, '0')}${iso[1]}`, 8); return; }
+    const vn = /^\s*(\d{1,2})[/.\-\s](\d{1,2})[/.\-\s](\d{4})\s*$/.exec(chuoi);
+    if (vn) { dat_(`${vn[1].padStart(2, '0')}${vn[2].padStart(2, '0')}${vn[3]}`, 8); return; }
+    dat_(chuSo(chuoi), n ?? chuSo(chuoi).length);
+  }
+  const chinhLai = () => {
+    const dauC = el.selectionStart ?? el.value.length;
+    datTuChuoi(el.value, chuSo(el.value.slice(0, dauC)).length);
+  };
+  el.addEventListener('compositionstart', () => { dangGhep = true; });
+  el.addEventListener('compositionend', () => { dangGhep = false; chinhLai(); el.dispatchEvent(new Event('input', { bubbles: true })); });
+  el.addEventListener('input', (e) => {
+    if (tuXuLy) { tuXuLy = false; return; }
+    if (dangGhep || e.isComposing) return;
+    chinhLai();
+  });
+  el.addEventListener('blur', () => {
+    if (/\/$/.test(el.value)) el.value = el.value.slice(0, -1);                 // bỏ dấu "/" thừa ở cuối
+    el.setCustomValidity(el.value && !vnSangIso(el.value) ? 'Ngày không đúng (dd/mm/yyyy)' : '');
+  });
   return el;
 }
 // Ô ngày giờ 24h: ngày dd/mm/yyyy + chọn giờ (00–23) + phút. Giá trị đọc ra (el.value, docForm) dạng yyyy-mm-ddThh:mm, trống nếu chưa chọn ngày.

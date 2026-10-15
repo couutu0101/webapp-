@@ -32,7 +32,8 @@ async function taiDuLieu() {
     // Hồ sơ đã đóng còn việc song song sau giao (036): chăm sóc (quản lý), hoa hồng GDV (kế toán) – mới nhất trước
     vp && quanLy ? an(api.doc('v_ho_so', (q) => xeDaGiao(q.is('cham_soc_luc', null))), 'chăm sóc sau giao') : [],
     vp && keToan ? an(api.doc('v_ho_so', (q) => xeDaGiao(q.not('gdv_id', 'is', null).is('hoa_hong_gdv', null))), 'hoa hồng GDV') : [],
-    vp ? an(api.doc('v_canh_bao'), 'việc cần xử lý') : [],
+    // 048: hãng BH / GDV chọn lúc nhập kết quả duyệt giá → bỏ nhắc "chưa có giám định viên" (trùng việc chờ duyệt giá)
+    vp ? an(api.doc('v_canh_bao').then((ds) => ds.filter((x) => x.loai !== 'thieu_gdv')), 'việc cần xử lý') : [],
     api.coVaiTro('truong_nhom', 'quan_ly', 'cvdv', 'ke_toan', 'giam_doc') ? an(api.bangViecTo(), 'bảng việc xưởng') : [],
     vp && xemKho ? an(api.doc('v_de_xuat', (q) => q.eq('trang_thai', 'cho_xuat').order('id')), 'đề xuất vật tư') : [],
     vp && api.coVaiTro('quan_ly', 'giam_doc', 'kho') ? an(api.doc('v_de_nghi_mua', (q) => q.in('trang_thai', ['cho_duyet', 'da_duyet']).order('id')), 'đề nghị mua') : [],

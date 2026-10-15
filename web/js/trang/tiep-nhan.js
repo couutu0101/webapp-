@@ -30,24 +30,7 @@ export default async function trangTiepNhan(el) {
   };
   chonHangXe.addEventListener('change', () => capNhatDongXe());
 
-  const chonHangBH = oChon('hang_bh_id', dm.hang_bao_hiem.filter((x) => x.hoat_dong).map((x) => ({ value: x.id, label: x.ten })), null);
-  const chonGdv = oChon('gdv_id', [], null);
-  const oGdvMoi = oChu('gdv_ten_tam', '', { placeholder: 'Tên giám định viên mới' });
-  const khungGdvMoi = truong('Tên GDV mới', oGdvMoi, 'Kế toán sẽ thêm người này vào danh sách trong Cài đặt.', { batBuoc: true });
-  const capNhatBH = (giuGdv) => {
-    const hang = chonHangBH.value;
-    const gdv = dm.giam_dinh_vien.filter((g) => g.hoat_dong && (g.la_cho_them || !g.hang_id || String(g.hang_id) === hang))
-      .sort((a, b) => (b.la_cho_them - a.la_cho_them) || ((String(b.hang_id) === hang) - (String(a.hang_id) === hang)) || a.ten.localeCompare(b.ten, 'vi'));
-    dat(chonGdv, h('option', { value: '' }, '— Chọn —'),
-      gdv.map((g) => h('option', { value: g.id }, g.la_cho_them ? g.ten : `${g.ten}${g.hang_id ? ` (${dm.ten('hang_bao_hiem', g.hang_id)})` : ''}`)));
-    if (giuGdv) chonGdv.value = giuGdv;
-    hienGdvMoi();
-  };
-  const hienGdvMoi = () => {
-    const g = dm.giam_dinh_vien.find((x) => String(x.id) === chonGdv.value);
-    khungGdvMoi.hidden = !g?.la_cho_them;
-  };
-  chonHangBH.addEventListener('change', () => capNhatBH());
+  // 048: hãng bảo hiểm và giám định viên KHÔNG nhập lúc tiếp nhận – CVDV chọn khi nhập kết quả duyệt giá (bắt buộc)
   // Hai ngày hết hạn bảo hiểm: luôn hiện; bắt buộc với xe bảo hiểm, khách ngoài bảo hiểm thì không bắt buộc
   const oHanThanVo = oNgayVN('han_bh_than_vo');
   const oHan = oNgayVN('han_bao_hiem');
@@ -61,7 +44,6 @@ export default async function trangTiepNhan(el) {
   const oKhongThanVo = tichThanVo.querySelector('input');
   const oKhongTnds = tichTnds.querySelector('input');
   const KHONG_BH = [[oHanThanVo, oKhongThanVo, saoThanVo], [oHan, oKhongTnds, saoTnds]];
-  chonGdv.addEventListener('change', hienGdvMoi);
 
   const oBienSo = oChu('bien_so', '', { placeholder: 'Ví dụ 50H-923.61', autocapitalize: 'characters', autocomplete: 'off' });
   const thongBaoXe = h('div', { class: 'thong-bao', hidden: true });
@@ -73,26 +55,18 @@ export default async function trangTiepNhan(el) {
   const goiYKm = h('span', null, 'Số trên đồng hồ công tơ mét');
   let kmTruoc = null;
 
-  const truongHangBH = truong('Hãng bảo hiểm', chonHangBH, null, { batBuoc: true });
-  // 036: giám định viên không bắt buộc lúc nhận xe (hãng thường cử GDV sau); phải ghi trước khi nhập kết quả duyệt giá
-  const truongGdv = truong('Giám định viên', chonGdv, 'Hãng chưa cử thì để trống – ghi trước khi nhập kết quả duyệt giá');
   const khungBH = h('fieldset', { class: 'nhom-o' }, h('legend', null, 'Bảo hiểm'),
     h('div', { class: 'luoi-o hai-cot' },
-      truongHangBH,
       truongNgay('Ngày hết hạn bảo hiểm thân vỏ', oHanThanVo, saoThanVo, 'Ngày/tháng/năm. Dùng để nhắc khách gia hạn', tichThanVo),
-      truongGdv,
-      truongNgay('Ngày hết hạn bảo hiểm TNDS', oHan, saoTnds, 'Ngày/tháng/năm. Dùng để nhắc khách gia hạn', tichTnds),
-      khungGdvMoi));
-  khungGdvMoi.hidden = true;
+      truongNgay('Ngày hết hạn bảo hiểm TNDS', oHan, saoTnds, 'Ngày/tháng/năm. Dùng để nhắc khách gia hạn', tichTnds)),
+    h('p', { class: 'goi-y' }, 'Hãng bảo hiểm và giám định viên chọn khi nhập kết quả duyệt giá.'));
 
   const radioNguon = h('div', { class: 'chon-nut', role: 'radiogroup', 'aria-label': 'Xe bảo hiểm hay khách ngoài bảo hiểm' },
     [['bao_hiem', 'Xe bảo hiểm'], ['khach', 'Khách ngoài bảo hiểm']].map(([v, nhan], i) =>
       h('label', null, h('input', { type: 'radio', name: 'nguon_tt', value: v, checked: i === 0 }), h('span', null, nhan))));
-  // Khách ngoài bảo hiểm: ẩn hãng bảo hiểm và giám định viên, vẫn giữ hai ô ngày hết hạn nhưng không bắt buộc
+  // Khách ngoài bảo hiểm: vẫn giữ hai ô ngày hết hạn nhưng không bắt buộc, không có dấu tích "Không có"
   const hienBH = () => {
     const bh = form.nguon_tt.value !== 'khach';
-    truongHangBH.hidden = !bh; truongGdv.hidden = !bh;
-    if (!bh) khungGdvMoi.hidden = true; else hienGdvMoi();
     tichThanVo.hidden = tichTnds.hidden = !bh;
     if (!bh) for (const [, oTich] of KHONG_BH) oTich.checked = false;
     doiKhongBH(false);
@@ -208,8 +182,6 @@ export default async function trangTiepNhan(el) {
         for (const r of form.querySelectorAll('input[name=nguon_tt]')) r.checked = r.value === (g.nguon_tt === 'khach' ? 'khach' : 'bao_hiem');
         hienBH();
       }
-      // 038: chỉ gợi ý hãng BH; GDV do hãng cử theo từng vụ nên không điền sẵn của lần trước
-      if (g && g.nguon_tt !== 'khach' && g.hang_bh_id) { chonHangBH.value = g.hang_bh_id; capNhatBH(null); }
       capNhatNhac();
       layLichSu(x.xe_id).then((ds) => {
         dat(khungLichSu, khoiLichSu(ds));
@@ -256,7 +228,7 @@ export default async function trangTiepNhan(el) {
       bien_so: d.bien_so, ten_khach: d.ten_khach, dien_thoai: d.dien_thoai,
       dong_xe_id: d.dong_xe_id, mau: d.mau, nguon_tt: hoSoGoc ? 'khach' : d.nguon_tt,
       ngay_vao: null,   // không nhập: máy chủ ghi đúng lúc lưu hồ sơ (vẫn hiện "Vào xưởng" trong hồ sơ)
-      hang_bh_id: bh ? d.hang_bh_id : null, gdv_id: bh ? d.gdv_id : null, gdv_ten_tam: bh ? d.gdv_ten_tam : null,
+      hang_bh_id: null, gdv_id: null, gdv_ten_tam: null, bh_khi_duyet: true,   // 048: hãng BH / GDV chọn lúc duyệt giá
       han_bao_hiem: d.han_bao_hiem, han_bh_than_vo: d.han_bh_than_vo, tinh_trang_xe: d.tinh_trang_xe, tu_van: d.tu_van, so_km: d.so_km, bat_buoc_km: true,
       loai: hoSoGoc ? 'bao_hanh' : 'sua_chua', ho_so_goc_id: hoSoGoc ? hoSoGoc.id : null,
       hang_muc: hoSoGoc ? hangMucBH : undefined,

@@ -1975,6 +1975,30 @@ select kt.ghi('047 Hồ sơ từ giao diện cũ: không ảnh, không file vẫ
 select kt.dong_vai('han@gara.vn');
 select kt.mong_loi('047 Trưởng nhóm không ký KCS', format($$select public.kcs(%s, true)$$, (select v from ctx where k='hs47k')), 'quyền');
 select kt.dong_vai(null);
+
+-- ---------------------------------------------------------------------
+-- 048: hãng bảo hiểm + giám định viên chọn lúc nhập kết quả duyệt giá
+-- ---------------------------------------------------------------------
+select kt.dong_vai('duy@gara.vn');
+select kt.mong_loi('048 Giao diện cũ (không gửi bh_khi_duyet): xe bảo hiểm vẫn bắt chọn hãng lúc tiếp nhận', $$select public.tiep_nhan_xe(jsonb_build_object(
+  'bien_so','51K-048.01','ten_khach','Khách 048','dien_thoai','0909048001','dong_xe_id',(select id from public.dong_xe where ten='VF3'),
+  'nguon_tt','bao_hiem','han_bao_hiem','2027-03-01','tinh_trang_xe','Móp','tu_van','Không'))$$, 'Chưa chọn hãng bảo hiểm');
+insert into ctx select 'hs48', (public.tiep_nhan_xe(jsonb_build_object(
+  'bien_so','51K-048.02','ten_khach','Khách 048','dien_thoai','0909048002','dong_xe_id',(select id from public.dong_xe where ten='VF3'),
+  'nguon_tt','bao_hiem','han_bao_hiem','2027-03-01','tinh_trang_xe','Móp','tu_van','Không','bh_khi_duyet',true)))->>'id';
+select kt.ghi('048 Giao diện mới: tiếp nhận xe bảo hiểm không cần hãng / GDV',
+  (select nguon_tt <> 'khach' and hang_bh_id is null and gdv_id is null from public.ho_so where id = (select v::bigint from ctx where k='hs48')));
+select public.lap_bao_gia((select v::bigint from ctx where k='hs48'), '[{"ten":"Gò","nhom":"dong","gia_bao":1000000}]', 0.08);
+select kt.mong_loi('048 Duyệt giá khi chưa có hãng bảo hiểm bị chặn', format($$select public.duyet_gia_chia(%s, current_date, (select jsonb_agg(jsonb_build_object('id',id,'dong_y',true,'gia_duyet',gia_bao)) from public.hang_muc where ho_so_id=%s), 0)$$,
+  (select v from ctx where k='hs48'), (select v from ctx where k='hs48')), 'Chưa chọn hãng bảo hiểm');
+select public.sua_thong_tin_ho_so((select v::bigint from ctx where k='hs48'), jsonb_build_object('hang_bh_id', (select id from public.hang_bao_hiem where ten='Tasco')));
+select kt.mong_loi('048 Có hãng mà chưa có GDV vẫn bị chặn', format($$select public.duyet_gia_chia(%s, current_date, (select jsonb_agg(jsonb_build_object('id',id,'dong_y',true,'gia_duyet',gia_bao)) from public.hang_muc where ho_so_id=%s), 0)$$,
+  (select v from ctx where k='hs48'), (select v from ctx where k='hs48')), 'Chưa có giám định viên');
+select public.sua_thong_tin_ho_so((select v::bigint from ctx where k='hs48'), jsonb_build_object('gdv_id', (select id from public.giam_dinh_vien where ten='Hảo')));
+select public.duyet_gia_chia((select v::bigint from ctx where k='hs48'), current_date, (select jsonb_agg(jsonb_build_object('id',id,'dong_y',true,'gia_duyet',gia_bao)) from public.hang_muc where ho_so_id=(select v::bigint from ctx where k='hs48')), 0);
+select kt.ghi('048 Chọn hãng + GDV (lưu vào hồ sơ) rồi duyệt giá được; hãng / GDV có trong hồ sơ',
+  (select trang_thai = 'da_duyet' and hang_bh_id is not null and gdv_id is not null from public.ho_so where id = (select v::bigint from ctx where k='hs48')));
+select kt.dong_vai(null);
 \o
 \echo '======== KẾT QUẢ ========'
 select stt, case when dat then 'ĐẠT ' else 'LỖI ' end as kq, ten, left(coalesce(chi_tiet,''), 140) as chi_tiet from kt.ket_qua order by stt;
