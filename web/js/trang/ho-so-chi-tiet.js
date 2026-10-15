@@ -113,10 +113,10 @@ function theThongTin({ hs, ve }) {
       dong('Khách', hs.ten_khach), dong('SĐT', hs.dien_thoai ? h('a', { href: `tel:${hs.dien_thoai}` }, hs.dien_thoai) : null),
       dong('Nguồn', NGUON[hs.nguon_tt]),
       hs.nguon_tt !== 'khach' ? [
-        dong('Bảo hiểm', hs.hang_bh),
+        dong('Bảo hiểm', hs.hang_bh || (['dong', 'huy'].includes(hs.trang_thai) ? null : h('span', { class: 'nhan tt-canh-bao' }, 'Chọn khi nhập kết quả duyệt giá'))),
         // 036: GDV để trống được lúc nhận xe – nhắc ghi trước khi nhập kết quả duyệt giá
         dong('Giám định viên', hs.gdv_cho_them ? h('span', null, hs.gdv, ' ', h('span', { class: 'nhan tt-canh-bao' }, 'chờ thêm vào danh sách'))
-          : hs.gdv || (['dong', 'huy'].includes(hs.trang_thai) ? null : h('span', { class: 'nhan tt-canh-bao', 'data-thieu-gdv': '' }, 'Chưa có – ghi trước khi duyệt giá')))] : null,
+          : hs.gdv || (['dong', 'huy'].includes(hs.trang_thai) ? null : h('span', { class: 'nhan tt-canh-bao', 'data-thieu-gdv': '' }, 'Chọn khi nhập kết quả duyệt giá')))] : null,
       dong('Hết hạn BH thân vỏ', ngay(hs.han_bh_than_vo)), dong('Hết hạn BH TNDS', ngay(hs.han_bao_hiem)),
       dong('Vào xưởng', ngayGio(hs.ngay_vao)), dong('Số km (ODD)', hs.so_km !== null && hs.so_km !== undefined ? `${tien(hs.so_km)} km` : null),
       dong('Hẹn giao', ngayGio(hs.hen_giao)),
