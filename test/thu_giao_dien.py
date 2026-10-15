@@ -1218,6 +1218,56 @@ with sync_playwright() as p:
     expect(lk.first).to_be_visible()
     ghi('Việc hôm nay: việc "tiền BH chưa chia" mở thẳng Thu chi → ' + str(lk.count()) + ' link: '
         + gd43.locator('li', has=lk.first).first.inner_text()[:100])
+
+    # ---- 045: chi nhánh Phan Huy Ích – giám đốc chọn chi nhánh làm việc
+    nv45 = mo(b, 'duy@gara.vn')
+    expect(nv45.locator('.chon-chi-nhanh')).to_have_count(0)
+    expect(nv45.locator('.thuong-hieu small')).to_have_text('Chi nhánh Tô Ký')
+    ghi('045 Nhân viên Tô Ký: không có ô chọn chi nhánh, menu ghi "Chi nhánh Tô Ký"')
+    ve_trang(gd43, '#/ho-so')
+    sel = gd43.locator('.chon-cn-menu')
+    expect(sel).to_be_visible()
+    expect(sel).to_have_value('TK')
+    ghi('045 Giám đốc: ô chọn chi nhánh trên menu – ' + ' / '.join(sel.locator('option').all_inner_texts()))
+    so_tk = gd43.evaluate("async () => (await (await import('./js/api.js')).doc('v_ho_so', (q) => q)).length")
+    gd43_2 = mo(b, 'thuan@gara.vn')            # thẻ thứ hai của giám đốc (để thử tự tải lại)
+    with gd43.expect_navigation():
+        sel.select_option('PHI')
+    gd43.wait_for_selector('.menu')
+    expect(gd43.locator('.chon-cn-menu')).to_have_value('PHI')
+    ds = gd43.evaluate("""async () => { const api = await import('./js/api.js');
+      const [hs, quy, dvn] = await Promise.all([api.doc('v_ho_so', (q) => q), api.doc('v_so_du_quy', (q) => q), api.doc('v_dich_vu_nhanh', (q) => q)]);
+      return { hs: hs.map((r) => r.chi_nhanh_id), quy: quy.map((r) => r.chi_nhanh_id + ':' + r.ten), dvn: dvn.length, cn: api.toi.chi_nhanh_id }; }""")
+    assert ds['cn'] == 'PHI' and all(c == 'PHI' for c in ds['hs']) and ds['quy'] == ['PHI:Tiền mặt'], ds
+    ghi(f'045 Chọn PHI → trang tải lại; hồ sơ {len(ds["hs"])} (Tô Ký có {so_tk}), quỹ chỉ còn {ds["quy"]}, dịch vụ nhanh {ds["dvn"]}')
+    kq = gd43.evaluate("""async () => (await import('./js/api.js')).tiepNhanXe({ bien_so: '51K-045.46', ten_khach: 'Khách PHI giao diện',
+      dien_thoai: '0909045046', nguon_tt: 'khach', tinh_trang_xe: 'Trầy cản', tu_van: 'Không',
+      dong_xe_id: (await import('./js/api.js')).dm.dong_xe.find((d) => d.ten === 'VF3').id })""")
+    assert kq['chi_nhanh_id'] == 'PHI' and kq['ma'].startswith('PHI-'), kq
+    ve_trang(gd43, '#/ho-so')
+    gd43.wait_for_selector(f'tr[data-id="{kq["id"]}"]')
+    ghi(f'045 Tiếp nhận ở PHI → mã {kq["ma"]}, hiện trong Hồ sơ xe của PHI')
+    chup(gd43, '045-phi-ho-so')
+    ve_trang(gd43, '#/thu-chi')
+    gd43.wait_for_timeout(500)
+    chup(gd43, '045-phi-thu-chi')
+    # thẻ thứ hai đang ở Tô Ký: quay lại thì tự tải lại theo chi nhánh mới
+    with gd43_2.expect_navigation(timeout=10000):
+        gd43_2.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
+    gd43_2.wait_for_selector('.menu')
+    expect(gd43_2.locator('.chon-cn-menu')).to_have_value('PHI')
+    ghi('045 Thẻ thứ hai của giám đốc tự tải lại sang PHI khi quay lại')
+    # điện thoại: ô chọn ở thanh trên
+    dt45 = mo(b, 'thuan@gara.vn', rong=390)
+    expect(dt45.locator('.dau .chon-cn-dau')).to_be_visible()
+    chup(dt45, '045-dien-thoai')
+    with dt45.expect_navigation():
+        dt45.locator('.dau .chon-cn-dau').select_option('TK')
+    dt45.wait_for_selector('.menu')
+    expect(dt45.locator('.dau .chon-cn-dau')).to_have_value('TK')
+    hs_tk = dt45.evaluate("async () => (await (await import('./js/api.js')).doc('v_ho_so', (q) => q)).map((r) => r.chi_nhanh_id)")
+    assert hs_tk and all(c == 'TK' for c in hs_tk) and len(hs_tk) == so_tk, (len(hs_tk), so_tk)
+    ghi(f'045 Điện thoại: ô chọn ở thanh trên; đổi về Tô Ký → {len(hs_tk)} hồ sơ, không lẫn PHI')
     b.close()
 
 print('\nLỖI TRÌNH DUYỆT:' if loi else '\nKhông có lỗi JavaScript.')

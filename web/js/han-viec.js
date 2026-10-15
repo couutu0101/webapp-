@@ -29,7 +29,9 @@ export function buocTiepPhieu(loai, r) {
 
 // Tên những người có vai trò đó ở chi nhánh (tối đa 3), không có ai thì giám đốc; trưởng nhóm không xem được danh sách → trống
 export function tenNguoiVai(vaiTro, chiNhanh) {
-  const ds = (api.dm.nhan_vien || []).filter((n) => n.hoat_dong && (!chiNhanh || !n.chi_nhanh_id || n.chi_nhanh_id === chiNhanh));
+  // 045: giám đốc phụ trách mọi chi nhánh (chi nhánh của giám đốc chỉ là chi nhánh đang chọn để xem)
+  const ds = (api.dm.nhan_vien || []).filter((n) => n.hoat_dong
+    && (!chiNhanh || !n.chi_nhanh_id || n.chi_nhanh_id === chiNhanh || n.vai_tro.includes('giam_doc')));
   let nguoi = ds.filter((n) => n.vai_tro.some((v) => vaiTro.includes(v)));
   if (!nguoi.length) nguoi = ds.filter((n) => n.vai_tro.includes('giam_doc'));
   nguoi.sort((a, b) => a.ho_ten.localeCompare(b.ho_ten, 'vi'));

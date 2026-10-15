@@ -20,9 +20,20 @@ export async function rpc(ten, thamSo = {}) {
   if (!RPC_CHI_DOC.has(ten)) soGhi++;
   return data;
 }
+// 045: giám đốc xem được mọi chi nhánh (quyền máy chủ) nhưng màn hình chỉ hiện chi nhánh đang chọn.
+// Bảng / view có cột chi_nhanh_id tự lọc theo chi nhánh đó. Không lọc: nhan_vien (trang Nhân viên xem cả công ty),
+// tai_khoan_quy (danh mục – từng trang tự lọc), don_vi_lien_quan (dùng chung), khách / xe (dùng chung).
+const BANG_THEO_CHI_NHANH = new Set([
+  'ho_so', 'v_ho_so', 'phieu_thu_chi', 'v_phieu_thu_chi', 'de_nghi_chi', 'v_de_nghi_chi', 'dich_vu_nhanh', 'v_dich_vu_nhanh',
+  'de_nghi_mua', 'v_de_nghi_mua', 'de_xuat_vat_tu', 'v_de_xuat', 'hang_kho', 'lo_kho', 'v_ton_kho', 'v_the_kho',
+  'phieu_nhap', 'v_phieu_nhap', 'phieu_xuat', 'v_phieu_xuat', 'kiem_ke', 'kiem_quy', 'v_so_du_quy', 'v_cong_no_ncc',
+  'v_cong_no_noi_bo', 'v_doanh_thu', 'v_canh_bao', 'bang_luong_thang', 'chot_thang', 'chot_thang_lich_su',
+  'tai_san', 'v_tai_san', 'kiem_tra_tai_san', 'su_co_tai_san', 'v_viec_tai_san', 'v_nhom_tai_san', 'nhat_ky_xuat_file']);
 // doc('v_ho_so', q => q.eq('id', 5).single())
 export async function doc(bang, tuyChinh = (q) => q, cot = '*') {
-  const { data, error } = await tuyChinh(sb.from(bang).select(cot));
+  let q = sb.from(bang).select(cot);
+  if (toi?.chi_nhanh_id && BANG_THEO_CHI_NHANH.has(bang) && coVaiTro('giam_doc')) q = q.eq('chi_nhanh_id', toi.chi_nhanh_id);
+  const { data, error } = await tuyChinh(q);
   if (error) throw loi(error);
   return data;
 }
@@ -93,6 +104,17 @@ export async function taiDanhMuc() {
   dm.ten = (bang, id) => (dm[bang] || []).find((x) => String(x.id) === String(id))?.ten ?? '';
   return dm;
 }
+// 045: chi nhánh đang hoạt động; giám đốc chọn chi nhánh làm việc (đổi xong tải lại trang)
+export const dsChiNhanh = () => (dm.chi_nhanh || []).filter((c) => c.hoat_dong !== false);
+export const tenChiNhanh = (id) => {
+  const t = (dm.ten ? dm.ten('chi_nhanh', id) : '').replace(/^.*[–-]\s*/, '');
+  return /^CN\b/i.test(t) ? t.replace(/^CN\s*/i, 'Chi nhánh ') : t;
+};
+export const doiChiNhanh = async (cn) => {
+  const kq = await rpc('doi_chi_nhanh_lam_viec', { p_cn: cn });
+  if (toi) toi.chi_nhanh_id = kq?.chi_nhanh_id || cn;
+  return kq;
+};
 export const caiDat = (khoa, macDinh) => {
   const r = (dm.cai_dat || []).find((x) => x.khoa === khoa);
   return r ? Number(r.gia_tri) : macDinh;
@@ -115,7 +137,11 @@ export const duyetGiaChia = (id, ngay, ketQua, khachTra) => rpc('duyet_gia_chia'
 export const lapLenh = (id, henGiao, phanCong) => rpc('lap_lenh_sua_chua', { p_ho_so: id, p_hen_giao: henGiao, phan_cong: phanCong });
 export const baoXong = (hangMucId) => rpc('bao_xong_hang_muc', { p_id: hangMucId });
 export const baoPhatSinh = (id, moTa) => rpc('bao_phat_sinh', { p_ho_so: id, p_mo_ta: moTa });
-export const bangViecTo = () => rpc('bang_viec_to');
+// 045: máy chủ trả xe của mọi chi nhánh cho giám đốc → chỉ giữ chi nhánh đang chọn
+export const bangViecTo = async () => {
+  const ds = (await rpc('bang_viec_to')) || [];
+  return coVaiTro('giam_doc') && toi?.chi_nhanh_id ? ds.filter((x) => !x.chi_nhanh_id || x.chi_nhanh_id === toi.chi_nhanh_id) : ds;
+};
 export const kcs = (id, dat, loi, lamLai) => rpc('kcs', { p_ho_so: id, p_dat: dat, p_loi: loi, p_lam_lai: lamLai });
 export const duyetGiamGia = (id, soTien, lyDo) => rpc('duyet_giam_gia', { p_ho_so: id, p_so_tien: soTien, p_ly_do: lyDo });
 export const duyetGiaoConNo = (id) => rpc('duyet_giao_xe_con_no', { p_ho_so: id });

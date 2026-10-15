@@ -75,6 +75,18 @@ body { overflow-x: hidden; }
 .thuong-hieu .logo-ngang { width: 100%; height: auto; display: block; }
 .thuong-hieu small { display: block; color: var(--tuong-chu); font-size: .8rem; padding-left: 2px; }
 .thuong-hieu:hover small { color: #fff; }
+/* 045: ô chọn chi nhánh làm việc của giám đốc (thanh menu và thanh trên điện thoại) */
+.chon-chi-nhanh { appearance: none; -webkit-appearance: none; font: inherit; font-size: .9rem; font-weight: 600; color: #fff; cursor: pointer;
+  min-height: 40px; padding: 0 34px 0 12px; border: 1px solid rgba(255, 255, 255, .2); border-radius: var(--bo);
+  background-color: rgba(255, 255, 255, .07);
+  background-image: linear-gradient(45deg, transparent 50%, var(--vang) 50%), linear-gradient(135deg, var(--vang) 50%, transparent 50%);
+  background-position: right 17px center, right 12px center; background-size: 5px 5px; background-repeat: no-repeat;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chon-chi-nhanh:hover { background-color: rgba(255, 255, 255, .12); border-color: rgba(255, 255, 255, .35); }
+.chon-chi-nhanh:focus-visible { outline: 2px solid var(--vang); outline-offset: 2px; }
+.chon-chi-nhanh:disabled { opacity: .6; cursor: progress; }
+.chon-chi-nhanh option { color: #111; background: #fff; }
+.chon-cn-menu { margin: 2px 16px 12px; width: calc(100% - 32px); }
 /* Vạch kẻ sàn xưởng (vàng – than chì) dưới logo */
 .thuong-hieu::after { content: ''; position: absolute; left: 16px; right: 16px; bottom: 0; height: 4px;
   background: repeating-linear-gradient(-45deg, var(--vang) 0 8px, transparent 8px 16px); opacity: .9; }
@@ -100,6 +112,7 @@ body { overflow-x: hidden; }
     padding-top: env(safe-area-inset-top); background: var(--tuong); color: #fff; }
   .dau a.ten-gara { display: flex; align-items: center; min-height: 48px; text-decoration: none; min-width: 0; }
   .dau .logo-ngang { height: 34px; width: auto; display: block; }
+  .dau .chon-cn-dau { margin-left: auto; max-width: 52vw; min-height: 38px; font-size: .85rem; }
   .dau .chi-nhanh { margin-left: auto; padding-right: var(--k2); font-size: .85rem; color: var(--tuong-chu); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .nut-menu { display: grid; place-items: center; background: none; border: 0; color: #fff; width: 48px; height: 48px; cursor: pointer; border-radius: var(--bo); }
   .than { grid-template-columns: minmax(0, 1fr); min-height: calc(100vh - 56px); }

@@ -117,11 +117,14 @@ let khung = null;
 function dungKhung() {
   const toi = api.toi;
   const menu = MENU.filter((m) => m.ai());
-  const chiNhanh = (api.dm.ten('chi_nhanh', toi.chi_nhanh_id) || '').replace(/^.*[–-]\s*/, '');
+  const chiNhanh = api.tenChiNhanh(toi.chi_nhanh_id);
+  // 045: giám đốc có ô chọn chi nhánh (khi công ty có từ 2 chi nhánh); người khác chỉ thấy tên chi nhánh của mình
+  const chonCn = api.coVaiTro('giam_doc') && api.dsChiNhanh().length > 1;
   const nav = h('nav', { class: 'menu', id: 'menu', 'aria-label': 'Menu chính' },
     h('a', { class: 'thuong-hieu', href: '#/', 'aria-label': `${TEN_GARA} – về trang đầu` },
       h('img', { class: 'logo-ngang', src: 'img/logo-ngang.svg', alt: 'Auto Hoàng Sơn', width: 5662, height: 1323 }),
-      chiNhanh ? h('small', null, /^CN\b/i.test(chiNhanh) ? chiNhanh.replace(/^CN\s*/i, 'Chi nhánh ') : chiNhanh) : null),
+      chiNhanh && !chonCn ? h('small', null, chiNhanh) : null),
+    chonCn ? oChonChiNhanh('chon-cn-menu') : null,
     h('div', { class: 'menu-ds' }, menu.map((m) => h('a', { href: `#/${m.duong}`, 'data-duong': m.duong }, icon(m.ic), h('span', null, m.nhan)))),
     h('div', { class: 'menu-chan' },
       h('div', { class: 'ai-dang-dung' }, h('b', null, toi.ho_ten), h('small', null, toi.vai_tro.map((v) => VAI_TRO[v]).join(', '))),
@@ -132,12 +135,45 @@ function dungKhung() {
       onclick: () => document.body.classList.toggle('mo-menu') }, icon('menu')),
     h('a', { class: 'ten-gara', href: '#/', 'aria-label': `${TEN_GARA} – về trang đầu` },
       h('img', { class: 'logo-ngang', src: 'img/logo-ngang.svg', alt: 'Auto Hoàng Sơn', width: 5662, height: 1323 })),
-    h('span', { class: 'chi-nhanh' }, chiNhanh));
+    chonCn ? oChonChiNhanh('chon-cn-dau') : h('span', { class: 'chi-nhanh' }, chiNhanh));
   const noiDung = h('main', { class: 'noi-dung', id: 'noi-dung', tabindex: '-1' });
   khung = { noiDung, nav };
   dat(goc, dau, h('div', { class: 'than' }, nav, h('div', { class: 'man-che', onclick: () => document.body.classList.remove('mo-menu') }), noiDung));
   nav.addEventListener('click', (e) => { if (e.target.closest('a')) document.body.classList.remove('mo-menu'); });
 }
+
+// 045: ô chọn chi nhánh làm việc của giám đốc. Đổi xong tải lại trang để mọi danh sách, số liệu theo chi nhánh mới.
+function oChonChiNhanh(lop) {
+  const toi = api.toi;
+  const sel = h('select', { class: `chon-chi-nhanh ${lop}`, 'aria-label': 'Chi nhánh đang làm việc',
+    title: 'Chọn chi nhánh: mọi màn hình và chứng từ ghi mới đều theo chi nhánh đang chọn' },
+    api.dsChiNhanh().map((c) => h('option', { value: c.id, selected: c.id === toi.chi_nhanh_id }, api.tenChiNhanh(c.id) || c.ten)));
+  sel.addEventListener('change', async () => {
+    const cu = toi.chi_nhanh_id;
+    const moi = sel.value;
+    if (moi === cu) return;
+    sel.disabled = true;
+    try {
+      await api.doiChiNhanh(moi);
+      location.reload();
+    } catch (e) {
+      sel.value = cu; sel.disabled = false;
+      baoLoi(e);
+    }
+  });
+  return sel;
+}
+// Giám đốc mở hai thẻ / hai máy: đổi chi nhánh ở nơi khác thì thẻ này tự tải lại khi quay lại (tránh ghi nhầm chi nhánh)
+document.addEventListener('visibilitychange', async () => {
+  if (document.visibilityState !== 'visible' || !api.toi || !api.coVaiTro('giam_doc')) return;
+  try {
+    const ds = await api.doc('nhan_vien', (q) => q.eq('id', api.toi.id), 'chi_nhanh_id');
+    if (ds[0] && ds[0].chi_nhanh_id !== api.toi.chi_nhanh_id) {
+      toast(`Đã chuyển sang ${api.tenChiNhanh(ds[0].chi_nhanh_id) || 'chi nhánh khác'} – đang tải lại…`);
+      setTimeout(() => location.reload(), 600);
+    }
+  } catch { /* mất mạng: bỏ qua, lần sau kiểm lại */ }
+});
 
 function doiMatKhau() {
   manDatMatKhau();
