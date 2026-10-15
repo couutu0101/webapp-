@@ -86,7 +86,9 @@ body { overflow-x: hidden; }
 .chon-chi-nhanh:focus-visible { outline: 2px solid var(--vang); outline-offset: 2px; }
 .chon-chi-nhanh:disabled { opacity: .6; cursor: progress; }
 .chon-chi-nhanh option { color: #111; background: #fff; }
-.chon-cn-menu { margin: 2px 16px 12px; width: calc(100% - 32px); }
+.khung-chon-cn { display: flex; flex-direction: column; gap: 4px; margin: 2px 16px 12px; }
+.khung-chon-cn > span { font-size: .72rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--tuong-chu); }
+.chon-cn-menu { width: 100%; }
 /* Vạch kẻ sàn xưởng (vàng – than chì) dưới logo */
 .thuong-hieu::after { content: ''; position: absolute; left: 16px; right: 16px; bottom: 0; height: 4px;
   background: repeating-linear-gradient(-45deg, var(--vang) 0 8px, transparent 8px 16px); opacity: .9; }
@@ -112,7 +114,7 @@ body { overflow-x: hidden; }
     padding-top: env(safe-area-inset-top); background: var(--tuong); color: #fff; }
   .dau a.ten-gara { display: flex; align-items: center; min-height: 48px; text-decoration: none; min-width: 0; }
   .dau .logo-ngang { height: 34px; width: auto; display: block; }
-  .dau .chon-cn-dau { margin-left: auto; max-width: 52vw; min-height: 38px; font-size: .85rem; }
+  .dau .chon-cn-dau { margin-left: auto; flex: 0 1 auto; max-width: 40vw; min-width: 0; min-height: 38px; font-size: .85rem; }
   .dau .chi-nhanh { margin-left: auto; padding-right: var(--k2); font-size: .85rem; color: var(--tuong-chu); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .nut-menu { display: grid; place-items: center; background: none; border: 0; color: #fff; width: 48px; height: 48px; cursor: pointer; border-radius: var(--bo); }
   .than { grid-template-columns: minmax(0, 1fr); min-height: calc(100vh - 56px); }

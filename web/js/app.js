@@ -147,7 +147,8 @@ function oChonChiNhanh(lop) {
   const toi = api.toi;
   const sel = h('select', { class: `chon-chi-nhanh ${lop}`, 'aria-label': 'Chi nhánh đang làm việc',
     title: 'Chọn chi nhánh: mọi màn hình và chứng từ ghi mới đều theo chi nhánh đang chọn' },
-    api.dsChiNhanh().map((c) => h('option', { value: c.id, selected: c.id === toi.chi_nhanh_id }, api.tenChiNhanh(c.id) || c.ten)));
+    api.dsChiNhanh().map((c) => h('option', { value: c.id, selected: c.id === toi.chi_nhanh_id },
+      (api.tenChiNhanh(c.id) || c.ten).replace(/^Chi nhánh\s+/i, ''))));
   sel.addEventListener('change', async () => {
     const cu = toi.chi_nhanh_id;
     const moi = sel.value;
@@ -161,7 +162,8 @@ function oChonChiNhanh(lop) {
       baoLoi(e);
     }
   });
-  return sel;
+  // Trên menu: nhãn nhỏ "Chi nhánh" phía trên ô chọn; thanh trên điện thoại chỉ có ô chọn
+  return lop === 'chon-cn-menu' ? h('label', { class: 'khung-chon-cn' }, h('span', null, 'Chi nhánh'), sel) : sel;
 }
 // Giám đốc mở hai thẻ / hai máy: đổi chi nhánh ở nơi khác thì thẻ này tự tải lại khi quay lại (tránh ghi nhầm chi nhánh)
 document.addEventListener('visibilitychange', async () => {
