@@ -1684,12 +1684,32 @@ select kt.mong_loi('043 Đề nghị chi hoa hồng khi hồ sơ chưa ghi hoa h
 
 -- A8 + F: nợ nội bộ chỉ tính từ ngày đầu kỳ của đơn vị; phiếu trước ngày đầu kỳ bị chặn; tài khoản quỹ không dời ngày đầu kỳ qua phiếu, có lịch sử
 select kt.dong_vai('thuan@gara.vn');
+select kt.mong_loi('044 Dời ngày đầu kỳ đơn vị liên quan qua phiếu đã ghi bị chặn', $$update public.don_vi_lien_quan set ngay_dau_ky = current_date + 1 where ten = 'PHI'$$, 'không dời');
+select kt.dong_vai(null);
+alter table public.don_vi_lien_quan disable trigger don_vi_lien_quan_chan_doi;
 update public.don_vi_lien_quan set ngay_dau_ky = current_date + 1 where ten = 'PHI';
+alter table public.don_vi_lien_quan enable trigger don_vi_lien_quan_chan_doi;
+select kt.dong_vai('thuan@gara.vn');
 select kt.ghi('043 Nợ nội bộ: phiếu trước ngày đầu kỳ của đơn vị không cộng nữa',
   (select da_chi = 0 and da_thu = 0 from public.v_cong_no_noi_bo where ten = 'PHI' and chi_nhanh_id = 'TK'));
 select kt.mong_loi('043 Phiếu gắn đơn vị trước ngày đầu kỳ của đơn vị bị chặn', $$select public.lap_phieu_thu(jsonb_build_object('tai_khoan_id',(select id from public.tai_khoan_quy where ten='Tiền mặt'),
   'muc_id',(select id from public.muc_thu_chi where tinh_chat='thu_noi_bo' order by id limit 1),'so_tien',1000,'don_vi_lien_quan_id',(select id from public.don_vi_lien_quan where ten='PHI')))$$, 'ngày đầu kỳ');
 update public.don_vi_lien_quan set ngay_dau_ky = null where ten = 'PHI';
+-- 044: nợ đầu kỳ thuộc một chi nhánh – chi nhánh khác không cộng lặp; kỳ chi phí theo ô Ngày của giao diện cũ
+update public.don_vi_lien_quan set so_du_dau_ky = 7000000 where ten = 'PHI';
+select kt.dong_vai(null);
+update public.don_vi_lien_quan set chi_nhanh_id = 'TK' where chi_nhanh_id is null;   -- đơn vị tạo bằng SQL trực tiếp
+insert into public.chi_nhanh (id, ten) values ('B44', 'Chi nhánh thử 044') on conflict do nothing;
+select kt.ghi('044 Nợ đầu kỳ nội bộ chỉ tính ở chi nhánh giữ nợ',
+  ((app.so_du_cuoi_thang('B44', current_date))->>'no_noi_bo_rong')::numeric = 0
+  and ((app.so_du_cuoi_thang('TK', current_date))->>'no_noi_bo_rong')::numeric <> 0);
+delete from public.chi_nhanh where id = 'B44';
+select kt.dong_vai('thuan@gara.vn');
+update public.don_vi_lien_quan set so_du_dau_ky = 0 where ten = 'PHI';
+insert into ctx select 'dn_044', public.lap_de_nghi_chi(jsonb_build_object('muc_id',(select id from public.muc_thu_chi where ten='Nước'),'so_tien',10000,
+  'noi_dung','Nước – giao diện cũ gửi ngày','ngay',(date_trunc('month', current_date) - interval '1 day')::date))::text;
+select kt.ghi('044 Giao diện cũ gửi ô Ngày tháng trước: kỳ chi phí = tháng trước, ngày đề nghị = hôm nay',
+  (select ky_chi_phi = (date_trunc('month', current_date) - interval '1 month')::date and ngay = current_date from public.de_nghi_chi where id = (select v::bigint from ctx where k='dn_044')));
 insert into public.tai_khoan_quy (chi_nhanh_id, ten, so_du_dau_ky, ngay_dau_ky) values ('TK', 'Quỹ thử 043', 0, current_date - 10);
 select public.lap_phieu_thu(jsonb_build_object('tai_khoan_id',(select id from public.tai_khoan_quy where ten='Quỹ thử 043'),'ngay',current_date - 5,
   'muc_id',(select id from public.muc_thu_chi where ten='Trạm sạc'),'so_tien',50000,'noi_dung','Thử 043'));
