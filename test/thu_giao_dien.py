@@ -84,6 +84,16 @@ def modal(page):
     return page.locator('.modal').last
 
 
+NX = ['nx_truoc', 'nx_sau', 'nx_trai', 'nx_phai', 'nt_truoc', 'nt_sau']
+
+
+def chup_6_anh(page, bo=()):
+    """047: chụp 6 ảnh nhận xe (bỏ qua các ô trong `bo`)."""
+    for b_ in NX:
+        if b_ not in bo:
+            page.set_input_files(f'.o-anh-buoc input[data-buoc={b_}]', ANH)
+
+
 with sync_playwright() as p:
     b = p.chromium.launch()
 
@@ -123,6 +133,13 @@ with sync_playwright() as p:
     toast_co(duy, 'không đúng')
     ghi('Ngày 31/02 bị báo sai')
     duy.fill('input[name=han_bao_hiem]', '01/03/2027')
+    chup_6_anh(duy, bo=('nt_sau',))
+    duy.click('button[type=submit]')
+    toast_co(duy, 'nội thất phía sau')
+    expect(duy.locator('.o-anh-buoc.thieu')).to_have_count(1)
+    expect(duy.locator('.o-anh-buoc.du')).to_have_count(5)
+    ghi('047 Tiếp nhận thiếu ảnh nội thất phía sau bị chặn: ' + duy.locator('.toast.loi').last.inner_text()[:90])
+    chup_6_anh(duy)
     chup(duy, '02-tiep-nhan')
     duy.click('button[type=submit]')
     duy.wait_for_url(re.compile(r'#/ho-so(\?[^/]*)?$'), timeout=10000)
@@ -147,11 +164,10 @@ with sync_playwright() as p:
         + duy.locator('.tien-do li').first.locator('.nguoi-lam').inner_text()
         + '; CVDV có nút Đổi người: ' + str(duy.locator('.dang-cho button').count()))
 
-    expect(duy.locator('text=Chưa có ảnh.')).to_be_visible()
-    ghi('Lưu hồ sơ không cần ảnh; chụp bổ sung ảnh nhận xe trong hồ sơ')
-    duy.set_input_files('.tai-tep input[type=file]', ANH)
-    toast_co(duy, 'Đã tải 1 tệp')
-    ve_ds(duy, id_hs)
+    expect(duy.locator('section.the h2', has_text='Ảnh nhận xe (6/6)')).to_be_visible()
+    expect(duy.locator('.o-anh-buoc.du')).to_have_count(6)
+    chup(duy, '047-anh-nhan-xe')
+    ghi('047 Hồ sơ có thẻ "Ảnh nhận xe (6/6)", đủ 6 ô có tên')
 
     # ---------- Báo giá ----------
     duy.click('text=+ Thêm dòng báo giá')
@@ -175,6 +191,10 @@ with sync_playwright() as p:
     gt_long = m.locator('select[name=giao_cho] option', has_text='Trần Tử Long').get_attribute('value')
     m.locator('select[name=giao_cho]').select_option(gt_long)
     chup(duy, '03-bao-gia')
+    m.locator('text=Lưu báo giá').click()
+    toast_co(duy, 'Đính kèm ảnh hoặc file báo giá')
+    ghi('047 Báo giá chưa đính kèm ảnh / file báo giá bị chặn')
+    m.locator('.khoi-dinh-kem input[type=file]').set_input_files(ANH)
     m.locator('text=Lưu báo giá').click()
     toast_co(duy, 'Đã lưu báo giá')
     ve_ds(duy, id_hs)
@@ -213,6 +233,10 @@ with sync_playwright() as p:
     expect(duy.locator('[data-thieu-gdv]')).to_be_visible()
     duy.locator('button', has_text='Nhập kết quả duyệt').click()
     m = modal(duy)
+    m.locator('text=Lưu kết quả').click()
+    toast_co(duy, 'Đính kèm ảnh hoặc file duyệt giá')
+    ghi('047 Nhập kết quả duyệt chưa có file duyệt giá của bảo hiểm bị chặn')
+    m.locator('.khoi-dinh-kem input[type=file]').set_input_files(ANH)
     m.locator('text=Lưu kết quả').click()
     toast_co(duy, 'Chưa có giám định viên')
     m.locator('.modal-chan button', has_text='Đóng').click()
@@ -447,12 +471,16 @@ with sync_playwright() as p:
     long_ = mo(b, 'long@gara.vn')
     ve_trang(long_, f'#/ho-so/{id_hs}')
     long_.click('text=Đạt KCS')
-    toast_co(long_, 'Tải ảnh sau sửa')
-    long_.select_option('.tai-tep select', 'kcs')
-    long_.set_input_files('.tai-tep input[type=file]', ANH)
-    toast_co(long_, 'Đã tải 1 tệp')
-    ve_ds(long_, id_hs)
-    expect(long_.locator('text=Chưa có ảnh sau sửa')).to_have_count(0)
+    toast_co(long_, 'tối thiểu 6 ảnh')
+    long_.set_input_files('.dem-anh-kcs input[type=file]', [ANH] * 5)
+    toast_co(long_, 'Đã lưu 5 ảnh KCS')
+    expect(long_.locator('[data-anh-kcs="5"]')).to_be_visible()
+    long_.click('text=Đạt KCS')
+    toast_co(long_, 'mới có 5')
+    long_.set_input_files('.dem-anh-kcs input[type=file]', ANH)
+    expect(long_.locator('[data-anh-kcs="6"]')).to_be_visible()
+    chup(long_, '047-kcs-6-anh')
+    ghi('047 KCS: 0 ảnh / 5 ảnh bị chặn, đủ 6 ảnh → "Ảnh KCS: 6/6"')
     long_.click('text=Đạt KCS')
     toast_co(long_, 'Đã ký đạt KCS')
     ve_ds(long_, id_hs)
@@ -618,11 +646,12 @@ with sync_playwright() as p:
     expect(duy.locator('label.truong', has_text='Số km')).to_contain_text('Lần trước:')
     duy.locator('input[name=so_km]').press_sequentially('47000')
     tv.check(); tn.check()
+    chup_6_anh(duy)
     chup(duy, '17-xe-quay-lai')
     duy.click('button[type=submit]')
     duy.wait_for_url(re.compile(r'#/ho-so(\?[^/]*)?$'), timeout=10000)
     duy.wait_for_selector('tr.vua-luu')
-    ghi('Xe bảo hiểm tích không có cả 2 loại, không ảnh → lưu được: ' + duy.locator('.toast').last.inner_text())
+    ghi('Xe bảo hiểm tích không có cả 2 loại (đủ 6 ảnh nhận xe) → lưu được: ' + duy.locator('.toast').last.inner_text())
 
     # ---------- Hồ sơ bảo hành (036): không báo giá, không duyệt giá, không hãng BH / GDV ----------
     ve_trang(duy, f'#/ho-so/{id_hs}')
@@ -636,6 +665,7 @@ with sync_playwright() as p:
     duy.locator('textarea[name=tinh_trang_xe]').fill('Sơn cửa trước trái bị rộp sau 2 tuần')
     duy.locator('textarea[name=tu_van]').fill('Không')
     duy.locator('input[name=so_km]').press_sequentially('47950')
+    chup_6_anh(duy)
     chup(duy, '18-tiep-nhan-bao-hanh')
     duy.click('button[type=submit]')
     duy.wait_for_selector('text=Vẫn tiếp tục')          # xe đang có hồ sơ mở (lần quay lại ở trên) → hỏi lại
@@ -688,6 +718,7 @@ with sync_playwright() as p:
     duy.fill('textarea[name=tinh_trang_xe]', 'Trầy cản sau')
     if not duy.locator('input[name=so_km]').input_value(): duy.locator('input[name=so_km]').press_sequentially('12000')
     duy.fill('textarea[name=tu_van]', 'Không')
+    chup_6_anh(duy)
     duy.click('button[type=submit]')
     duy.wait_for_url(re.compile(r'#/ho-so(\?[^/]*)?$'), timeout=10000)
     id_k = duy.locator('.toast-mo').last.get_attribute('href').rsplit('/', 1)[1]
@@ -703,6 +734,7 @@ with sync_playwright() as p:
     expect(m.locator('.tong-bao-gia dd b')).to_have_text('1.100.000')
     ghi('Khách ngoài BH: đơn giá 1.000.000, VAT 10% → khối 1: ' + m.locator('.tong-bao-gia').inner_text().replace('\n', ' '))
     chup(duy, '03b-bao-gia-khach')
+    m.locator('.khoi-dinh-kem input[type=file]').set_input_files(ANH)
     m.locator('text=Lưu báo giá').click()
     toast_co(duy, 'đã duyệt')
     ve_ds(duy, id_k)

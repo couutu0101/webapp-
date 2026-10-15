@@ -850,3 +850,27 @@ td .mo, .ts-chi-tiet .mo { color: var(--muc-phu); }
   body.dang-in .bc-bang .nhan { padding: 0; background: none; }
   body.dang-in .bc-bang .nhan::before { content: none; }
 }
+
+/* 047: ảnh / file bắt buộc ở các bước */
+.luoi-anh-buoc { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: var(--k3); }
+.o-anh-buoc { position: relative; display: flex; flex-direction: column; gap: 3px; padding: var(--k2); border: 2px dashed var(--vien-dam);
+  border-radius: var(--bo); background: var(--mat); cursor: pointer; min-width: 0; }
+label.o-anh-buoc:hover { border-color: var(--muc-phu); background: var(--mat-lom); }
+label.o-anh-buoc:focus-within { outline: 3px solid var(--lien-ket); outline-offset: 2px; }
+.o-anh-buoc input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.o-anh-buoc-hinh { display: grid; place-items: center; aspect-ratio: 4 / 3; border-radius: 4px; background: var(--mat-lom); overflow: hidden; color: var(--muc-phu); }
+.o-anh-buoc-hinh img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.o-anh-buoc-hinh .ic svg { width: 30px; height: 30px; }
+.o-anh-buoc b { font-size: .9rem; line-height: 1.25; }
+.o-anh-buoc-goi-y { font-size: .74rem; color: var(--muc-phu); line-height: 1.3; }
+.o-anh-buoc-tt { font-size: .76rem; font-weight: 600; color: var(--cam); }
+.o-anh-buoc.du { border-style: solid; border-color: var(--tot); }
+.o-anh-buoc.du .o-anh-buoc-tt { color: var(--tot); }
+.o-anh-buoc.thieu, .chon-tep.thieu { border-color: var(--loi); border-style: solid; background: var(--loi-nhat); }
+.o-anh-buoc.thieu .o-anh-buoc-tt { color: var(--loi); }
+.chon-tep.bb { border-left: 4px solid var(--vang); }
+.khoi-dinh-kem { margin-top: var(--k4); }
+.dem-anh-kcs { display: flex; flex-wrap: wrap; align-items: center; gap: var(--k2) var(--k3); margin: var(--k2) 0; }
+.dem-anh-kcs .nhan { margin-left: 0; }
+.dem-anh-kcs label.nut input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.dem-anh-kcs label.nut { position: relative; }

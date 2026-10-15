@@ -1,8 +1,9 @@
 // Bước 1: Tiếp nhận xe – 10 thông tin bắt buộc + ảnh nhận xe
-import { h, oGoiY, bienSo, vietBienSo, oChonTep, oCheck, truong, oChu, oChon, oVung, oNgayVN, oTien, isoSangVN, vnSangIso, docForm, chay, toast, dat, veDanhSachHoSo, xacNhan, tien, ngay, NHOM, NHOM_CHON, khoaKhiGui } from '../ui.js';
+import { h, oGoiY, bienSo, vietBienSo, oCheck, truong, oChu, oChon, oVung, oNgayVN, oTien, isoSangVN, vnSangIso, docForm, chay, toast, dat, veDanhSachHoSo, xacNhan, tien, ngay, NHOM, NHOM_CHON, khoaKhiGui } from '../ui.js';
 import * as api from '../api.js';
 import { khungGiaoViec, giaoSauKhiLuu, VAI_TRO_BUOC } from './giao-viec.js';
 import { homNayVN, themNgay, tuGhiNgayKhiBam, nhacHetHan, layLichSu, khoiLichSu } from './lich-su-xe.js';
+import { khungAnhNhanXe, taiVaoBuoc } from '../anh-bat-buoc.js';
 
 export default async function trangTiepNhan(el) {
   if (!api.coVaiTro('cvdv', 'quan_ly', 'giam_doc')) {
@@ -130,12 +131,8 @@ export default async function trangTiepNhan(el) {
   }
   for (const [, oTich] of KHONG_BH) oTich.addEventListener('change', () => doiKhongBH());
 
-  const chonAnh = oChonTep({ name: 'anh', capture: 'environment', multiple: true }, 'Chụp ảnh xe');
-  const oAnh = chonAnh.input;
-  const xemAnh = h('div', { class: 'xem-anh' });
-  oAnh.addEventListener('change', () => {
-    dat(xemAnh, ...[...oAnh.files].map((f) => h('img', { src: URL.createObjectURL(f), alt: f.name })));
-  });
+  // 047: bắt buộc 6 ảnh nhận xe có tên (4 quanh xe + 2 nội thất); tải lên ngay sau khi tạo hồ sơ
+  const khungAnh = khungAnhNhanXe();
 
   // Người thực hiện + giao bước tiếp theo (mặc định: chính CVDV tiếp nhận). Bảo hành: bước tiếp theo là lập lệnh sửa chữa
   const giao = hoSoGoc ? khungGiaoViec('Lập lệnh sửa chữa', VAI_TRO_BUOC.lenh) : khungGiaoViec('Lập báo giá', VAI_TRO_BUOC.bao_gia);
@@ -177,8 +174,8 @@ export default async function trangTiepNhan(el) {
         khungLichSu,
         truong(hoSoGoc ? 'Yêu cầu khách hàng (lỗi cần làm lại)' : 'Yêu cầu khách hàng', oTinhTrang, 'Ngày hôm nay tự thêm vào đầu khi bấm vào ô', { batBuoc: true, rong: true }),
         truong('Những gì có thể tư vấn', oTuVan, 'Anh Long dùng để tư vấn khi giao xe. Bảo hiểm hết hạn sẽ tự ghi nhắc ở đầu.', { batBuoc: true, rong: true }))),
-    h('fieldset', { class: 'nhom-o' }, h('legend', null, 'Ảnh nhận xe'),
-      truong('Ảnh xe lúc nhận', chonAnh, 'Không bắt buộc. Có thể chụp bổ sung sau trong hồ sơ.'), xemAnh),
+    h('fieldset', { class: 'nhom-o' }, h('legend', null, 'Ảnh nhận xe – bắt buộc 6 ảnh'),
+      h('p', { class: 'goi-y' }, 'Chụp đủ 4 góc quanh xe và 2 ảnh nội thất. Bấm vào từng ô để chụp (điện thoại mở camera).'), khungAnh),
     giao.el,
     h('div', { class: 'hang-nut' },
       h('a', { class: 'nut', href: '#/ho-so' }, 'Hủy'),
@@ -249,6 +246,12 @@ export default async function trangTiepNhan(el) {
     if (d.so_km !== null && kmTruoc && d.so_km < kmTruoc.so
       && !(await xacNhan(`Số km ${tien(d.so_km)} nhỏ hơn lần trước (${tien(kmTruoc.so)} km). Vẫn lưu?`, 'Vẫn lưu'))) { oKm.focus(); return; }
     if (!d.tu_van) { oTuVan.focus(); return toast('Ghi những gì có thể tư vấn (ghi "Không" nếu không có).', 'loi'); }
+    const thieuAnh = khungAnh.thieu();
+    if (thieuAnh.length) {
+      khungAnh.danhDauThieu();
+      khungAnh.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      return toast(`Chụp đủ 6 ảnh nhận xe – còn thiếu: ${thieuAnh.map((a) => a.ten.toLowerCase()).join(', ')}.`, 'loi');
+    }
     const p = {
       bien_so: d.bien_so, ten_khach: d.ten_khach, dien_thoai: d.dien_thoai,
       dong_xe_id: d.dong_xe_id, mau: d.mau, nguon_tt: hoSoGoc ? 'khach' : d.nguon_tt,
@@ -257,6 +260,7 @@ export default async function trangTiepNhan(el) {
       han_bao_hiem: d.han_bao_hiem, han_bh_than_vo: d.han_bh_than_vo, tinh_trang_xe: d.tinh_trang_xe, tu_van: d.tu_van, so_km: d.so_km, bat_buoc_km: true,
       loai: hoSoGoc ? 'bao_hanh' : 'sua_chua', ho_so_goc_id: hoSoGoc ? hoSoGoc.id : null,
       hang_muc: hoSoGoc ? hangMucBH : undefined,
+      bat_buoc_anh: true,   // 047: hồ sơ này bắt ảnh / file ở các bước sau (máy chủ kiểm)
     };
     const nut = form.querySelector('button[type=submit]');
     nut.disabled = true; nut.textContent = 'Đang lưu…';
@@ -265,12 +269,15 @@ export default async function trangTiepNhan(el) {
       nut.textContent = 'Đang tải ảnh…';
       await giaoSauKhiLuu(kq.id, giao.nguoi());
       const hoSo = { id: kq.id, ma: kq.ma, chi_nhanh_id: kq.chi_nhanh_id || api.toi.chi_nhanh_id };
-      // Ảnh tải song song (3 ảnh một lượt), báo tiến độ trên nút
-      const { loi } = await api.taiNhieu(oAnh.files, 'tiep_nhan', (f) => api.taiTep(hoSo, 'tiep_nhan', f),
-        { tienDo: (n, t) => { nut.textContent = `Đang tải ảnh ${n}/${t}…`; } });
-      const loiAnh = loi.length;
+      // 6 ảnh nhận xe tải song song (nén lần lượt), báo tiến độ trên nút
+      let daTai = 0; let loiAnh = 0;
+      const tong = khungAnh.chon.size;
+      await Promise.all([...khungAnh.chon].map(async ([buoc, f]) => {
+        loiAnh += await taiVaoBuoc(hoSo, buoc, [f]);
+        daTai++; nut.textContent = `Đang tải ảnh ${daTai}/${tong}…`;
+      }));
       const daTao = hoSoGoc ? `Đã tạo hồ sơ bảo hành ${kq.ma} – lập lệnh sửa chữa được ngay` : `Đã tạo hồ sơ ${kq.ma}`;
-      toast(loiAnh ? `${daTao}, nhưng ${loiAnh} ảnh tải lên lỗi – tải lại trong hồ sơ.` : daTao, loiAnh ? 'loi' : 'ok');
+      toast(loiAnh ? `${daTao}, nhưng ${loiAnh} ảnh tải lên lỗi – chụp lại ở mục "Ảnh nhận xe" trong hồ sơ.` : daTao, loiAnh ? 'loi' : 'ok');
       veDanhSachHoSo({ id: kq.id, ma: kq.ma });
       return true;   // đã tạo hồ sơ: giữ khóa nút, không cho gửi lại trong lúc chuyển trang
     } catch {

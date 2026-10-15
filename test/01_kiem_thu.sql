@@ -235,7 +235,7 @@ select kt.ghi('Xong hết → chờ KCS', (select trang_thai from public.ho_so w
 -- ---------------------------------------------------------------------
 -- Bước 7–8: KCS, giao xe
 -- ---------------------------------------------------------------------
-select kt.mong_loi('CVDV không được ký KCS', format($$select public.kcs(%s, true)$$, (select v from ctx where k='hs1')), 'không có quyền');
+select kt.mong_loi('047 CVDV được ký KCS (qua kiểm quyền, chỉ còn thiếu ảnh sau sửa)', format($$select public.kcs(%s, true)$$, (select v from ctx where k='hs1')), 'Chưa có ảnh sau sửa');
 select kt.dong_vai('long@gara.vn');
 select kt.mong_loi('KCS đạt phải có ảnh sau sửa', format($$select public.kcs(%s, true)$$, (select v from ctx where k='hs1')), 'ảnh sau sửa');
 select public.kcs((select v::bigint from ctx where k='hs1'), false, 'Sơn chảy cửa trái', array[(select v::bigint from ctx where k='dong_ds1')]);
@@ -1907,6 +1907,74 @@ select kt.ghi('046 Xóa tài khoản chưa dùng: mất cả nhân viên, đăng
   and not exists (select 1 from auth.users where id = (select v::uuid from ctx where k='tk_xoa'))
   and not exists (select 1 from auth.identities where user_id = (select v::uuid from ctx where k='tk_xoa'))
   and exists (select 1 from public.nhan_vien where email = 'duy@gara.vn'));
+
+-- ---------------------------------------------------------------------
+-- 047: ảnh / file bắt buộc ở tiếp nhận, báo giá, duyệt giá, KCS; CVDV ký KCS
+-- ---------------------------------------------------------------------
+create or replace function kt.tep(p_hs text, p_buoc text, p_so int default 1, p_loai text default 'anh') returns void language plpgsql as $$
+declare i int; v_ma text;
+begin
+  select ma into v_ma from public.ho_so where id = p_hs::bigint;
+  for i in 1..p_so loop
+    perform public.them_tep(p_hs::bigint, p_buoc, p_loai, 'TK/' || v_ma || '/' || p_buoc || '-' || i || '-' || clock_timestamp()::text || '.jpg');
+  end loop;
+end $$;
+grant execute on function kt.tep(text, text, int, text) to authenticated;
+select kt.dong_vai('duy@gara.vn');
+insert into ctx select 'hs47', (public.tiep_nhan_xe(jsonb_build_object(
+  'bien_so','51K-047.47','ten_khach','Khách 047','dien_thoai','0909047047','dong_xe_id',(select id from public.dong_xe where ten='VF3'),
+  'nguon_tt','bao_hiem','hang_bh_id',(select id from public.hang_bao_hiem where ten='Tasco'),'gdv_id',(select id from public.giam_dinh_vien where ten='Hảo'),
+  'han_bao_hiem','2027-03-01','tinh_trang_xe','Móp cản','tu_van','Không','bat_buoc_anh',true)))->>'id';
+select kt.ghi('047 Hồ sơ tạo từ giao diện mới có cờ bắt ảnh', (select bat_buoc_anh from public.ho_so where id = (select v::bigint from ctx where k='hs47')));
+select kt.tep((select v from ctx where k='hs47'), 'nx_truoc'); select kt.tep((select v from ctx where k='hs47'), 'nx_sau');
+select kt.tep((select v from ctx where k='hs47'), 'nx_trai'); select kt.tep((select v from ctx where k='hs47'), 'nx_phai');
+select kt.tep((select v from ctx where k='hs47'), 'nt_truoc');
+select kt.tep((select v from ctx where k='hs47'), 'bao_gia');
+select kt.mong_loi('047 Thiếu ảnh nhận xe (nội thất phía sau) thì chưa lập báo giá', format($$select public.lap_bao_gia(%s, '[{"ten":"Gò cản","nhom":"dong","gia_bao":1000000}]', 0.08)$$, (select v from ctx where k='hs47')), 'nội thất phía sau');
+select kt.tep((select v from ctx where k='hs47'), 'nt_sau');
+select public.lap_bao_gia((select v::bigint from ctx where k='hs47'), '[{"ten":"Gò cản","nhom":"dong","gia_bao":1000000}]', 0.08);
+select kt.ghi('047 Đủ 6 ảnh nhận xe + file báo giá → lưu báo giá được', (select trang_thai = 'bao_gia' and bao_gia_luc is not null from public.ho_so where id = (select v::bigint from ctx where k='hs47')));
+select kt.mong_loi('047 Lưu thêm báo giá lần nữa phải đính kèm file báo giá mới', format($$select public.lap_bao_gia(%s, '[{"ten":"Sơn cản","nhom":"son","gia_bao":800000}]', 0.08)$$, (select v from ctx where k='hs47')), 'file báo giá');
+select kt.mong_loi('047 Chưa có file duyệt giá của bảo hiểm thì chưa nhập kết quả duyệt', format($$select public.duyet_gia_chia(%s, current_date, (select jsonb_agg(jsonb_build_object('id',id,'dong_y',true,'gia_duyet',gia_bao)) from public.hang_muc where ho_so_id=%s), 0)$$, (select v from ctx where k='hs47'), (select v from ctx where k='hs47')), 'duyệt giá của bảo hiểm');
+select kt.tep((select v from ctx where k='hs47'), 'duyet_gia', 1, 'bien_ban');
+select public.duyet_gia_chia((select v::bigint from ctx where k='hs47'), current_date, (select jsonb_agg(jsonb_build_object('id',id,'dong_y',true,'gia_duyet',gia_bao)) from public.hang_muc where ho_so_id=(select v::bigint from ctx where k='hs47')), 0);
+select kt.ghi('047 Có file duyệt giá (PDF) → nhập kết quả duyệt được', (select trang_thai from public.ho_so where id = (select v::bigint from ctx where k='hs47')) = 'da_duyet');
+select kt.mong_loi('047 Báo giá bổ sung cũng phải có file báo giá mới', format($$select public.lap_bao_gia(%s, '[{"ten":"Thay đèn","nhom":"phu_tung","gia_bao":500000}]', 0.08)$$, (select v from ctx where k='hs47')), 'file báo giá');
+select kt.tep((select v from ctx where k='hs47'), 'bao_gia');
+select kt.mong_loi('047 Báo giá bổ sung xong, duyệt bổ sung cần file duyệt mới', format($$select public.lap_bao_gia(%s, '[{"ten":"Thay đèn","nhom":"phu_tung","gia_bao":500000}]', 0.08); select public.duyet_gia_chia(%s, current_date, (select jsonb_agg(jsonb_build_object('id',id,'dong_y',true,'gia_duyet',gia_bao)) from public.hang_muc where ho_so_id=%s and trang_thai='cho_duyet'), 0)$$,
+  (select v from ctx where k='hs47'), (select v from ctx where k='hs47'), (select v from ctx where k='hs47')), 'duyệt giá của bảo hiểm');
+-- KCS: hồ sơ khách ngoài bảo hiểm có cờ bắt ảnh
+insert into ctx select 'hs47k', (public.tiep_nhan_xe(jsonb_build_object(
+  'bien_so','51K-047.48','ten_khach','Khách 047 K','dien_thoai','0909047048','dong_xe_id',(select id from public.dong_xe where ten='VF3'),
+  'nguon_tt','khach','tinh_trang_xe','Trầy','tu_van','Không','bat_buoc_anh',true)))->>'id';
+select kt.tep((select v from ctx where k='hs47k'), b) from unnest(array['nx_truoc','nx_sau','nx_trai','nx_phai','nt_truoc','nt_sau','bao_gia']) b;
+select public.lap_bao_gia((select v::bigint from ctx where k='hs47k'), '[{"ten":"Đánh bóng","nhom":"detailing","gia_bao":600000}]', 0.08);
+select public.lap_lenh_sua_chua((select v::bigint from ctx where k='hs47k'), now() + interval '1 day', (select jsonb_agg(jsonb_build_object('id',id,'to_id','DT')) from public.hang_muc where ho_so_id=(select v::bigint from ctx where k='hs47k')));
+select kt.dong_vai('thuan@gara.vn');
+select public.bao_xong_hang_muc(id) from public.hang_muc where ho_so_id = (select v::bigint from ctx where k='hs47k');
+select kt.dong_vai('duy@gara.vn');
+select kt.ghi('047 Xe khách 047 đã sửa xong → chờ KCS', (select trang_thai from public.ho_so where id = (select v::bigint from ctx where k='hs47k')) = 'cho_kcs');
+select kt.tep((select v from ctx where k='hs47k'), 'kcs', 5);
+select kt.mong_loi('047 KCS mới 5 ảnh thì chưa ký đạt (CVDV ký)', format($$select public.kcs(%s, true)$$, (select v from ctx where k='hs47k')), 'tối thiểu 6 ảnh');
+select kt.tep((select v from ctx where k='hs47k'), 'kcs', 1);
+select public.kcs((select v::bigint from ctx where k='hs47k'), false, 'Còn vết xước', (select array_agg(id) from public.hang_muc where ho_so_id=(select v::bigint from ctx where k='hs47k')));
+select kt.dong_vai('thuan@gara.vn');
+select public.bao_xong_hang_muc(id) from public.hang_muc where ho_so_id = (select v::bigint from ctx where k='hs47k');
+select kt.dong_vai('duy@gara.vn');
+select kt.mong_loi('047 Sau lần chưa đạt: đủ 6 ảnh cũ nhưng chưa có ảnh mới thì chưa ký đạt', format($$select public.kcs(%s, true)$$, (select v from ctx where k='hs47k')), 'sau khi làm lại');
+select kt.tep((select v from ctx where k='hs47k'), 'kcs', 1);
+select public.kcs((select v::bigint from ctx where k='hs47k'), true);
+select kt.ghi('047 CVDV ký KCS đạt (6 ảnh tổng + 1 ảnh mới sau lần chưa đạt)', (select trang_thai from public.ho_so where id = (select v::bigint from ctx where k='hs47k')) = 'dat_kcs');
+-- giao diện cũ (không gửi bat_buoc_anh): như trước
+insert into ctx select 'hs47c', (public.tiep_nhan_xe(jsonb_build_object(
+  'bien_so','51K-047.49','ten_khach','Khách 047 C','dien_thoai','0909047049','dong_xe_id',(select id from public.dong_xe where ten='VF3'),
+  'nguon_tt','khach','tinh_trang_xe','Trầy','tu_van','Không')))->>'id';
+select public.lap_bao_gia((select v::bigint from ctx where k='hs47c'), '[{"ten":"Đánh bóng","nhom":"detailing","gia_bao":600000}]', 0.08);
+select kt.ghi('047 Hồ sơ từ giao diện cũ: không ảnh, không file vẫn báo giá như trước',
+  (select not bat_buoc_anh and trang_thai = 'da_duyet' from public.ho_so where id = (select v::bigint from ctx where k='hs47c')));
+select kt.dong_vai('han@gara.vn');
+select kt.mong_loi('047 Trưởng nhóm không ký KCS', format($$select public.kcs(%s, true)$$, (select v from ctx where k='hs47k')), 'quyền');
+select kt.dong_vai(null);
 \o
 \echo '======== KẾT QUẢ ========'
 select stt, case when dat then 'ĐẠT ' else 'LỖI ' end as kq, ten, left(coalesce(chi_tiet,''), 140) as chi_tiet from kt.ket_qua order by stt;

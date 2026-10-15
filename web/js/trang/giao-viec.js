@@ -10,7 +10,7 @@ export const VAI_TRO_BUOC = {
   bao_gia: ['cvdv', 'quan_ly', 'giam_doc'],
   duyet_gia: ['cvdv', 'quan_ly', 'giam_doc'],
   lenh: ['cvdv', 'quan_ly', 'giam_doc'],
-  kcs: ['quan_ly', 'giam_doc'],
+  kcs: ['quan_ly', 'cvdv', 'giam_doc'],   // 047: CVDV cũng nghiệm thu KCS
   giao_xe: ['ke_toan', 'cvdv', 'quan_ly', 'giam_doc'],
   ho_so_bh: ['ke_toan', 'giam_doc'],
   cham_soc: ['quan_ly', 'giam_doc'],

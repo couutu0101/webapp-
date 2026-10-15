@@ -168,7 +168,13 @@ export const xuLyPhatSinh = (id, ghiChu) => rpc('xu_ly_phat_sinh', { p_ho_so: id
 export const themHangMucBaoHanh = (id, dong) => rpc('them_hang_muc_bao_hanh', { p_ho_so: id, p_dong: dong });
 
 // v_ho_so có sẵn số km (037), người làm bước tiếp theo và lúc giao việc (040): một lần đọc
-export const layHoSo = async (id) => (await doc('v_ho_so', (q) => q.eq('id', id)))[0] ?? null;
+export const layHoSo = async (id) => {
+  const hs = (await doc('v_ho_so', (q) => q.eq('id', id)))[0] ?? null;
+  if (!hs) return hs;
+  // 047: cờ bắt ảnh / file và lúc lưu báo giá gần nhất (cột ở bảng ho_so; vai không đọc được bảng thì coi như không bắt)
+  const [x] = await doc('ho_so', (q) => q.eq('id', id), 'bat_buoc_anh,bao_gia_luc').catch(() => []);
+  return { ...hs, bat_buoc_anh: !!x?.bat_buoc_anh, bao_gia_luc: x?.bao_gia_luc || null };
+};
 export const layHangMuc = (id) => doc('hang_muc', (q) => q.eq('ho_so_id', id).order('lan_bao_gia').order('id'));
 export const layNhatKy = (id) => doc('ho_so_nhat_ky', (q) => q.eq('ho_so_id', id).order('luc', { ascending: false }));
 export const layTep = (id) => doc('ho_so_tep', (q) => q.eq('ho_so_id', id).order('tai_luc'));
