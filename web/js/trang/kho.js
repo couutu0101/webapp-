@@ -719,7 +719,7 @@ function moDieuChinhGia(r, dongs, veLai) {
     nutChinh: async () => {
       if (!oLyDo.value.trim()) { toast('Ghi lý do điều chỉnh.', 'loi'); return false; }
       const dong = o.map((x) => ({ dong_id: x.d.id, don_gia: docTien(x.oGia.value), ty_le_vat: Number(x.chonVat.value) }))
-        .filter((x, i) => x.don_gia !== Number(o[i].d.don_gia) || x.ty_le_vat !== Number(o[i].d.ty_le_vat));
+        .filter((x, i) => x.don_gia !== Math.round(Number(o[i].d.don_gia)) || x.ty_le_vat !== Number(o[i].d.ty_le_vat));   // ô tiền làm tròn đồng: dòng không sửa thì không gửi
       if (!dong.length) { toast('Chưa sửa dòng nào.', 'loi'); return false; }
       if (dong.some((x) => x.don_gia === null || x.don_gia < 0)) { toast('Đơn giá không hợp lệ.', 'loi'); return false; }
       const kq = await api.dieuChinhPhieuNhap(r.id, dong, oLyDo.value.trim());

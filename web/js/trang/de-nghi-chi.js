@@ -52,9 +52,16 @@ export default async function trangDeNghi(el) {
     const ra = [];
     const laCuaToi = r.nguoi_de_nghi === api.toi.id;
     // Không tự duyệt phiếu mình lập – trừ giám đốc
-    const duocDuyet = nguoiDuyet && (!laCuaToi || api.coVaiTro('giam_doc')) && (!r.can_giam_doc || api.coVaiTro('giam_doc'));
+    // 043: đề nghị nghi tách nhỏ phiếu thì chỉ giám đốc duyệt (quản lý chung vẫn từ chối được)
+    const duocDuyet = nguoiDuyet && (!laCuaToi || api.coVaiTro('giam_doc')) && (!r.can_giam_doc || api.coVaiTro('giam_doc'))
+      && (!r.nghi_tach_phieu || api.coVaiTro('giam_doc'));
+    const duocTuChoi = nguoiDuyet && (!laCuaToi || api.coVaiTro('giam_doc')) && (!r.can_giam_doc || api.coVaiTro('giam_doc'));
     if (r.trang_thai === 'cho_duyet' && duocDuyet) {
       ra.push(h('button', { class: 'nut nho chinh', type: 'button', onclick: () => chay(() => api.duyetDeNghi(r.id, true, null), { thanhCong: 'Đã duyệt.' }).then(tai).catch(() => {}) }, 'Duyệt'));
+    } else if (r.trang_thai === 'cho_duyet' && duocTuChoi && r.nghi_tach_phieu) {
+      ra.push(h('small', { class: 'nhan' }, 'GĐ duyệt'));
+    }
+    if (r.trang_thai === 'cho_duyet' && duocTuChoi) {
       ra.push(h('button', { class: 'nut nho', type: 'button', onclick: () => moTuChoi(r) }, 'Từ chối'));
     }
     if (r.trang_thai === 'da_duyet' && keToan) ra.push(h('button', { class: 'nut nho chinh', type: 'button', onclick: () => moChi(r) }, 'Chi tiền'));
@@ -118,13 +125,17 @@ export default async function trangDeNghi(el) {
       api.doc('v_ho_so', (q) => q.lt('con_no_khach', 0).eq('tu_excel', false).order('ngay_vao', { ascending: false }).limit(100)),
     ]) : [[], []];
     const hoSo = [...hoSoMo, ...hoSoDu.filter((x) => !hoSoMo.some((y) => y.id === x.id))];
+    // Mở từ hồ sơ / công nợ mà xe không nằm trong hai danh sách trên (hồ sơ cũ, đã đóng): nạp riêng xe đó
+    const hoSoThem = hoSoId && api.laNhanVien() && !hoSo.some((x) => String(x.id) === String(hoSoId))
+      ? (await api.doc('v_ho_so', (q) => q.eq('id', hoSoId)).catch(() => []))[0] || null : null;
     chonMuc.addEventListener('change', () => {
       const m = mucChi.find((x) => String(x.id) === chonMuc.value);
       dat(vungRieng, );
       if (!m) return;
       if (m.can_ho_so || ['tra_hoa_hong', 'tra_coc'].includes(m.tinh_chat)) {
         const traCoc = m.tinh_chat === 'tra_coc';
-        const ds = traCoc && hoSoDu.length ? hoSoDu : hoSo;
+        const ds = [...(traCoc && hoSoDu.length ? hoSoDu : hoSo)];
+        if (hoSoId && !ds.some((x) => String(x.id) === String(hoSoId)) && hoSoThem) ds.unshift(hoSoThem);
         const chonXe = oChon('ho_so_id', ds.map((x) => ({ value: x.id, label: `${x.bien_so_hien_thi || x.ma} – ${x.ten_khach}${x.gdv ? ` – GDV ${x.gdv}` : ''}`
           + (Number(x.con_no_khach) < 0 ? ` – ${x.trang_thai === 'huy' ? 'đang giữ' : 'khách dư'} ${tien(-x.con_no_khach)} đ${x.trang_thai === 'huy' ? ' (hồ sơ đã hủy)' : ''}` : '') })), hoSoId);
         const goiYXe = h('span', null, traCoc ? 'Danh sách xe đang giữ tiền của khách (trả dư, đặt cọc, hồ sơ đã hủy)' : '');

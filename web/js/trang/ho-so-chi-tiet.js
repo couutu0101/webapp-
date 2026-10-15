@@ -514,7 +514,7 @@ function moPhatSinh(hs, ve) {
 function theKcs({ hs, hm, tep, dsKcs, ps, ve }) {
   if (!['cho_kcs', 'dat_kcs', 'da_giao', 'da_gui_hs', 'dong'].includes(hs.trang_thai) && !dsKcs.length) return null;
   // 043 (khớp máy chủ): lần KCS gần nhất chưa đạt thì phải có ảnh "Sau sửa" chụp SAU lần đó; còn phát sinh chờ xử lý thì chưa ký đạt
-  const truot = dsKcs[0] && !dsKcs[0].dat ? dsKcs[0] : null;
+  const truot = dsKcs.find((k) => !k.dat) || null;              // dsKcs mới nhất trước
   const coAnh = tep.some((t) => t.buoc === 'kcs' && (!truot || new Date(t.tai_luc) > new Date(truot.luc)));
   const conPhatSinh = (ps || []).some((p) => !p.da_xu_ly);
   const choKcs = hs.trang_thai === 'cho_kcs';

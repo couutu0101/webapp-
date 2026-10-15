@@ -64,7 +64,7 @@ export default async function trangThuChi(el) {
   // 043: tiền bảo hiểm đã về mà chưa chia vào xe – mọi tháng (trước đây chỉ thấy khi mở đúng tháng của phiếu)
   async function taiChuaChia() {
     if (!keToan) return;
-    const ds = await api.doc('v_phieu_thu_chi', (q) => q.gt('con_chua_chia', 0).order('ngay')).catch(() => []);
+    const ds = await api.doc('v_phieu_thu_chi', (q) => q.eq('chi_nhanh_id', api.toi.chi_nhanh_id).gt('con_chua_chia', 0).order('ngay')).catch(() => []);
     if (!ds.length) { dat(chuaChia); return; }
     const tong = ds.reduce((t, p) => t + Number(p.con_chua_chia), 0);
     dat(chuaChia, h('section', { class: 'the', id: 'chua-chia' },
