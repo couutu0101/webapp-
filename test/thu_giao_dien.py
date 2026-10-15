@@ -1268,6 +1268,28 @@ with sync_playwright() as p:
     hs_tk = dt45.evaluate("async () => (await (await import('./js/api.js')).doc('v_ho_so', (q) => q)).map((r) => r.chi_nhanh_id)")
     assert hs_tk and all(c == 'TK' for c in hs_tk) and len(hs_tk) == so_tk, (len(hs_tk), so_tk)
     ghi(f'045 Điện thoại: ô chọn ở thanh trên; đổi về Tô Ký → {len(hs_tk)} hồ sơ, không lẫn PHI')
+
+    # ---- 046: nhãn màu chi nhánh ở trang Nhân viên, xóa tài khoản chưa dùng
+    ve_trang(gd43, '#/nhan-vien')
+    gd43.wait_for_selector('.nhan-cn')
+    tao = gd43.evaluate("""async () => (await import('./js/api.js')).taoTaiKhoan({ ho_ten: 'Tạo nhầm PHI', ten_dang_nhap: 'nham.phi',
+      mat_khau: 'hs0046', chi_nhanh_id: 'PHI', vai_tro: ['cvdv'], to_id: null })""")
+    ve_trang(gd43, '#/nhan-vien')
+    hang_moi = gd43.locator('tr', has_text='Tạo nhầm PHI')
+    expect(hang_moi.locator('.nhan-cn.cn-xanh')).to_have_text('Phan Huy Ích')
+    expect(gd43.locator('tr', has_text='Nguyễn Trọng Duy').locator('.nhan-cn.cn-vang')).to_have_text('Tô Ký')
+    expect(gd43.locator('tr', has_text='Lê Ngọc Thuận').locator('button[data-xoa]')).to_have_count(0)
+    chup(gd43, '046-nhan-vien')
+    ghi('046 Nhân viên: cột Chi nhánh nhãn màu "Tô Ký" (vàng) / "Phan Huy Ích" (xanh); giám đốc không có nút Xóa')
+    gd43.locator('tr', has_text='Nguyễn Trọng Duy').locator('button[data-xoa]').click()
+    modal(gd43).locator('.modal-chan .nut.chinh').click()
+    toast_co(gd43, 'Đang làm')
+    ghi('046 Xóa Duy (đã có dữ liệu) bị từ chối: ' + gd43.locator('#toast').inner_text()[:110])
+    hang_moi.locator('button[data-xoa]').click()
+    modal(gd43).locator('.modal-chan .nut.chinh').click()
+    toast_co(gd43, 'Đã xóa tài khoản Tạo nhầm PHI')
+    expect(gd43.locator('tr', has_text='Tạo nhầm PHI')).to_have_count(0)
+    ghi('046 Xóa tài khoản tạo nhầm (chưa dùng): hết khỏi danh sách')
     b.close()
 
 print('\nLỖI TRÌNH DUYỆT:' if loi else '\nKhông có lỗi JavaScript.')

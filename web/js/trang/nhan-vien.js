@@ -1,6 +1,6 @@
 // Nhân viên: giám đốc tạo tài khoản (tên đăng nhập = tên + bộ phận, không cần email mời),
 // cấp / đổi quyền, đặt lại mật khẩu, khóa tài khoản khi nghỉ việc.
-import { h, truong, oChu, oChon, oCheck, docForm, bang, moModal, toast, VAI_TRO, dat } from '../ui.js';
+import { h, truong, oChu, oChon, oCheck, docForm, bang, moModal, toast, VAI_TRO, dat, xacNhan, baoLoi } from '../ui.js';
 import * as api from '../api.js';
 
 const boDau = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/gi, 'd').toLowerCase().replace(/[^a-z0-9]+/g, '');
@@ -30,6 +30,9 @@ function oToTheoVai(form, truongTo) {
   capNhat();
 }
 const toCuaVai = (vaiTro, toId) => (vaiTro.includes('truong_nhom') ? toId || null : null);
+// 046: chi nhánh ghi ngắn (Phan Huy Ích / Tô Ký), nhãn màu riêng từng chi nhánh
+const nhanCn = (id) => (id ? h('span', { class: `nhan-cn cn-${api.mauChiNhanh(id)}` }, api.tenNganChiNhanh(id) || id) : '');
+const dsCnChon = () => api.dsChiNhanh().map((c) => ({ value: c.id, label: api.tenNganChiNhanh(c.id) || c.ten }));
 
 // Hộp hiện tên đăng nhập + mật khẩu tạm để giám đốc đưa cho nhân viên
 function moThongTinDangNhap(tieuDe, ten, mk) {
@@ -59,13 +62,15 @@ export default async function trangNhanVien(el) {
       bang([
         { nhan: 'Họ tên', lay: (r) => h('span', null, h('b', null, r.ho_ten), h('br'), h('small', null, r.ten_dang_nhap ? `Tên đăng nhập: ${r.ten_dang_nhap}` : (r.email || ''))) },
         { nhan: 'Bộ phận / vai trò', lay: (r) => (r.vai_tro.length ? r.vai_tro.map((v) => VAI_TRO[v]).join(', ') : h('span', { class: 'nhan tt-canh-bao' }, 'Chưa cấp quyền')) },
-        { nhan: 'Chi nhánh', lay: (r) => api.dm.ten('chi_nhanh', r.chi_nhanh_id) },
+        { nhan: 'Chi nhánh', lay: (r) => nhanCn(r.chi_nhanh_id) },
         { nhan: 'Tổ', lay: (r) => (r.vai_tro.includes('truong_nhom') ? api.dm.ten('to_thuc_hien', r.to_id) : '') },
         { nhan: 'Trạng thái', lay: (r) => h('span', null, r.hoat_dong ? 'Đang làm' : 'Đã khóa',
           r.phai_doi_mat_khau ? h('span', { class: 'nhan tt-canh-bao' }, 'Chờ đổi mật khẩu') : null) },
         { nhan: '', lay: (r) => h('span', { class: 'hang-nut' },
           h('button', { class: 'nut nho', type: 'button', 'data-sua': r.id, onclick: () => moSua(r) }, r.vai_tro.length ? 'Sửa quyền' : 'Cấp quyền'),
-          h('button', { class: 'nut nho', type: 'button', 'data-dat-lai': r.id, onclick: () => moDatLai(r) }, 'Đặt lại mật khẩu')) },
+          h('button', { class: 'nut nho', type: 'button', 'data-dat-lai': r.id, onclick: () => moDatLai(r) }, 'Đặt lại mật khẩu'),
+          r.id !== api.toi.id && !r.vai_tro.includes('giam_doc')
+            ? h('button', { class: 'nut nho nguy', type: 'button', 'data-xoa': r.id, onclick: () => xoa(r) }, 'Xóa') : null) },
       ], rows)));
   }
 
@@ -76,7 +81,7 @@ export default async function trangNhanVien(el) {
     const truongTo = truong('Tổ của trưởng nhóm', chonTo, null, { batBuoc: true });
     const form = h('form', { class: 'luoi-o', novalidate: true },
       truong('Họ tên', oChu('ho_ten', '', { placeholder: 'vd: Nguyễn Trọng Duy' }), null, { batBuoc: true }),
-      truong('Chi nhánh', oChon('chi_nhanh_id', api.dm.chi_nhanh.map((c) => ({ value: c.id, label: c.ten })), api.toi.chi_nhanh_id)),
+      truong('Chi nhánh', oChon('chi_nhanh_id', dsCnChon(), api.toi.chi_nhanh_id)),
       oVaiTro(),
       truongTo,
       truong('Tên đăng nhập', oTen, 'Tự gợi ý theo tên + bộ phận, sửa được. Chữ không dấu, số, dấu chấm.', { batBuoc: true }),
@@ -111,7 +116,7 @@ export default async function trangNhanVien(el) {
       null, { batBuoc: true });
     const form = h('form', { class: 'luoi-o' },
       truong('Họ tên', oChu('ho_ten', r.ho_ten)),
-      truong('Chi nhánh', oChon('chi_nhanh_id', api.dm.chi_nhanh.map((c) => ({ value: c.id, label: c.ten })), r.chi_nhanh_id || api.toi.chi_nhanh_id)),
+      truong('Chi nhánh', oChon('chi_nhanh_id', dsCnChon(), r.chi_nhanh_id || api.toi.chi_nhanh_id)),
       oVaiTro(r.vai_tro),
       truongTo,
       // 041: không tự khóa tài khoản của chính mình (khóa rồi không ai mở lại được)
@@ -129,6 +134,19 @@ export default async function trangNhanVien(el) {
         toast('Đã lưu.'); await tai();
       },
     });
+  }
+
+  // 046: chỉ xóa được tài khoản chưa có dữ liệu (tạo nhầm, chưa dùng); đã dùng thì máy chủ báo khóa ở "Sửa quyền"
+  async function xoa(r) {
+    const ok = await xacNhan(`Xóa hẳn tài khoản ${r.ho_ten}${r.ten_dang_nhap ? ` (${r.ten_dang_nhap})` : ''}? `
+      + 'Chỉ xóa được tài khoản chưa làm gì trong phần mềm (tạo nhầm, chưa dùng). Tài khoản đã có dữ liệu thì khóa ở "Sửa quyền".', 'Xóa tài khoản');
+    if (!ok) return;
+    try {
+      await api.xoaTaiKhoan(r.id);
+      await api.taiDanhMuc();
+      toast(`Đã xóa tài khoản ${r.ho_ten}.`);
+      await tai();
+    } catch (e) { baoLoi(e); }
   }
 
   function moDatLai(r) {

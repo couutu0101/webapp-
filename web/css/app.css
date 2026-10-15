@@ -89,6 +89,25 @@ body { overflow-x: hidden; }
 .khung-chon-cn { display: flex; flex-direction: column; gap: 4px; margin: 2px 16px 12px; }
 .khung-chon-cn > span { font-size: .72rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--tuong-chu); }
 .chon-cn-menu { width: 100%; }
+/* 046: nhãn chi nhánh – mỗi chi nhánh một màu (Tô Ký vàng, Phan Huy Ích xanh) */
+.nhan-cn { display: inline-flex; align-items: center; gap: 6px; padding: 3px 11px 3px 9px; border-radius: 999px; border: 1.5px solid;
+  font-weight: 700; font-size: .85rem; line-height: 1.35; white-space: nowrap; }
+.nhan-cn::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: none; }
+.cn-vang { color: #6b4c00; background: #fff4cc; border-color: #e0a800; }
+.cn-xanh { color: #174a96; background: #e3eeff; border-color: #4f86db; }
+.cn-tim { color: #55247f; background: #f1e7fb; border-color: #a173d2; }
+.cn-xanh-la { color: #1d6236; background: #e2f5e8; border-color: #4fa96d; }
+.cn-cam { color: #8a3a06; background: #ffeadb; border-color: #e07a2e; }
+.thuong-hieu small .nhan-cn { font-size: .78rem; }
+.chon-chi-nhanh[data-mau] { border-left-width: 6px; }
+.chon-chi-nhanh[data-mau=vang] { border-left-color: #f2b705; }
+.chon-chi-nhanh[data-mau=xanh] { border-left-color: #4f86db; }
+.chon-chi-nhanh[data-mau=tim] { border-left-color: #a173d2; }
+.chon-chi-nhanh[data-mau=xanh-la] { border-left-color: #4fa96d; }
+.chon-chi-nhanh[data-mau=cam] { border-left-color: #e07a2e; }
+/* nút xóa (nguy hiểm) */
+.nut.nguy { color: var(--loi); border-color: #e7b4ae; }
+.nut.nguy:hover { background: var(--loi-nhat); border-color: var(--loi); }
 /* Vạch kẻ sàn xưởng (vàng – than chì) dưới logo */
 .thuong-hieu::after { content: ''; position: absolute; left: 16px; right: 16px; bottom: 0; height: 4px;
   background: repeating-linear-gradient(-45deg, var(--vang) 0 8px, transparent 8px 16px); opacity: .9; }

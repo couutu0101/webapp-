@@ -64,6 +64,8 @@ export const dangNhap = async (email, matKhau) => {
 export const taoTaiKhoan = (p) => rpc('tao_tai_khoan_nhan_vien', { p });
 export const datLaiMatKhau = (id, matKhau) => rpc('dat_lai_mat_khau', { p_id: id, p_mat_khau: matKhau });
 export const daDoiMatKhau = () => rpc('da_doi_mat_khau');
+// 046: xóa tài khoản chưa có dữ liệu (đã dùng thì máy chủ báo khóa thay vì xóa)
+export const xoaTaiKhoan = (id) => rpc('xoa_tai_khoan_nhan_vien', { p_id: id });
 export const dangXuat = () => sb.auth.signOut();
 export const layPhien = async () => (await sb.auth.getSession()).data.session;
 export const khiDoiPhien = (cb) => sb.auth.onAuthStateChange(cb);
@@ -110,6 +112,11 @@ export const tenChiNhanh = (id) => {
   const t = (dm.ten ? dm.ten('chi_nhanh', id) : '').replace(/^.*[–-]\s*/, '');
   return /^CN\b/i.test(t) ? t.replace(/^CN\s*/i, 'Chi nhánh ') : t;
 };
+// Tên ngắn (Phan Huy Ích / Tô Ký) và màu nhãn riêng của từng chi nhánh (046)
+export const tenNganChiNhanh = (id) => tenChiNhanh(id).replace(/^Chi nhánh\s+/i, '');
+const MAU_CHI_NHANH = { TK: 'vang', PHI: 'xanh' };
+export const mauChiNhanh = (id) => MAU_CHI_NHANH[id]
+  || ['tim', 'xanh-la', 'cam'][[...String(id || '')].reduce((t, c) => t + c.charCodeAt(0), 0) % 3];
 export const doiChiNhanh = async (cn) => {
   const kq = await rpc('doi_chi_nhanh_lam_viec', { p_cn: cn });
   if (toi) toi.chi_nhanh_id = kq?.chi_nhanh_id || cn;

@@ -123,7 +123,7 @@ function dungKhung() {
   const nav = h('nav', { class: 'menu', id: 'menu', 'aria-label': 'Menu chính' },
     h('a', { class: 'thuong-hieu', href: '#/', 'aria-label': `${TEN_GARA} – về trang đầu` },
       h('img', { class: 'logo-ngang', src: 'img/logo-ngang.svg', alt: 'Auto Hoàng Sơn', width: 5662, height: 1323 }),
-      chiNhanh && !chonCn ? h('small', null, chiNhanh) : null),
+      chiNhanh && !chonCn ? h('small', null, h('span', { class: `nhan-cn cn-${api.mauChiNhanh(toi.chi_nhanh_id)}` }, chiNhanh)) : null),
     chonCn ? oChonChiNhanh('chon-cn-menu') : null,
     h('div', { class: 'menu-ds' }, menu.map((m) => h('a', { href: `#/${m.duong}`, 'data-duong': m.duong }, icon(m.ic), h('span', null, m.nhan)))),
     h('div', { class: 'menu-chan' },
@@ -135,7 +135,7 @@ function dungKhung() {
       onclick: () => document.body.classList.toggle('mo-menu') }, icon('menu')),
     h('a', { class: 'ten-gara', href: '#/', 'aria-label': `${TEN_GARA} – về trang đầu` },
       h('img', { class: 'logo-ngang', src: 'img/logo-ngang.svg', alt: 'Auto Hoàng Sơn', width: 5662, height: 1323 })),
-    chonCn ? oChonChiNhanh('chon-cn-dau') : h('span', { class: 'chi-nhanh' }, chiNhanh));
+    chonCn ? oChonChiNhanh('chon-cn-dau') : h('span', { class: 'chi-nhanh' }, chiNhanh ? h('span', { class: `nhan-cn cn-${api.mauChiNhanh(toi.chi_nhanh_id)}` }, api.tenNganChiNhanh(toi.chi_nhanh_id)) : ''));
   const noiDung = h('main', { class: 'noi-dung', id: 'noi-dung', tabindex: '-1' });
   khung = { noiDung, nav };
   dat(goc, dau, h('div', { class: 'than' }, nav, h('div', { class: 'man-che', onclick: () => document.body.classList.remove('mo-menu') }), noiDung));
@@ -145,10 +145,10 @@ function dungKhung() {
 // 045: ô chọn chi nhánh làm việc của giám đốc. Đổi xong tải lại trang để mọi danh sách, số liệu theo chi nhánh mới.
 function oChonChiNhanh(lop) {
   const toi = api.toi;
-  const sel = h('select', { class: `chon-chi-nhanh ${lop}`, 'aria-label': 'Chi nhánh đang làm việc',
+  const sel = h('select', { class: `chon-chi-nhanh ${lop}`, 'data-mau': api.mauChiNhanh(toi.chi_nhanh_id), 'aria-label': 'Chi nhánh đang làm việc',
     title: 'Chọn chi nhánh: mọi màn hình và chứng từ ghi mới đều theo chi nhánh đang chọn' },
     api.dsChiNhanh().map((c) => h('option', { value: c.id, selected: c.id === toi.chi_nhanh_id },
-      (api.tenChiNhanh(c.id) || c.ten).replace(/^Chi nhánh\s+/i, ''))));
+      api.tenNganChiNhanh(c.id) || c.ten)));
   sel.addEventListener('change', async () => {
     const cu = toi.chi_nhanh_id;
     const moi = sel.value;

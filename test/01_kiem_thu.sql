@@ -1886,6 +1886,27 @@ select kt.dong_vai('tien@gara.vn');
 select kt.ghi('045 Kế toán Tô Ký không thấy tài khoản quỹ của PHI',
   not exists (select 1 from public.tai_khoan_quy where chi_nhanh_id = 'PHI'));
 select kt.dong_vai(null);
+
+-- ---------------------------------------------------------------------
+-- 046: giám đốc xóa tài khoản chưa có dữ liệu
+-- ---------------------------------------------------------------------
+select kt.ghi('046 Hàm xóa tài khoản không mở cho khách chưa đăng nhập',
+  not has_function_privilege('anon', 'public.xoa_tai_khoan_nhan_vien(uuid)', 'EXECUTE'));
+select kt.dong_vai('thuan@gara.vn');
+insert into ctx select 'tk_xoa', public.tao_tai_khoan_nhan_vien('{"ho_ten":"Tạo nhầm","ten_dang_nhap":"nham.cvdv","mat_khau":"hs0046","vai_tro":["cvdv"],"chi_nhanh_id":"PHI"}')::text;
+select kt.dong_vai('long@gara.vn');
+select kt.mong_loi('046 Quản lý chung không xóa được tài khoản', format($$select public.xoa_tai_khoan_nhan_vien('%s')$$, (select v from ctx where k='tk_xoa')), 'Chỉ giám đốc');
+select kt.dong_vai('thuan@gara.vn');
+select kt.mong_loi('046 Giám đốc không tự xóa mình', format($$select public.xoa_tai_khoan_nhan_vien('%s')$$, (select id from public.nhan_vien where email = 'thuan@gara.vn')), 'chính mình');
+select kt.mong_loi('046 Tài khoản đã có dữ liệu (Duy) không xóa được, nhắc khóa ở Sửa quyền',
+  format($$select public.xoa_tai_khoan_nhan_vien('%s')$$, (select id from public.nhan_vien where email = 'duy@gara.vn')), 'bỏ chọn "Đang làm"');
+select public.xoa_tai_khoan_nhan_vien((select v::uuid from ctx where k='tk_xoa'));
+select kt.dong_vai(null);
+select kt.ghi('046 Xóa tài khoản chưa dùng: mất cả nhân viên, đăng nhập, identities; Duy vẫn còn',
+  not exists (select 1 from public.nhan_vien where id = (select v::uuid from ctx where k='tk_xoa'))
+  and not exists (select 1 from auth.users where id = (select v::uuid from ctx where k='tk_xoa'))
+  and not exists (select 1 from auth.identities where user_id = (select v::uuid from ctx where k='tk_xoa'))
+  and exists (select 1 from public.nhan_vien where email = 'duy@gara.vn'));
 \o
 \echo '======== KẾT QUẢ ========'
 select stt, case when dat then 'ĐẠT ' else 'LỖI ' end as kq, ten, left(coalesce(chi_tiet,''), 140) as chi_tiet from kt.ket_qua order by stt;
