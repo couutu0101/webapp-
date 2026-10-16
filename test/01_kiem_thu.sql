@@ -2102,6 +2102,15 @@ select kt.ghi('050 Hồ sơ giao diện cũ (không gửi qua_detailing) không 
 select kt.dong_vai('codong@gara.vn');
 select kt.ghi('050 Cổ đông đọc được kết quả Detailing (chỉ xem)', (select count(*) from public.ket_qua_detailing) >= 2);
 select kt.dong_vai(null);
+
+-- ---------------------------------------------------------------------
+-- 051: ảnh hủy vật tư (xe bảo hiểm)
+-- ---------------------------------------------------------------------
+select kt.dong_vai('duy@gara.vn');
+select kt.tep((select v from ctx where k='hs47'), 'huy_vat_tu', 2);
+select kt.ghi('051 Tải được ảnh bước "huy_vat_tu"', (select count(*) from public.ho_so_tep where ho_so_id = (select v::bigint from ctx where k='hs47') and buoc = 'huy_vat_tu') = 2);
+select kt.mong_loi('051 Bước tệp lạ vẫn bị chặn', format($$select public.them_tep(%s, 'linh_tinh', 'anh', 'TK/' || (select ma from public.ho_so where id = %s) || '/y.jpg')$$, (select v from ctx where k='hs47'), (select v from ctx where k='hs47')), 'không hợp lệ');
+select kt.dong_vai(null);
 \o
 \echo '======== KẾT QUẢ ========'
 select stt, case when dat then 'ĐẠT ' else 'LỖI ' end as kq, ten, left(coalesce(chi_tiet,''), 140) as chi_tiet from kt.ket_qua order by stt;

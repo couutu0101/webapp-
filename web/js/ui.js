@@ -258,7 +258,7 @@ export function oGoiY(input, { tim, ve, chon, choMs = 200 }) {
 }
 
 // Nút chọn/chụp ảnh to, dễ bấm; ô file thật nằm ẩn bên trong để vẫn dùng bàn phím và trình đọc màn hình được
-export function oChonTep(attrs = {}, nhan = 'Chụp hoặc chọn ảnh') {
+export function oChonTep(attrs = {}, nhan = 'Chọn ảnh') {
   const input = h('input', { type: 'file', accept: 'image/*', ...attrs });
   const dem = h('span', { class: 'chon-tep-dem' }, 'Chưa có ảnh');
   input.addEventListener('change', () => { dem.textContent = input.files.length ? `Đã chọn ${input.files.length} ảnh` : 'Chưa có ảnh'; });

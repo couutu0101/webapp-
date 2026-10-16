@@ -128,7 +128,7 @@ function khoiBangViec(ds, taiLai) {
 function moPhatSinh(x, taiLai) {
   const form = h('form', null,
     truong('Hư hỏng phát sinh', oVung('mo_ta', '', { rows: 3, placeholder: 'Ví dụ: nứt đèn pha trái, cần thay' }), 'Dừng làm phần phát sinh, chờ CVDV báo giá bổ sung và duyệt.', { batBuoc: true }),
-    truong('Ảnh hư hỏng', oChonTep({ name: 'anh', capture: 'environment', multiple: true }, 'Chụp ảnh hư hỏng')));
+    truong('Ảnh hư hỏng', oChonTep({ name: 'anh', multiple: true }, 'Tải ảnh hư hỏng')));
   moModal(`Báo phát sinh – ${x.bien_so || x.ma}`, form, {
     nhanNut: 'Gửi',
     nutChinh: async () => {

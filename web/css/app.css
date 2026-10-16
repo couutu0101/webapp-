@@ -878,3 +878,8 @@ label.o-anh-buoc:focus-within { outline: 3px solid var(--lien-ket); outline-offs
 /* 049: Danh mục > Dòng xe – lọc theo hãng */
 .loc-hang-xe { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; margin: 0 0 .75rem; font-weight: 600; }
 .loc-hang-xe select { min-width: 12rem; max-width: 100%; }
+
+/* 051: chọn nhiều ảnh nhận xe một lần (điền lần lượt vào ô trống) */
+.khung-anh-nhan-xe { display: flex; flex-direction: column; gap: var(--k2); }
+.khung-anh-nhan-xe .nut-nhieu-anh { align-self: flex-start; }
+.nut-nhieu-anh input { position: absolute; width: 1px; height: 1px; opacity: 0; }

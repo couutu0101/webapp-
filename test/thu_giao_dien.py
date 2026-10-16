@@ -470,6 +470,12 @@ with sync_playwright() as p:
     ve_ds(long_, id_hs)
     expect(long_.locator('h1 .nhan')).to_contain_text('Chờ KCS')
     ghi('050 Quản lý chung bấm "Đạt – chuyển KCS" ở thẻ Detailing → Chờ KCS')
+    # 051: ảnh hủy vật tư (xe bảo hiểm, không bắt buộc)
+    long_.set_input_files('[data-the=huy-vat-tu] input[type=file]', [ANH] * 2)
+    toast_co(long_, 'Đã lưu 2 ảnh hủy vật tư')
+    expect(long_.locator('[data-the=huy-vat-tu] h2')).to_have_text('Ảnh hủy vật tư (2)')
+    expect(long_.locator('[data-the=huy-vat-tu] .o-anh')).to_have_count(2)
+    ghi('051 Xe bảo hiểm: tải 2 ảnh hủy vật tư → "Ảnh hủy vật tư (2)" có ảnh nhỏ')
     long_.click('text=Đạt KCS')
     toast_co(long_, 'tối thiểu 6 ảnh')
     long_.set_input_files('.dem-anh-kcs input[type=file]', [ANH] * 5)
@@ -1347,6 +1353,16 @@ with sync_playwright() as p:
     expect(gd43.locator('.loc-hang-xe small')).to_contain_text('13 dòng')
     chup(gd43, '049-danh-muc-dong-xe')
     ghi('049 Danh mục > Dòng xe: lọc theo hãng BYD (12 dòng gồm "Khác"), bấm Thêm chọn sẵn BYD, thêm "Tang" → 13 dòng')
+
+    # ---- 051: ô ảnh không mở thẳng camera; chọn nhiều ảnh một lần điền lần lượt vào ô trống
+    ve_trang(gd43, '#/ho-so/moi')
+    assert gd43.locator('input[type=file][capture]').count() == 0
+    gd43.set_input_files('.o-anh-buoc input[data-buoc=nx_truoc]', ANH)
+    gd43.set_input_files('input[data-nhieu-anh]', [ANH] * 7)
+    expect(gd43.locator('.o-anh-buoc.du')).to_have_count(6)
+    toast_co(gd43, 'Chỉ còn 5 ô trống')
+    chup(gd43, '051-chon-nhieu-anh')
+    ghi('051 Tiếp nhận: không ô nào mở thẳng camera; "Chọn nhiều ảnh một lần" 7 ảnh → điền đủ 5 ô còn trống, báo lấy 5 ảnh đầu')
 
     # ---- 050: bước Detailing (rửa xe, đánh bóng) giữa sửa chữa và KCS
     ve_trang(gd43, '#/ho-so/moi')

@@ -38,7 +38,9 @@ export async function taiVaoBuoc(hs, buoc, files, tienDo) {
 
 // Khung 6 ô ảnh nhận xe.
 //  - Form tiếp nhận (không có hs): chọn ảnh giữ tạm trong máy, chon.get(buoc) = File; thieu() = các ô chưa có ảnh.
-//  - Trang hồ sơ (có hs): ô đã có ảnh hiện ảnh; ô thiếu bấm chụp là tải lên ngay rồi gọi khiXong().
+//  - Trang hồ sơ (có hs): ô đã có ảnh hiện ảnh; ô thiếu bấm chọn ảnh là tải lên ngay rồi gọi khiXong().
+//  - 051: không mở thẳng camera (điện thoại giật, lag) – chọn ảnh có sẵn trong máy (vẫn chụp mới được);
+//    nút "Chọn nhiều ảnh một lần" điền lần lượt vào các ô còn trống.
 export function khungAnhNhanXe({ hs = null, tep = [], link = {}, choSua = true, khiXong = null } = {}) {
   const chon = new Map();
   const oCua = new Map();
@@ -52,31 +54,51 @@ export function khungAnhNhanXe({ hs = null, tep = [], link = {}, choSua = true, 
       o.classList.toggle('du', !!xong);
       if (xong) o.classList.remove('thieu');
     };
-    const input = h('input', { type: 'file', accept: 'image/*', capture: 'environment', 'data-buoc': a.buoc, 'aria-label': `Ảnh ${a.ten}` });
+    const input = h('input', { type: 'file', accept: 'image/*', 'data-buoc': a.buoc, 'aria-label': `Ảnh ${a.ten}` });
     const o = h(choSua ? 'label' : 'div', { class: 'o-anh-buoc', 'data-o': a.buoc },
       choSua ? input : null, anh, h('b', null, a.ten), a.goiY ? h('small', { class: 'o-anh-buoc-goi-y' }, a.goiY) : null, trangThai);
     if (daCo) ve(link[daCo.duong_dan]?.nho || null, 'Đã có ảnh', true);
-    else ve(null, choSua ? 'Bấm để chụp *' : 'Chưa có', false);
-    input.addEventListener('change', async () => {
-      const f = input.files[0];
-      if (!f) return;
+    else ve(null, choSua ? 'Bấm để chọn ảnh *' : 'Chưa có', false);
+    const nhan = async (f, { im = false } = {}) => {
       ve(URL.createObjectURL(f), hs ? 'Đang tải…' : 'Đã chọn', !hs);
       if (!hs) { chon.set(a.buoc, f); return; }
       input.disabled = true;
       const loi = await taiVaoBuoc(hs, a.buoc, [f]);
       input.disabled = false; input.value = '';
-      if (loi) { ve(null, 'Tải lỗi – chụp lại', false); return; }
+      if (loi) { ve(null, 'Tải lỗi – chọn lại', false); return false; }
       ve(o.querySelector('img')?.src, 'Đã có ảnh', true);
+      if (im) return true;
       toast(`Đã lưu ảnh ${a.ten.toLowerCase()}.`);
       khiXong?.();
-    });
+      return true;
+    };
+    input.addEventListener('change', () => { if (input.files[0]) nhan(input.files[0]); });
+    o.nhan = nhan;
     oCua.set(a.buoc, o);
     return o;
   }));
-  luoi.chon = chon;
-  luoi.thieu = () => ANH_NHAN_XE.filter((a) => !chon.has(a.buoc) && !tep.some((t) => t.buoc === a.buoc));
-  luoi.danhDauThieu = () => { for (const a of luoi.thieu()) oCua.get(a.buoc)?.classList.add('thieu'); };
-  return luoi;
+  // Chọn nhiều ảnh một lần: điền lần lượt vào các ô chưa có ảnh (thứ tự ô: trước, sau, trái, phải, nội thất trước, sau)
+  const oNhieu = h('input', { type: 'file', accept: 'image/*', multiple: true, 'data-nhieu-anh': '', 'aria-label': 'Chọn nhiều ảnh nhận xe một lần' });
+  oNhieu.addEventListener('change', async () => {
+    const ds = [...oNhieu.files];
+    oNhieu.value = '';
+    const trong = ANH_NHAN_XE.map((a) => oCua.get(a.buoc)).filter((o) => o && !o.classList.contains('du'));
+    if (!trong.length) { toast('Đủ 6 ô rồi – muốn đổi ảnh nào thì bấm vào ô đó.'); return; }
+    if (ds.length > trong.length) toast(`Chỉ còn ${trong.length} ô trống – lấy ${trong.length} ảnh đầu.`);
+    const so = Math.min(ds.length, trong.length);
+    let daLuu = 0;
+    oNhieu.disabled = true;
+    for (let i = 0; i < so; i++) if (await trong[i].nhan(ds[i], { im: true })) daLuu++;
+    oNhieu.disabled = false;
+    if (hs) { if (daLuu) toast(`Đã lưu ${daLuu} ảnh nhận xe.`); khiXong?.(); }
+  });
+  const khung = h('div', { class: 'khung-anh-nhan-xe' },
+    choSua ? h('label', { class: 'nut nho nut-nhieu-anh' }, oNhieu, icon('anh'), 'Chọn nhiều ảnh một lần') : null,
+    luoi);
+  khung.chon = chon;
+  khung.thieu = () => ANH_NHAN_XE.filter((a) => !chon.has(a.buoc) && !tep.some((t) => t.buoc === a.buoc));
+  khung.danhDauThieu = () => { for (const a of khung.thieu()) oCua.get(a.buoc)?.classList.add('thieu'); };
+  return khung;
 }
 
 // Ô chọn ảnh / PDF đính kèm (báo giá, duyệt giá, KCS)

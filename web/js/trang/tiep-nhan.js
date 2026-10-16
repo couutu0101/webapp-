@@ -154,7 +154,7 @@ export default async function trangTiepNhan(el) {
         truong(hoSoGoc ? 'Yêu cầu khách hàng (lỗi cần làm lại)' : 'Yêu cầu khách hàng', oTinhTrang, 'Ngày hôm nay tự thêm vào đầu khi bấm vào ô', { batBuoc: true, rong: true }),
         truong('Những gì có thể tư vấn', oTuVan, 'Anh Long dùng để tư vấn khi giao xe. Bảo hiểm hết hạn sẽ tự ghi nhắc ở đầu.', { batBuoc: true, rong: true }))),
     h('fieldset', { class: 'nhom-o' }, h('legend', null, 'Ảnh nhận xe – bắt buộc 6 ảnh'),
-      h('p', { class: 'goi-y' }, 'Chụp đủ 4 góc quanh xe và 2 ảnh nội thất. Bấm vào từng ô để chụp (điện thoại mở camera).'), khungAnh),
+      h('p', { class: 'goi-y' }, 'Đủ 4 góc quanh xe và 2 ảnh nội thất. Bấm vào từng ô để chọn ảnh trong máy, hoặc "Chọn nhiều ảnh một lần" (điền lần lượt vào ô trống).'), khungAnh),
     // 050: sửa xong → tổ Detailing rửa xe, đánh bóng → KCS. Xe không cần thì tích (đổi lại được trong hồ sơ trước khi KCS)
     h('fieldset', { class: 'nhom-o' }, h('legend', null, 'Detailing trước KCS'),
       oCheck('khong_qua_detailing', false, 'Không qua Detailing (xe không cần rửa, đánh bóng trước khi KCS)'),
@@ -231,7 +231,7 @@ export default async function trangTiepNhan(el) {
     if (thieuAnh.length) {
       khungAnh.danhDauThieu();
       khungAnh.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      return toast(`Chụp đủ 6 ảnh nhận xe – còn thiếu: ${thieuAnh.map((a) => a.ten.toLowerCase()).join(', ')}.`, 'loi');
+      return toast(`Tải đủ 6 ảnh nhận xe – còn thiếu: ${thieuAnh.map((a) => a.ten.toLowerCase()).join(', ')}.`, 'loi');
     }
     const p = {
       bien_so: d.bien_so, ten_khach: d.ten_khach, dien_thoai: d.dien_thoai,
@@ -259,7 +259,7 @@ export default async function trangTiepNhan(el) {
         daTai++; nut.textContent = `Đang tải ảnh ${daTai}/${tong}…`;
       }));
       const daTao = hoSoGoc ? `Đã tạo hồ sơ bảo hành ${kq.ma} – lập lệnh sửa chữa được ngay` : `Đã tạo hồ sơ ${kq.ma}`;
-      toast(loiAnh ? `${daTao}, nhưng ${loiAnh} ảnh tải lên lỗi – chụp lại ở mục "Ảnh nhận xe" trong hồ sơ.` : daTao, loiAnh ? 'loi' : 'ok');
+      toast(loiAnh ? `${daTao}, nhưng ${loiAnh} ảnh tải lên lỗi – tải lại ở mục "Ảnh nhận xe" trong hồ sơ.` : daTao, loiAnh ? 'loi' : 'ok');
       veDanhSachHoSo({ id: kq.id, ma: kq.ma });
       return true;   // đã tạo hồ sơ: giữ khóa nút, không cho gửi lại trong lúc chuyển trang
     } catch {

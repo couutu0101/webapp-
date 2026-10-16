@@ -233,9 +233,9 @@ export default async function veThietBi(el, nut = null) {
       conDung ? h('div', { class: 'hang-nut ts-hanh-dong' },
         ghiBaoDuongDuoc(n) ? nut(t.tinh_trang === 'hong' || t.tinh_trang === 'dang_sua' ? 'Ghi sửa chữa' : 'Ghi bảo dưỡng / sửa', () => moGhiBaoDuong(t, lichDs, null), true) : null,
         ghiBaoDuongDuoc(n) ? nut('Báo mất / hỏng', () => moBaoSuCo(t)) : null,
-        ghiBaoDuongDuoc(n) ? h('label', { class: 'nut nho' }, h('input', { type: 'file', accept: 'image/*', capture: 'environment',
+        ghiBaoDuongDuoc(n) ? h('label', { class: 'nut nho' }, h('input', { type: 'file', accept: 'image/*',
           onchange: async (e) => { const f = e.target.files[0]; if (!f) return; dong?.();
-            await chay(async () => api.taiAnhTaiSan(t, await nenAnh(f)), { thanhCong: 'Đã lưu ảnh.' }).catch(() => {}); taiLai(); } }), t.anh ? 'Đổi ảnh' : 'Chụp ảnh') : null,
+            await chay(async () => api.taiAnhTaiSan(t, await nenAnh(f)), { thanhCong: 'Đã lưu ảnh.' }).catch(() => {}); taiLai(); } }), t.anh ? 'Đổi ảnh' : 'Tải ảnh') : null,
         quanLy() ? nut('Sửa', () => moLuuTaiSan(t)) : null,
         quanLy() ? nut('Chuyển nhóm', () => moChuyenNhom(t)) : null,
         quanLy() ? nut('Thanh lý', () => moThanhLy(t)) : null) : null,
@@ -282,7 +282,7 @@ export default async function veThietBi(el, nut = null) {
     const khoiLich = h('div', { class: 'rong luoi-o ts-lich-moi' },
       truong('Việc bảo dưỡng định kỳ (nếu có)', oChu('ten_viec', '', { placeholder: 'Thay dầu, xả nước bình…' }), 'Để trống nếu không cần', { co: 'lon' }),
       truong('Chu kỳ', chonCk, null, { co: 'vua' }));
-    const chonAnh = t ? null : oChonTep({ name: 'anh', capture: 'environment' }, 'Chụp ảnh');
+    const chonAnh = t ? null : oChonTep({ name: 'anh' }, 'Tải ảnh');
     const capNhatLoai = () => {
       const may = chonLoai.value === 'may_moc';
       truongSl.hidden = may; truongDv.hidden = may;

@@ -12,7 +12,7 @@ import { duocDetailing, detailingDat, moDetailingTraVe } from '../detailing.js';
 import { khungAnhNhanXe, anhNhanXeThieu, coFileBaoGiaMoi, coFileDuyetMoi, soAnhKcs, SO_ANH_KCS, NHAN_BUOC_MOI, ANH_NHAN_XE, taiVaoBuoc, oDinhKem } from '../anh-bat-buoc.js';
 
 const TT_DONG = { cho_duyet: 'Chờ duyệt', duyet: 'Đã duyệt', tu_choi: 'Không duyệt', dang_lam: 'Đang làm', xong: 'Xong' };
-const BUOC_TEP = { tiep_nhan: 'Nhận xe', ...NHAN_BUOC_MOI, duyet_gia: 'Giám định / duyệt giá / HĐ 3 bên', phat_sinh: 'Phát sinh', kcs: 'Sau sửa (KCS)', giao_xe: 'Giao xe', ho_so_bh: 'Hồ sơ bảo hiểm', khac: 'Khác' };
+const BUOC_TEP = { tiep_nhan: 'Nhận xe', ...NHAN_BUOC_MOI, duyet_gia: 'Giám định / duyệt giá / HĐ 3 bên', phat_sinh: 'Phát sinh', huy_vat_tu: 'Hủy vật tư (bảo hiểm)', kcs: 'Sau sửa (KCS)', giao_xe: 'Giao xe', ho_so_bh: 'Hồ sơ bảo hiểm', khac: 'Khác' };
 
 export default async function trangChiTiet(el, idChu) {
   const id = Number(idChu);
@@ -32,7 +32,7 @@ export default async function trangChiTiet(el, idChu) {
     dat(el, 
       dau(ctx), theTienDo(ctx, veLai),
       h('div', { class: 'cot-doi' },
-        h('div', null, theThongTin(ctx), theAnhNhanXe(ctx), theBaoGia(ctx), theSuaChua(ctx), theDetailing(ctx), theKcs(ctx), theGiaoXe(ctx), theHoSoBH(ctx), theChamSoc(ctx)),
+        h('div', null, theThongTin(ctx), theAnhNhanXe(ctx), theBaoGia(ctx), theSuaChua(ctx), theHuyVatTu(ctx), theDetailing(ctx), theKcs(ctx), theGiaoXe(ctx), theHoSoBH(ctx), theChamSoc(ctx)),
         h('div', null, theTien(ctx), theTep(ctx), theNhatKy(ctx))));
   };
   await veLai();
@@ -228,7 +228,7 @@ function theBaoGia({ hs, hm, ve, tep }) {
         duocBaoGia && choDuyet.length ? nut(`Nhập kết quả duyệt (${choDuyet.length})`, () => moDuyetGia(hs, choDuyet, ve, hm, tep), true) : null)),
     bang(cot, hm, { trong: hs.trang_thai === 'tiep_nhan' ? 'Chưa có báo giá.' : 'Chưa có dòng nào.', gon: true }),
     hs.bat_buoc_anh && (goc || boSung) && anhNhanXeThieu(tep).length
-      ? h('p', { class: 'thong-bao canh-bao' }, `Chưa đủ 6 ảnh nhận xe (thiếu ${anhNhanXeThieu(tep).map((a) => a.ten.toLowerCase()).join(', ')}) – chụp ở mục "Ảnh nhận xe" trước khi lập báo giá.`) : null,
+      ? h('p', { class: 'thong-bao canh-bao' }, `Chưa đủ 6 ảnh nhận xe (thiếu ${anhNhanXeThieu(tep).map((a) => a.ten.toLowerCase()).join(', ')}) – tải ở mục "Ảnh nhận xe" trước khi lập báo giá.`) : null,
     thieuGdv ? h('p', { class: 'goi-y' }, 'Hãng bảo hiểm và giám định viên chọn trong hộp "Nhập kết quả duyệt".') : null,
     khach ? h('p', { class: 'goi-y' }, 'Khách ngoài bảo hiểm không qua bước duyệt giá: lưu báo giá là duyệt luôn, lập lệnh sửa chữa được ngay.')
       : hs.trang_thai === 'bao_gia' ? h('p', { class: 'goi-y' }, 'Xe bảo hiểm: quá 3 ngày chưa duyệt thì báo giám đốc làm việc với bảo hiểm.') : null);
@@ -278,12 +278,12 @@ function moBaoGia(hs, hm, ve, boSung, tep = []) {
   // 047: hồ sơ bắt ảnh → đủ 6 ảnh nhận xe; mỗi lần lưu báo giá kèm ảnh / PDF báo giá (tải trước khi lưu)
   const thieuAnh = hs.bat_buoc_anh ? anhNhanXeThieu(tep) : [];
   if (thieuAnh.length) {
-    toast(`Chưa đủ 6 ảnh nhận xe – còn thiếu: ${thieuAnh.map((a) => a.ten.toLowerCase()).join(', ')}. Chụp ở mục "Ảnh nhận xe" trước.`, 'loi');
+    toast(`Chưa đủ 6 ảnh nhận xe – còn thiếu: ${thieuAnh.map((a) => a.ten.toLowerCase()).join(', ')}. Tải ở mục "Ảnh nhận xe" trước.`, 'loi');
     return;
   }
   let daCoFile = coFileBaoGiaMoi(hs, tep);
   const oFileBG = oDinhKem('Ảnh / file báo giá', { batBuoc: hs.bat_buoc_anh && !daCoFile,
-    goiY: daCoFile ? 'Đã có file báo giá tải lên – chọn thêm nếu cần.' : 'Chụp bảng báo giá hoặc chọn file PDF.' });
+    goiY: daCoFile ? 'Đã có file báo giá tải lên – chọn thêm nếu cần.' : 'Chọn ảnh bảng báo giá hoặc file PDF.' });
   const khach = hs.nguon_tt === 'khach';
   const vatCu = [...hm].reverse().find((m) => m.ty_le_vat !== null && m.ty_le_vat !== undefined)?.ty_le_vat;
   const chonVat = oChon('vat', VAT_BAO_GIA.map((r) => ({ value: String(r), label: phanTram(r) })),
@@ -550,7 +550,7 @@ function moXuLyPhatSinh(hs, ve) {
 function moPhatSinh(hs, ve) {
   const form = h('form', null,
     truong('Hư hỏng phát sinh', oVung('mo_ta', '', { rows: 3 }), 'Dừng phần phát sinh, chờ báo giá bổ sung và duyệt.', { batBuoc: true }),
-    truong('Ảnh hư hỏng', oChonTep({ name: 'anh', capture: 'environment', multiple: true }, 'Chụp ảnh hư hỏng')));
+    truong('Ảnh hư hỏng', oChonTep({ name: 'anh', multiple: true }, 'Tải ảnh hư hỏng')));
   moModal('Báo phát sinh', form, {
     nhanNut: 'Gửi',
     nutChinh: async () => {
@@ -562,6 +562,45 @@ function moPhatSinh(hs, ve) {
       await ve();
     },
   });
+}
+
+// ---------- Ảnh hủy vật tư (051): xe bảo hiểm, nếu có – không bắt buộc ----------
+// Phụ tùng / vật tư thay ra phải hủy theo yêu cầu bảo hiểm: chụp lại để gửi kèm hồ sơ bảo hiểm.
+const TT_HUY_VAT_TU = ['da_duyet', 'dang_sua', 'cho_detailing', 'cho_kcs', 'dat_kcs', 'da_giao', 'da_gui_hs'];
+function theHuyVatTu({ hs, tep, ve }) {
+  if (hs.nguon_tt === 'khach' || hs.loai === 'bao_hanh' || hs.trang_thai === 'huy') return null;
+  const ds = tep.filter((t) => t.buoc === 'huy_vat_tu');
+  const duocTai = !api.laCoDong() && q('cvdv', 'kho', 'ke_toan', 'quan_ly', 'giam_doc') && TT_HUY_VAT_TU.includes(hs.trang_thai);
+  if (!ds.length && !duocTai) return null;
+  const oAnh = h('input', { type: 'file', accept: 'image/*,application/pdf', multiple: true, 'aria-label': 'Tải ảnh hủy vật tư' });
+  const dangTai = h('small', { class: 'goi-y', role: 'status', 'aria-live': 'polite' });
+  oAnh.addEventListener('change', async () => {
+    const chon = [...oAnh.files];
+    if (!chon.length) return;
+    oAnh.disabled = true;
+    const loi = await taiVaoBuoc(hs, 'huy_vat_tu', chon, (n, t) => { dangTai.textContent = `Đang tải ${n}/${t}…`; });
+    oAnh.disabled = false; oAnh.value = ''; dangTai.textContent = '';
+    if (chon.length > loi) toast(`Đã lưu ${chon.length - loi} ảnh hủy vật tư.`);
+    ve.lai();
+  });
+  const luoi = h('div', { class: 'luoi-anh' });
+  (async () => {
+    if (!ds.length) return;
+    let link = {};
+    try { link = await api.linkTepNhieu(ds.map((t) => t.duong_dan)); } catch { return; }
+    for (const t of ds) {
+      const l = link[t.duong_dan];
+      if (!l?.lon) continue;
+      const laAnh = /\.(jpe?g|png|webp|heic)$/i.test(t.duong_dan);
+      luoi.append(h('a', { href: l.lon, target: '_blank', rel: 'noopener', class: 'o-anh' },
+        laAnh ? h('img', { src: l.nho, alt: 'Hủy vật tư', loading: 'lazy' }) : h('span', { class: 'tep' }, 'PDF'), h('small', null, ngay(t.tai_luc))));
+    }
+  })();
+  return h('section', { class: 'the', 'data-the': 'huy-vat-tu' },
+    h('div', { class: 'the-dau' }, h('h2', null, `Ảnh hủy vật tư (${ds.length})`),
+      duocTai ? h('label', { class: 'nut nho' }, icon('anh'), 'Tải ảnh hủy vật tư', oAnh) : null),
+    h('p', { class: 'goi-y' }, 'Xe bảo hiểm có phụ tùng, vật tư thay ra phải hủy: tải ảnh lúc hủy để gửi kèm hồ sơ bảo hiểm. Không có thì bỏ qua.'),
+    dangTai, ds.length ? luoi : null);
 }
 
 // ---------- Detailing (bước 6) – 050 ----------
@@ -616,8 +655,8 @@ function theKcs({ hs, hm, tep, dsKcs, ps, ve }) {
   const thieuAnh = () => (soAnh < canSo
     ? `KCS cần tối thiểu ${canSo} ảnh sau sửa (mới có ${soAnh}).`
     : truot ? `Chưa có ảnh sau khi làm lại (lần KCS chưa đạt lúc ${ngayGio(truot.luc)}) – chụp thêm ít nhất 1 ảnh.` : 'Chưa có ảnh sau sửa.');
-  // Chụp ảnh KCS ngay trong thẻ (nhiều ảnh một lần)
-  const oAnh = h('input', { type: 'file', accept: 'image/*', capture: 'environment', multiple: true, 'aria-label': 'Chụp ảnh KCS' });
+  // Tải ảnh KCS ngay trong thẻ (nhiều ảnh một lần; 051: chọn ảnh có sẵn trong máy, không mở thẳng camera)
+  const oAnh = h('input', { type: 'file', accept: 'image/*', multiple: true, 'aria-label': 'Tải ảnh KCS' });
   const dangTai = h('small', { class: 'goi-y', role: 'status', 'aria-live': 'polite' });
   oAnh.addEventListener('change', async () => {
     const ds = [...oAnh.files];
@@ -634,14 +673,14 @@ function theKcs({ hs, hm, tep, dsKcs, ps, ve }) {
         nut('Chưa đạt – làm lại', () => moKhongDat(hs, hm, ve)),
         nut('Đạt KCS', async () => {
           if (conPhatSinh) { toast('Còn hư hỏng phát sinh chưa xử lý – CVDV lập báo giá bổ sung hoặc ghi "Không cần làm thêm" trước.', 'loi'); return; }
-          if (!duAnh) { toast(`${thieuAnh()} Bấm "Chụp ảnh KCS" rồi ký đạt.`, 'loi'); return; }
+          if (!duAnh) { toast(`${thieuAnh()} Bấm "Tải ảnh KCS" rồi ký đạt.`, 'loi'); return; }
           await chay(() => api.kcs(hs.id, true, null, null), { thanhCong: 'Đã ký đạt KCS.' }).then(ve, ve.lai);
         }, true)) : null),
     choKcs && !duocKcs ? h('p', { class: 'goi-y' }, 'Chờ quản lý chung hoặc CVDV nghiệm thu.') : null,
     choKcs && conPhatSinh ? h('p', { class: 'thong-bao canh-bao' }, 'Còn hư hỏng phát sinh chờ xử lý (mục 4–5) – xử lý xong mới ký KCS đạt.') : null,
     choKcs ? h('div', { class: 'dem-anh-kcs' },
       h('span', { class: `nhan ${duAnh ? 'tt-tot' : 'tt-canh-bao'}`, 'data-anh-kcs': soAnh }, `Ảnh KCS: ${soAnh}/${canSo}`),
-      duocKcs && !api.laCoDong() ? h('label', { class: 'nut nho' }, icon('anh'), 'Chụp ảnh KCS', oAnh) : null, dangTai,
+      duocKcs && !api.laCoDong() ? h('label', { class: 'nut nho' }, icon('anh'), 'Tải ảnh KCS', oAnh) : null, dangTai,
       !duAnh ? h('small', { class: 'goi-y' }, thieuAnh()) : null) : null,
     dsKcs.length ? h('ul', { class: 'ds-don' }, dsKcs.map((k) => h('li', null, ngayGio(k.luc), ' – ', k.dat ? h('b', { class: 'chu-tot' }, 'Đạt') : h('b', { class: 'chu-loi' }, 'Chưa đạt: '), k.loi || ''))) : null);
 }
@@ -791,8 +830,9 @@ function moGiamGia(hs, ve) {
 }
 
 // ---------- Hồ sơ bảo hiểm, hoa hồng (bước 9) ----------
-function theHoSoBH({ hs, ve }) {
+function theHoSoBH({ hs, tep, ve }) {
   if (hs.nguon_tt === 'khach' || !hs.giao_luc) return null;
+  const soHuy = (tep || []).filter((t) => t.buoc === 'huy_vat_tu').length;
   const keToan = q('ke_toan', 'giam_doc');
   // 043 (khớp máy chủ): bảo hiểm chi trả 0 đ (khách trả hết) / hồ sơ bảo hành thì không có hồ sơ gửi bảo hiểm
   const canGui = coBuocHoSoBH(hs);
@@ -800,6 +840,8 @@ function theHoSoBH({ hs, ve }) {
   const thangHH = hs.hoa_hong_ky ? `${String(hs.hoa_hong_ky).slice(5, 7)}/${String(hs.hoa_hong_ky).slice(0, 4)}` : null;
   return h('section', { class: 'the' },
     h('h2', null, '9. Hồ sơ bảo hiểm, thu nợ, hoa hồng'),
+    // 051: nhắc kế toán ảnh hủy vật tư (nếu có) để gửi kèm hồ sơ
+    soHuy ? h('p', { class: 'goi-y' }, `Có ${soHuy} ảnh hủy vật tư – gửi kèm hồ sơ bảo hiểm (xem mục "Ảnh hủy vật tư").`) : null,
     hs.gui_hs_ngay ? h('p', null, 'Đã gửi hồ sơ ngày ', h('b', null, ngay(hs.gui_hs_ngay)))
       : !canGui ? h('p', { class: 'goi-y' }, 'Bảo hiểm không chi trả phần nào của xe này – không cần gửi hồ sơ bảo hiểm.')
         : keToan && hs.trang_thai === 'da_giao' && !hs.tu_excel ? h('div', { class: 'hang-nut' },
@@ -929,7 +971,7 @@ function theTep({ hs, tep, ve }) {
   });
   return h('section', { class: 'the' }, h('h2', null, `Ảnh & giấy tờ (${tep.length})`),
     !api.laCoDong() && (!['dong', 'huy'].includes(hs.trang_thai) || q('ke_toan', 'giam_doc'))
-      ? h('div', { class: 'tai-tep' }, chonBuoc, h('label', { class: 'nut' }, 'Chụp / chọn tệp', oTep), dangTai) : null,
+      ? h('div', { class: 'tai-tep' }, chonBuoc, h('label', { class: 'nut' }, 'Tải ảnh / tệp', oTep), dangTai) : null,
     tep.length ? luoi : h('p', { class: 'trong' }, 'Chưa có ảnh.'));
 }
 
