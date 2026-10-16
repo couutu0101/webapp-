@@ -883,3 +883,16 @@ label.o-anh-buoc:focus-within { outline: 3px solid var(--lien-ket); outline-offs
 .khung-anh-nhan-xe { display: flex; flex-direction: column; gap: var(--k2); }
 .khung-anh-nhan-xe .nut-nhieu-anh { align-self: flex-start; }
 .nut-nhieu-anh input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+
+/* Kịch bản thử 16/10: nút nhảy tới thẻ của bước đang chờ; thẻ nháy viền vàng khi tới */
+.den-buoc { display: flex; justify-content: center; padding: 0 12px 14px; }
+.nhay-sang { animation: nhay-sang 1.6s ease-out; }
+@keyframes nhay-sang { 0%, 40% { box-shadow: 0 0 0 3px var(--vang); } 100% { box-shadow: 0 0 0 0 transparent; } }
+/* Điện thoại: thông báo hiện ở trên (ở dưới che mất nút Lưu / Gửi của hộp thoại) */
+@media (max-width: 720px) {
+  #toast { top: calc(64px + env(safe-area-inset-top)); bottom: auto; }
+}
+section.the { scroll-margin-top: 72px; }
+/* Thông báo không chặn bấm vào nút nằm dưới nó (chỉ liên kết trong thông báo bấm được) */
+#toast, #toast .toast { pointer-events: none; }
+#toast a, #toast button { pointer-events: auto; }

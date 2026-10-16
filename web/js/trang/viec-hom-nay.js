@@ -136,7 +136,9 @@ function moPhatSinh(x, taiLai) {
       await api.baoPhatSinh(x.ho_so_id, mo_ta);
       const hs = { id: x.ho_so_id, ma: x.ma, chi_nhanh_id: x.chi_nhanh_id || api.toi.chi_nhanh_id };
       const kq = await api.taiNhieu(form.anh.files, 'phat_sinh', (f) => api.taiTep(hs, 'phat_sinh', f));
-      if (kq.loi.length) toast(`Đã báo phát sinh, nhưng ${kq.loi.length}/${kq.tong} ảnh tải lên lỗi – báo CVDV chụp lại.`, 'loi');
+      // Kịch bản thử 16/10: trước đây báo thành công không có thông báo gì – trưởng nhóm không biết đã gửi chưa
+      toast(kq.loi.length ? `Đã báo phát sinh, nhưng ${kq.loi.length}/${kq.tong} ảnh tải lên lỗi – báo CVDV tải lại.`
+        : 'Đã báo phát sinh – chờ CVDV báo giá bổ sung.', kq.loi.length ? 'loi' : 'ok');
       taiLai();
     },
   });

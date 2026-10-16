@@ -273,6 +273,8 @@ export function toast(msg, loai = 'ok', giuMs = null) {
   if (!khung) { khung = h('div', { id: 'toast', role: 'status', 'aria-live': 'polite' }); document.body.append(khung); }
   const el = h('div', { class: `toast ${loai}` }, msg);
   khung.append(el);
+  // Kịch bản thử 16/10: thao tác nhanh thì thông báo chồng 3–4 cái che nửa màn hình điện thoại → giữ tối đa 2 cái mới nhất
+  while (khung.children.length > 2) khung.firstElementChild.remove();
   setTimeout(() => el.remove(), giuMs || (loai === 'loi' ? 7000 : 3500));
   return el;
 }

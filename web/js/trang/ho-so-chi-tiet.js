@@ -70,7 +70,24 @@ function theTienDo({ hs, hm, nk, viec }, veLai) {
   const thongTinHan = { han, chuHan: han ? chuHan(han) : '' };
   return h('section', { class: 'the the-tien-do' },
     dongDangCho(hs, viec, hm, veLai, thongTinHan),
-    tienDo(hs, nk, aiDangLam(hs, viec, hm)));
+    tienDo(hs, nk, aiDangLam(hs, viec, hm)),
+    nutDenBuoc(hs));
+}
+
+// Kịch bản thử 16/10: trên điện thoại phần làm bước đang chờ (vd KCS) nằm rất xa dưới (phải cuộn qua thông tin, ảnh,
+// báo giá…) → nút nhảy thẳng tới thẻ của bước đó (thẻ có tiêu đề bắt đầu bằng số bước).
+function nutDenBuoc(hs) {
+  const { dang } = buocXe(hs);
+  if (!dang) return null;
+  const so = dang <= 3 ? '2' : dang <= 5 ? '4' : `${dang}.`;
+  const den = () => {
+    const the = [...document.querySelectorAll('#noi-dung section.the h2')].find((t) => t.textContent.trim().startsWith(so))?.closest('section');
+    if (!the) { toast('Bước này không có phần thao tác trên trang.'); return; }
+    the.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    the.classList.remove('nhay-sang'); void the.offsetWidth; the.classList.add('nhay-sang');
+  };
+  return h('div', { class: 'den-buoc' },
+    h('button', { class: 'nut nho', type: 'button', 'data-den-buoc': so, onclick: den }, `Đến phần làm bước ${dang}: ${BUOC_XE[dang - 1]} ↓`));
 }
 
 function tienDo(hs, nk, aiDang) {
