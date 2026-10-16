@@ -106,6 +106,15 @@ export async function taiDanhMuc() {
   dm.ten = (bang, id) => (dm[bang] || []).find((x) => String(x.id) === String(id))?.ten ?? '';
   return dm;
 }
+// 049: hãng xe / dòng xe xếp cho ô chọn – hãng hay gặp lên đầu (theo thứ tự này), còn lại A–Z, "Khác" cuối
+const HANG_XE_HAY_GAP = ['VinFast', 'Toyota', 'Hyundai', 'Kia', 'Mazda', 'Mitsubishi', 'Ford', 'Honda'];
+const soSanhTen = (a, b) => ((a.ten === 'Khác') - (b.ten === 'Khác')) || a.ten.localeCompare(b.ten, 'vi', { numeric: true, sensitivity: 'base' });
+export function nhomHangXe() {
+  const ds = dm.hang_xe || [];
+  const hay = HANG_XE_HAY_GAP.map((t) => ds.find((x) => x.ten === t)).filter(Boolean);
+  return { hay, khac: ds.filter((x) => !hay.includes(x)).sort(soSanhTen) };
+}
+export const dsDongXe = (hangId) => (dm.dong_xe || []).filter((d) => String(d.hang_xe_id) === String(hangId)).sort(soSanhTen);
 // 045: chi nhánh đang hoạt động; giám đốc chọn chi nhánh làm việc (đổi xong tải lại trang)
 export const dsChiNhanh = () => (dm.chi_nhanh || []).filter((c) => c.hoat_dong !== false);
 export const tenChiNhanh = (id) => {

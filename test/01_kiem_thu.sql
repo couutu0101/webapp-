@@ -1999,6 +1999,24 @@ select public.duyet_gia_chia((select v::bigint from ctx where k='hs48'), current
 select kt.ghi('048 Chọn hãng + GDV (lưu vào hồ sơ) rồi duyệt giá được; hãng / GDV có trong hồ sơ',
   (select trang_thai = 'da_duyet' and hang_bh_id is not null and gdv_id is not null from public.ho_so where id = (select v::bigint from ctx where k='hs48')));
 select kt.dong_vai(null);
+
+-- ---------------------------------------------------------------------
+-- 049: danh mục hãng xe / dòng xe đầy đủ (chỉ thêm, giữ id cũ)
+-- ---------------------------------------------------------------------
+select kt.ghi('049 Có đủ hãng xe (≥ 45) và dòng xe (≥ 450)',
+  (select count(*) from public.hang_xe) >= 45 and (select count(*) from public.dong_xe) >= 450,
+  (select count(*) from public.hang_xe)::text || ' hãng, ' || (select count(*) from public.dong_xe)::text || ' dòng');
+select kt.ghi('049 Hãng / dòng cũ giữ nguyên id (thêm sau cùng), không trùng tên trong một hãng',
+  (select max(id) from public.hang_xe where ten in ('VinFast','Mitsubishi','Toyota','Mazda','Kia','Hyundai','Mercedes','Ford','Isuzu','Thaco','Honda','Khác'))
+    < (select min(id) from public.hang_xe where ten not in ('VinFast','Mitsubishi','Toyota','Mazda','Kia','Hyundai','Mercedes','Ford','Isuzu','Thaco','Honda','Khác'))
+  and (select d.id from public.dong_xe d join public.hang_xe h on h.id = d.hang_xe_id where h.ten = 'Khác' and d.ten = 'Khác') < (select min(d.id) from public.dong_xe d join public.hang_xe h on h.id = d.hang_xe_id where h.ten = 'Toyota' and d.ten = 'Wigo')
+  and not exists (select 1 from public.dong_xe group by hang_xe_id, lower(ten) having count(*) > 1));
+select kt.ghi('049 Hãng nào cũng có dòng "Khác"; MPV 7 không bị thêm trùng kiểu "VF MPV 7"',
+  not exists (select 1 from public.hang_xe h where not exists (select 1 from public.dong_xe d where d.hang_xe_id = h.id and d.ten = 'Khác'))
+  and not exists (select 1 from public.dong_xe where ten = 'VF MPV 7'));
+select kt.ghi('049 Có các dòng hay gặp: Toyota Vios, Hyundai Accent, Kia K3, Honda City, VinFast Limo Green, BYD Atto 3',
+  (select count(*) from public.dong_xe d join public.hang_xe h on h.id = d.hang_xe_id
+    where (h.ten, d.ten) in (('Toyota','Vios'),('Hyundai','Accent'),('Kia','K3'),('Honda','City'),('VinFast','Limo Green'),('BYD','Atto 3'))) = 6);
 \o
 \echo '======== KẾT QUẢ ========'
 select stt, case when dat then 'ĐẠT ' else 'LỖI ' end as kq, ten, left(coalesce(chi_tiet,''), 140) as chi_tiet from kt.ket_qua order by stt;

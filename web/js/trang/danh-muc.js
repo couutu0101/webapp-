@@ -14,8 +14,8 @@ const DANH_MUC = [
   { bang: 'hang_bao_hiem', ten: 'Hãng bảo hiểm', cot: [{ k: 'ten', nhan: 'Tên', batBuoc: true }, { k: 'hoat_dong', nhan: 'Đang dùng', loai: 'bool' }] },
   { bang: 'giam_dinh_vien', ten: 'Giám định viên', cot: [{ k: 'ten', nhan: 'Tên', batBuoc: true }, { k: 'hang_id', nhan: 'Hãng', loai: 'chon', nguon: 'hang_bao_hiem' }, { k: 'dien_thoai', nhan: 'SĐT' }, { k: 'hoat_dong', nhan: 'Đang dùng', loai: 'bool' }],
     ghiChu: 'Gặp hồ sơ ghi "GDV mới – chờ thêm": thêm người đó ở đây, rồi vào hồ sơ bấm Sửa để chọn lại đúng người.' },
-  { bang: 'hang_xe', ten: 'Hãng xe', cot: [{ k: 'ten', nhan: 'Tên', batBuoc: true }] },
-  { bang: 'dong_xe', ten: 'Dòng xe', cot: [{ k: 'hang_xe_id', nhan: 'Hãng xe', loai: 'chon', nguon: 'hang_xe', batBuoc: true }, { k: 'ten', nhan: 'Dòng xe', batBuoc: true }] },
+  { bang: 'hang_xe', ten: 'Hãng xe', sapTen: true, cot: [{ k: 'ten', nhan: 'Tên', batBuoc: true }] },
+  { bang: 'dong_xe', ten: 'Dòng xe', sapTen: true, locHangXe: true, cot: [{ k: 'hang_xe_id', nhan: 'Hãng xe', loai: 'chon', nguon: 'hang_xe', batBuoc: true }, { k: 'ten', nhan: 'Dòng xe', batBuoc: true }] },
   { bang: 'tai_khoan_quy', ten: 'Tài khoản quỹ', coDinh: () => ({ chi_nhanh_id: api.toi.chi_nhanh_id }), lichSu: true,
     cot: [{ k: 'ten', nhan: 'Tên', batBuoc: true }, { k: 'so_du_dau_ky', nhan: 'Số dư đầu kỳ', loai: 'tien', choAm: true }, { k: 'ngay_dau_ky', nhan: 'Ngày đầu kỳ', loai: 'ngay' },
       { k: 'mac_dinh', nhan: 'Mặc định nhận tiền (phiếu thu)', loai: 'bool', macDinh: false }, { k: 'hoat_dong', nhan: 'Đang dùng', loai: 'bool' }],
@@ -49,6 +49,7 @@ const DANH_MUC = [
 export default async function trangDanhMuc(el) {
   const ds = DANH_MUC.filter((d) => !d.chiGD || api.coVaiTro('giam_doc'));
   let chon = ds[0];
+  let hangLoc = '';   // 049: Dòng xe – lọc theo hãng (danh sách dài)
   const vung = h('div');
   const chonDM = h('select', { 'aria-label': 'Chọn danh mục', onchange: (e) => { chon = ds.find((d) => d.bang === e.target.value); tai(); } },
     ds.map((d) => h('option', { value: d.bang }, d.ten)));
@@ -59,6 +60,22 @@ export default async function trangDanhMuc(el) {
     const khoa = cfg.khoa || 'id';
     let rows = await api.doc(cfg.bang, (q) => q.order(khoa));
     if (cfg.bang === 'tai_khoan_quy') rows = rows.filter((r) => r.chi_nhanh_id === api.toi.chi_nhanh_id);
+    if (cfg.sapTen) {
+      const tenHang = (r) => (cfg.locHangXe ? api.dm.ten('hang_xe', r.hang_xe_id) : '');
+      const so = (a, b) => a.localeCompare(b, 'vi', { numeric: true, sensitivity: 'base' });
+      rows.sort((a, b) => so(tenHang(a), tenHang(b)) || so(a.ten || '', b.ten || ''));
+    }
+    let locEl = null;
+    if (cfg.locHangXe) {
+      if (hangLoc && !(api.dm.hang_xe || []).some((x) => String(x.id) === hangLoc)) hangLoc = '';
+      if (hangLoc) rows = rows.filter((r) => String(r.hang_xe_id) === hangLoc);
+      const { hay, khac } = api.nhomHangXe();
+      locEl = h('label', { class: 'loc-hang-xe' }, 'Hãng xe: ',
+        h('select', { name: 'loc_hang_xe', onchange: (e) => { hangLoc = e.target.value; tai(); } },
+          h('option', { value: '' }, 'Tất cả hãng'),
+          [...hay, ...khac].map((x) => h('option', { value: x.id, selected: String(x.id) === hangLoc }, x.ten))),
+        h('small', { class: 'goi-y' }, ` ${rows.length} dòng`));
+    }
     const hienThi = (c, r) => {
       const v = r[c.k];
       if (c.chiKhi && !c.chiKhi(r)) return '—';
@@ -74,6 +91,7 @@ export default async function trangDanhMuc(el) {
       h('div', { class: 'the-dau' }, h('h2', null, cfg.ten),
         cfg.khongThem ? null : h('button', { class: 'nut chinh', type: 'button', onclick: () => moForm(cfg, null) }, '+ Thêm')),
       cfg.ghiChu ? h('p', { class: 'goi-y' }, cfg.ghiChu) : null,
+      locEl,
       bang([...cfg.cot.map((c) => ({ nhan: c.nhan, lay: (r) => hienThi(c, r) })),
         cfg.khongSua && cfg.khongXoa ? null : { nhan: '', lay: (r) => h('span', { class: 'hang-nut' },
           cfg.khongSua ? null : h('button', { class: 'nut-chu', type: 'button', onclick: (e) => { e.stopPropagation(); moForm(cfg, r); } }, 'Sửa'),
@@ -108,7 +126,10 @@ export default async function trangDanhMuc(el) {
       if (c.chiXem) return r ? h('p', { class: 'rong' }, h('b', null, r.khoa), ' – ', v) : null;
       let o;
       if (c.loai === 'bool') return h('div', { class: 'truong', 'data-cot': c.k }, oCheck(c.k, v, c.nhan));
-      if (c.loai === 'chon' && c.nguon) o = oChon(c.k, (api.dm[c.nguon] || []).map((x) => ({ value: x.id, label: x.ten })), v);
+      if (c.loai === 'chon' && c.nguon === 'hang_xe') {   // 049: hãng hay gặp trước, còn lại A–Z; thêm mới thì chọn sẵn hãng đang lọc
+        const { hay, khac } = api.nhomHangXe();
+        o = oChon(c.k, [...hay, ...khac].map((x) => ({ value: x.id, label: x.ten })), r ? v : (hangLoc || null));
+      } else if (c.loai === 'chon' && c.nguon) o = oChon(c.k, (api.dm[c.nguon] || []).map((x) => ({ value: x.id, label: x.ten })), v);
       else if (c.loai === 'chon') o = oChon(c.k, Object.entries(c.ds).map(([value, label]) => ({ value, label })), v);
       else if (c.loai === 'tien') o = oTien(c.k, v, { choAm: !!c.choAm });
       else if (c.loai === 'no') o = h('div', { class: 'hang-nut' }, oTien(c.k, v === null ? null : Math.abs(Number(v))),

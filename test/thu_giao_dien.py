@@ -1317,6 +1317,31 @@ with sync_playwright() as p:
     toast_co(gd43, 'Đã xóa tài khoản Tạo nhầm PHI')
     expect(gd43.locator('tr', has_text='Tạo nhầm PHI')).to_have_count(0)
     ghi('046 Xóa tài khoản tạo nhầm (chưa dùng): hết khỏi danh sách')
+
+    # ---- 049: danh mục hãng / dòng xe đầy đủ – ô chọn hãng có nhóm "Hay gặp", dòng xe A–Z; Danh mục lọc dòng xe theo hãng
+    ve_trang(gd43, '#/ho-so/moi')
+    nhom = gd43.evaluate("""() => [...document.querySelectorAll('select[name=hang_xe_id] optgroup')].map((g) => [g.label, [...g.children].map((o) => o.textContent)])""")
+    assert nhom[0][0] == 'Hay gặp' and nhom[0][1][:3] == ['VinFast', 'Toyota', 'Hyundai'], nhom[0]
+    assert len(nhom[1][1]) >= 37 and nhom[1][1][-1] == 'Khác' and 'BYD' in nhom[1][1], nhom[1]
+    gd43.select_option('select[name=hang_xe_id]', label='Toyota')
+    dong = gd43.locator('select[name=dong_xe_id] option').all_inner_texts()[1:]
+    assert 'Vios' in dong and 'Corolla Cross' in dong and dong.index('Camry') < dong.index('Vios') and dong[-1] == 'Khác', dong
+    gd43.select_option('select[name=dong_xe_id]', label='Corolla Cross')
+    chup(gd43, '049-tiep-nhan-hang-xe')
+    ghi(f'049 Tiếp nhận: {len(nhom[0][1]) + len(nhom[1][1])} hãng (nhóm "Hay gặp" VinFast, Toyota… trước, còn lại A–Z, "Khác" cuối); Toyota có {len(dong)} dòng xếp A–Z')
+    ve_trang(gd43, '#/danh-muc')
+    gd43.select_option('select[aria-label="Chọn danh mục"]', 'dong_xe')
+    gd43.wait_for_selector('select[name=loc_hang_xe]')
+    gd43.select_option('select[name=loc_hang_xe]', label='BYD')
+    expect(gd43.locator('.loc-hang-xe small')).to_contain_text('12 dòng')
+    expect(gd43.locator('tbody tr', has_text='Atto 3')).to_have_count(1)
+    gd43.locator('.the-dau button', has_text='+ Thêm').click()
+    expect(modal(gd43).locator('select[name=hang_xe_id] option:checked')).to_have_text('BYD')
+    modal(gd43).locator('input[name=ten]').fill('Tang')
+    modal(gd43).locator('.modal-chan .nut.chinh').click()
+    expect(gd43.locator('.loc-hang-xe small')).to_contain_text('13 dòng')
+    chup(gd43, '049-danh-muc-dong-xe')
+    ghi('049 Danh mục > Dòng xe: lọc theo hãng BYD (12 dòng gồm "Khác"), bấm Thêm chọn sẵn BYD, thêm "Tang" → 13 dòng')
     b.close()
 
 print('\nLỖI TRÌNH DUYỆT:' if loi else '\nKhông có lỗi JavaScript.')

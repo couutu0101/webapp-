@@ -874,3 +874,7 @@ label.o-anh-buoc:focus-within { outline: 3px solid var(--lien-ket); outline-offs
 .dem-anh-kcs .nhan { margin-left: 0; }
 .dem-anh-kcs label.nut input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .dem-anh-kcs label.nut { position: relative; }
+
+/* 049: Danh mục > Dòng xe – lọc theo hãng */
+.loc-hang-xe { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; margin: 0 0 .75rem; font-weight: 600; }
+.loc-hang-xe select { min-width: 12rem; max-width: 100%; }

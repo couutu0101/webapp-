@@ -21,14 +21,19 @@ export default async function trangTiepNhan(el) {
     const d = dm.dong_xe.find((x) => String(x.id) === String(idDong));
     return d ? `${dm.ten('hang_xe', d.hang_xe_id)} ${d.ten}` : '';
   };
-  const chonHangXe = oChon('hang_xe_id', dm.hang_xe.map((x) => ({ value: x.id, label: x.ten })), null, { required: true });
+  // 049: hãng hay gặp lên đầu, các hãng khác A–Z; dòng xe A–Z
+  const nhomHang = api.nhomHangXe();
+  const chonHangXe = h('select', { name: 'hang_xe_id', required: true }, h('option', { value: '' }, '— Chọn —'),
+    h('optgroup', { label: 'Hay gặp' }, nhomHang.hay.map((x) => h('option', { value: x.id }, x.ten))),
+    h('optgroup', { label: 'Hãng khác (A–Z)' }, nhomHang.khac.map((x) => h('option', { value: x.id }, x.ten))));
   const chonDongXe = oChon('dong_xe_id', [], null, { required: true });
   const capNhatDongXe = (giu) => {
-    const ds = dm.dong_xe.filter((d) => String(d.hang_xe_id) === chonHangXe.value);
-    dat(chonDongXe, h('option', { value: '' }, '— Chọn —'), ds.map((d) => h('option', { value: d.id }, d.ten)));
+    const ds = api.dsDongXe(chonHangXe.value);
+    dat(chonDongXe, h('option', { value: '' }, chonHangXe.value ? '— Chọn —' : '— Chọn hãng trước —'), ds.map((d) => h('option', { value: d.id }, d.ten)));
     if (giu) chonDongXe.value = giu;
   };
   chonHangXe.addEventListener('change', () => capNhatDongXe());
+  capNhatDongXe();
 
   // 048: hãng bảo hiểm và giám định viên KHÔNG nhập lúc tiếp nhận – CVDV chọn khi nhập kết quả duyệt giá (bắt buộc)
   // Hai ngày hết hạn bảo hiểm: luôn hiện; bắt buộc với xe bảo hiểm, khách ngoài bảo hiểm thì không bắt buộc
