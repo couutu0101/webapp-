@@ -159,6 +159,9 @@ export const bangViecTo = async () => {
   return coVaiTro('giam_doc') && toi?.chi_nhanh_id ? ds.filter((x) => !x.chi_nhanh_id || x.chi_nhanh_id === toi.chi_nhanh_id) : ds;
 };
 export const kcs = (id, dat, loi, lamLai) => rpc('kcs', { p_ho_so: id, p_dat: dat, p_loi: loi, p_lam_lai: lamLai });
+// 050: bước Detailing (rửa xe, đánh bóng) trước KCS; CVDV bật / tắt bước này cho từng xe
+export const detailing = (id, dat, loi = null, lamLai = null) => rpc('detailing', { p_ho_so: id, p_dat: dat, p_loi: loi, p_lam_lai: lamLai });
+export const datQuaDetailing = (id, qua) => rpc('dat_qua_detailing', { p_ho_so: id, p_qua: qua });
 export const duyetGiamGia = (id, soTien, lyDo) => rpc('duyet_giam_gia', { p_ho_so: id, p_so_tien: soTien, p_ly_do: lyDo });
 export const duyetGiaoConNo = (id) => rpc('duyet_giao_xe_con_no', { p_ho_so: id });
 export const giaoXe = (id, p) => rpc('giao_xe', { p_ho_so: id, p });
@@ -189,6 +192,7 @@ export const layNhatKy = (id) => doc('ho_so_nhat_ky', (q) => q.eq('ho_so_id', id
 export const layTep = (id) => doc('ho_so_tep', (q) => q.eq('ho_so_id', id).order('tai_luc'));
 export const layPhatSinh = (id) => doc('phat_sinh', (q) => q.eq('ho_so_id', id).order('luc', { ascending: false }));
 export const layKcs = (id) => doc('kcs', (q) => q.eq('ho_so_id', id).order('luc', { ascending: false }));
+export const layDetailing = (id) => doc('ket_qua_detailing', (q) => q.eq('ho_so_id', id).order('luc', { ascending: false }));
 
 // Tên tệp trong kho lưu trữ: bỏ dấu, ký tự lạ; thêm thời điểm + chuỗi ngẫu nhiên để nhiều ảnh tải cùng lúc
 // (điện thoại hay đặt cùng tên image.jpg) không đè nhau

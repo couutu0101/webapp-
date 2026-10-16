@@ -10,6 +10,7 @@ export const VAI_TRO_BUOC = {
   bao_gia: ['cvdv', 'quan_ly', 'giam_doc'],
   duyet_gia: ['cvdv', 'quan_ly', 'giam_doc'],
   lenh: ['cvdv', 'quan_ly', 'giam_doc'],
+  detailing: ['truong_nhom', 'quan_ly', 'giam_doc'],   // 050: trưởng nhóm tổ Detailing (DT), quản lý chung, giám đốc
   kcs: ['quan_ly', 'cvdv', 'giam_doc'],   // 047: CVDV cũng nghiệm thu KCS
   giao_xe: ['ke_toan', 'cvdv', 'quan_ly', 'giam_doc'],
   ho_so_bh: ['ke_toan', 'giam_doc'],
@@ -25,6 +26,7 @@ export function viecTiepTheo(hs) {
     case 'bao_gia': return { ten: 'Nhập kết quả duyệt giá', vaiTro: VAI_TRO_BUOC.duyet_gia };
     case 'da_duyet': return { ten: 'Lập lệnh sửa chữa', vaiTro: VAI_TRO_BUOC.lenh };
     case 'dang_sua': return { ten: 'Cấp phụ tùng – Sửa chữa', vaiTro: [], theoTo: true };
+    case 'cho_detailing': return { ten: 'Detailing – rửa xe, đánh bóng', vaiTro: VAI_TRO_BUOC.detailing, toId: TO_DETAILING };
     case 'cho_kcs': return { ten: 'KCS', vaiTro: VAI_TRO_BUOC.kcs };
     case 'dat_kcs': return { ten: 'Thu tiền – giao xe', vaiTro: VAI_TRO_BUOC.giao_xe };
     case 'da_giao':
@@ -41,8 +43,11 @@ export const tenNhanVien = (id) => (api.dm.nhan_vien || []).find((n) => n.id ===
 // Tên gọi ngắn: "Nguyễn Trọng Duy" → "Duy"
 export const tenGoi = (id) => tenNhanVien(id).trim().split(/\s+/).pop() || '';
 
-function oChonNguoi(vaiTro, macDinh, name = 'giao_cho') {
-  const ds = nhanVien().filter((n) => !vaiTro?.length || n.vai_tro.some((v) => vaiTro.includes(v)));
+export const TO_DETAILING = 'DT';
+// toId: trưởng nhóm chỉ lấy người của tổ này (bước Detailing chỉ giao trưởng nhóm tổ Detailing)
+function oChonNguoi(vaiTro, macDinh, name = 'giao_cho', toId = null) {
+  const ds = nhanVien().filter((n) => !vaiTro?.length || n.vai_tro.some((v) => vaiTro.includes(v)
+    && (v !== 'truong_nhom' || !toId || n.to_id === toId)));
   const vaiTroNhan = (n) => n.vai_tro.filter((v) => VAI_TRO[v] && v !== 'co_dong').map((v) => VAI_TRO[v]).join(', ');
   return oChon(name, ds.map((n) => ({ value: n.id, label: `${n.ho_ten}${vaiTroNhan(n) ? ` – ${vaiTroNhan(n)}` : ''}` })),
     ds.some((n) => n.id === macDinh) ? macDinh : (ds[0]?.id ?? ''), { trong: null });
@@ -123,7 +128,7 @@ export function dongDangCho(hs, viec, hm, veLai, { han = null, chuHan = '' } = {
 }
 
 function moDoiNguoi(hs, v, viec, veLai) {
-  const chon = oChonNguoi(v.vaiTro, viec?.nguoi_tiep_theo);
+  const chon = oChonNguoi(v.vaiTro, viec?.nguoi_tiep_theo, 'giao_cho', v.toId);
   moModal('Đổi người làm bước tiếp theo', h('div', null,
     h('p', { class: 'mo-ta' }, `${hs.ma} · Bước tiếp theo: ${v.ten}`),
     truong('Giao cho', chon)), {
@@ -136,15 +141,18 @@ function moDoiNguoi(hs, v, viec, veLai) {
   });
 }
 
-// Người làm và ngày làm của từng bước (lấy từ nhật ký) – dùng cho thanh 9 bước
-// Vào trạng thái nào = vừa xong bước nào (bước 5 "Cấp phụ tùng – Sửa chữa" xong khi sang chờ KCS)
-const BUOC_CUA_TRANG_THAI = { tiep_nhan: 1, bao_gia: 2, da_duyet: 3, dang_sua: 4, cho_kcs: 5, dat_kcs: 6, da_giao: 7, da_gui_hs: 8 };
+// Người làm và ngày làm của từng bước (lấy từ nhật ký) – dùng cho thanh 10 bước
+// Vào trạng thái nào = vừa xong bước nào (bước 5 "Cấp phụ tùng – Sửa chữa" xong khi sang chờ Detailing / chờ KCS;
+// 050: từ chờ Detailing sang chờ KCS = xong bước 6 Detailing)
+const BUOC_CUA_TRANG_THAI = { tiep_nhan: 1, bao_gia: 2, da_duyet: 3, dang_sua: 4, cho_detailing: 5, cho_kcs: 5, dat_kcs: 7, da_giao: 8, da_gui_hs: 9 };
 export function nguoiLamTungBuoc(nk) {
   const kq = {};
   for (const n of [...nk].sort((a, b) => new Date(a.luc) - new Date(b.luc))) {
     let so = null;
-    if (n.sang_trang_thai && n.tu_trang_thai !== n.sang_trang_thai) so = BUOC_CUA_TRANG_THAI[n.sang_trang_thai] ?? null;
-    else if ((n.ghi_chu || '').startsWith('Gọi chăm sóc')) so = 9;
+    if (n.sang_trang_thai && n.tu_trang_thai !== n.sang_trang_thai) {
+      so = BUOC_CUA_TRANG_THAI[n.sang_trang_thai] ?? null;
+      if (n.sang_trang_thai === 'cho_kcs' && n.tu_trang_thai === 'cho_detailing') so = 6;
+    } else if ((n.ghi_chu || '').startsWith('Gọi chăm sóc')) so = 10;
     if (!so || !n.boi) continue;
     // KCS chưa đạt đưa xe về "Đang sửa": bước 4 (lệnh sửa chữa) giữ người lập lệnh lần đầu, không đổi thành người ký KCS
     if (so === 4 && kq[4]) continue;

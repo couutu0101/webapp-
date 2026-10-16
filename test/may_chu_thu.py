@@ -110,11 +110,18 @@ def doc(q):
 def rpc(ten, ts):
     if not TEN_COT.match(ten):
         raise ValueError('tên hàm không hợp lệ')
-    args = ', '.join(f"{cot(k)} => {lit(v)}" for k, v in (ts or {}).items())
-    info, _ = chay_sql(f"(select json_build_object('rs', proretset, 'kieu', prorettype::regtype::text) from pg_proc "
-                       f"where proname = {lit(ten)} and pronamespace = 'public'::regnamespace limit 1)", None, True)
+    info, _ = chay_sql(f"(select json_build_object('rs', proretset, 'kieu', prorettype::regtype::text, "
+                       f"'mang', (select coalesce(json_object_agg(n, t), '{{}}') from unnest(coalesce(proargnames, '{{}}'), proargtypes::regtype[]::text[]) a(n, t) where t like '%[]'))"
+                       f" from pg_proc where proname = {lit(ten)} and pronamespace = 'public'::regnamespace limit 1)", None, True)
     if info is None:
         return None, {'message': f'Không có hàm {ten}'}
+    # Như PostgREST: mảng JSON gửi vào tham số kiểu mảng Postgres (bigint[], text[]…) đổi thành mảng Postgres
+    mang = info.get('mang') or {}
+    def gia_tri(k, v):
+        if isinstance(v, list) and k in mang:
+            return f"(select array_agg(x) from jsonb_array_elements_text({lit(v)}::jsonb) x)::{mang[k]}"
+        return lit(v)
+    args = ', '.join(f"{cot(k)} => {gia_tri(k, v)}" for k, v in (ts or {}).items())
     if info['kieu'] == 'void':
         return chay_sql(f"(select null::json from (select public.{ten}({args})) x)", TL.user)
     if info['rs'] or info['kieu'] == 'record':

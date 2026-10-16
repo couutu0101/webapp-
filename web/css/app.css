@@ -332,7 +332,7 @@ input[type=checkbox], input[type=radio] { width: 20px; height: 20px; min-height:
   margin-left: 6px; vertical-align: middle; white-space: nowrap; }
 .nhan::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: none; }
 .tt-tiep_nhan, .tt-bao_gia { background: var(--cam-nhat); color: var(--cam); }
-.tt-da_duyet, .tt-dang_sua, .tt-cho_kcs { background: var(--xanh-nhat); color: var(--xanh); }
+.tt-da_duyet, .tt-dang_sua, .tt-cho_detailing, .tt-cho_kcs { background: var(--xanh-nhat); color: var(--xanh); }
 .tt-dat_kcs, .tt-da_giao, .tt-da_gui_hs { background: var(--tim-nhat); color: var(--tim); }
 .tt-dong { background: var(--tot-nhat); color: var(--tot); }
 .tt-huy { background: #e9ebea; color: #5d6266; }
@@ -383,9 +383,9 @@ a.o-dem:not(.mo) b { color: var(--muc); }
 .the-tien-do { padding: 0; overflow: hidden; margin-bottom: 20px; }
 .tien-do-khung { padding: 22px 12px 16px; }
 .tien-do-chu { display: none; margin: 10px 6px 0; font-size: .86rem; font-weight: 600; text-align: center; }
-.tien-do { --tien: 0; list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); position: relative; }
+.tien-do { --tien: 0; list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(var(--so-buoc, 10), minmax(0, 1fr)); position: relative; }
 /* Đường: phần chưa tới gạch đứt như vạch kẻ đường, phần đã qua tô than chì; chạy từ tâm nút đầu tới tâm nút cuối */
-.tien-do::before, .tien-do::after { content: ''; position: absolute; top: 20px; left: calc(100% / 18); right: calc(100% / 18); height: 4px; border-radius: 2px; margin-top: -2px; }
+.tien-do::before, .tien-do::after { content: ''; position: absolute; top: 20px; left: calc(100% / (2 * var(--so-buoc, 10))); right: calc(100% / (2 * var(--so-buoc, 10))); height: 4px; border-radius: 2px; margin-top: -2px; }
 .tien-do::before { background: repeating-linear-gradient(90deg, #c4cbc6 0 10px, transparent 10px 17px); }
 .tien-do::after { background: var(--muc); transform-origin: left center; transform: scaleX(var(--tien)); }
 .tien-do.chay::after { animation: duong-chay .9s cubic-bezier(.3, .7, .2, 1) both; }

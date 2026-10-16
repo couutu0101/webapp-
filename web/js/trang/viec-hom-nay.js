@@ -4,11 +4,13 @@ import * as api from '../api.js';
 import { viecTiepTheo } from './giao-viec.js';
 import { moLapDeXuat, moDeXuat, moChiTietMua, moChiTietNhap } from './kho.js';
 import { buocTiepPhieu, hanPhieu, hanHoSo, quaHan, chuHan } from '../han-viec.js';
+import { duocDetailing, detailingDat, moDetailingTraVe } from '../detailing.js';
 
 const NHOM_DEM = [
   { nhan: 'Chờ duyệt giá', tt: ['tiep_nhan', 'bao_gia'] },
   { nhan: 'Đã duyệt – chờ lệnh', tt: ['da_duyet'] },
   { nhan: 'Đang sửa', tt: ['dang_sua'] },
+  { nhan: 'Chờ Detailing', tt: ['cho_detailing'] },
   { nhan: 'Chờ KCS', tt: ['cho_kcs'] },
   { nhan: 'Chờ giao xe', tt: ['dat_kcs'] },
   { nhan: 'Chờ gửi hồ sơ BH', tt: ['da_giao'] },
@@ -98,6 +100,7 @@ function khoiBangViec(ds, taiLai) {
   const duocBaoXong = api.coVaiTro('truong_nhom', 'cvdv', 'quan_ly', 'giam_doc');
   const duocDeXuat = api.coVaiTro('truong_nhom', 'cvdv', 'kho', 'quan_ly', 'giam_doc');
   const duocBaoPhatSinh = api.coVaiTro('truong_nhom', 'cvdv', 'quan_ly', 'giam_doc');
+  const duocDet = duocDetailing();   // 050: tổ Detailing / quản lý / giám đốc – xe chờ Detailing
   return h('section', { class: 'the' },
     h('h2', null, api.coVaiTro('truong_nhom') ? `Xe của tổ ${api.dm.ten('to_thuc_hien', api.toi.to_id)}` : 'Bảng việc xưởng'),
     !ds.length ? h('p', { class: 'trong' }, 'Không có xe đang sửa.') :
@@ -113,6 +116,9 @@ function khoiBangViec(ds, taiLai) {
             : duocBaoXong ? h('button', { class: 'nut nho', type: 'button', onclick: () => chay(() => api.baoXong(m.id), { thanhCong: `Đã báo xong: ${m.ten}` }).then(taiLai, taiLai) }, 'Báo xong')
               : h('span', { class: 'mo-ta' }, 'Đang làm')))),
         // 041: chỉ hiện nút người đó làm được (kế toán xem bảng việc nhưng không báo xong, không đề xuất, không báo phát sinh)
+        x.trang_thai === 'cho_detailing' && duocDet ? h('div', { class: 'hang-nut nut-detailing' },
+          h('button', { class: 'nut nho', type: 'button', onclick: () => moDetailingTraVe({ id: x.ho_so_id, ma: x.ma, bien_so: x.bien_so }, x.hang_muc, taiLai) }, 'Chưa đạt – trả về sửa'),
+          h('button', { class: 'nut nho chinh', type: 'button', onclick: () => detailingDat({ id: x.ho_so_id }, taiLai) }, 'Detailing xong – chuyển KCS')) : null,
         duocDeXuat || duocBaoPhatSinh ? h('div', { class: 'hang-nut' },
           duocDeXuat ? h('button', { class: 'nut nho', type: 'button', onclick: () => moLapDeXuat({ id: x.ho_so_id, ma: x.ma, bien_so_hien_thi: x.bien_so, xe: x.xe }, taiLai) }, 'Đề xuất vật tư') : null,
           duocBaoPhatSinh ? h('button', { class: 'nut nho', type: 'button', onclick: () => moPhatSinh(x, taiLai) }, 'Báo phát sinh') : null) : null,

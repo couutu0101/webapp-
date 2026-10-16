@@ -459,12 +459,17 @@ with sync_playwright() as p:
         ve_ds(duy, id_hs)
         o_loi = duy.locator('.toast.loi')
         if o_loi.count(): raise AssertionError('Báo xong lỗi: ' + o_loi.first.inner_text())
-    expect(duy.locator('h1 .nhan')).to_contain_text('Chờ KCS')
-    ghi('Xong các hạng mục → Chờ KCS')
+    expect(duy.locator('h1 .nhan')).to_contain_text('Chờ Detailing')
+    ghi('Xong các hạng mục → Chờ Detailing (050: hồ sơ tiếp nhận ở giao diện mới mặc định qua Detailing)')
 
-    # ---------- Quản lý chung: KCS ----------
+    # ---------- Quản lý chung: Detailing (050) rồi KCS ----------
     long_ = mo(b, 'long@gara.vn')
     ve_trang(long_, f'#/ho-so/{id_hs}')
+    long_.locator('[data-the=detailing]').get_by_role('button', name='Đạt – chuyển KCS').click()
+    toast_co(long_, 'Đã xong Detailing')
+    ve_ds(long_, id_hs)
+    expect(long_.locator('h1 .nhan')).to_contain_text('Chờ KCS')
+    ghi('050 Quản lý chung bấm "Đạt – chuyển KCS" ở thẻ Detailing → Chờ KCS')
     long_.click('text=Đạt KCS')
     toast_co(long_, 'tối thiểu 6 ảnh')
     long_.set_input_files('.dem-anh-kcs input[type=file]', [ANH] * 5)
@@ -1342,6 +1347,69 @@ with sync_playwright() as p:
     expect(gd43.locator('.loc-hang-xe small')).to_contain_text('13 dòng')
     chup(gd43, '049-danh-muc-dong-xe')
     ghi('049 Danh mục > Dòng xe: lọc theo hãng BYD (12 dòng gồm "Khác"), bấm Thêm chọn sẵn BYD, thêm "Tang" → 13 dòng')
+
+    # ---- 050: bước Detailing (rửa xe, đánh bóng) giữa sửa chữa và KCS
+    ve_trang(gd43, '#/ho-so/moi')
+    expect(gd43.locator('input[name=khong_qua_detailing]')).not_to_be_checked()
+    TAO_50 = """async ([bien, sdt]) => { const api = await import('./js/api.js');
+      const kq = await api.tiepNhanXe({ bien_so: bien, ten_khach: 'Khách 050', dien_thoai: sdt, nguon_tt: 'khach', tinh_trang_xe: 'Móp cửa',
+        tu_van: 'Không', qua_detailing: true, dong_xe_id: api.dm.dong_xe.find((d) => d.ten === 'VF3').id });
+      await api.lapBaoGia(kq.id, [{ ten: 'Gò cửa', nhom: 'dong', gia_bao: 900000 }, { ten: 'Đánh bóng', nhom: 'detailing', gia_bao: 500000 }], 0.08);
+      const hm = await api.layHangMuc(kq.id);
+      await api.lapLenh(kq.id, new Date(Date.now() + 864e5).toISOString(), hm.map((m) => ({ id: m.id, to_id: m.nhom === 'detailing' ? 'DT' : 'DS', nguoi_lam: '' })));
+      for (const m of hm) await api.baoXong(m.id);
+      return kq; }"""
+    hs50 = gd43.evaluate(TAO_50, ['51K-050.11', '0909050111'])
+    ve_trang(gd43, f'#/ho-so/{hs50["id"]}')
+    gd43.wait_for_selector('.tien-do')
+    expect(gd43.locator('.tien-do li')).to_have_count(10)
+    expect(gd43.locator('.tien-do li[aria-current=step] .buoc-ten')).to_contain_text('Detailing')
+    expect(gd43.locator('.dang-cho-buoc')).to_contain_text('Detailing – rửa xe, đánh bóng')
+    expect(gd43.locator('.dang-cho-ai')).to_contain_text('Giang')
+    expect(gd43.locator('h1 .nhan')).to_contain_text('Chờ Detailing')
+    chup(gd43, '050-cho-detailing')
+    ghi('050 Sửa xong → "Chờ Detailing" (bước 6/10), tự giao trưởng nhóm Detailing (Giang)')
+    giang = mo(b, 'giang@gara.vn')
+    the50 = giang.locator('.the-xe', has_text='51K-050.11')
+    expect(the50.locator('.nhan')).to_contain_text('Chờ Detailing')
+    expect(the50.locator('.ds-hang-muc li')).to_have_count(2)
+    chup(giang, '050-bang-viec-detailing')
+    the50.get_by_role('button', name='Chưa đạt – trả về sửa').click()
+    m = modal(giang)
+    m.locator('textarea[name=loi]').fill('Cửa còn gợn sóng')
+    m.locator('label', has_text='Gò cửa').locator('input').check()
+    m.locator('.modal-chan .nut.chinh').click()
+    toast_co(giang, 'Đã trả xe về tổ sửa lại')
+    expect(giang.locator('.the-xe', has_text='51K-050.11').locator('.nhan').first).to_contain_text('Đang sửa')
+    ghi('050 Trưởng nhóm Detailing (bảng việc tổ) trả xe về sửa: ghi lỗi, tích "Gò cửa" → xe về Đang sửa')
+    gd43.evaluate("""async (id) => { const api = await import('./js/api.js');
+      for (const m of (await api.layHangMuc(id)).filter((x) => x.trang_thai === 'dang_lam')) await api.baoXong(m.id); }""", hs50['id'])
+    ve_trang(giang, '#/')
+    the50 = giang.locator('.the-xe', has_text='51K-050.11')
+    expect(the50.locator('.nhan').first).to_contain_text('Chờ Detailing')
+    the50.get_by_role('button', name='Detailing xong – chuyển KCS').click()
+    toast_co(giang, 'Đã xong Detailing')
+    ghi('050 Sửa lại xong → quay lại Chờ Detailing; Giang bấm "Detailing xong – chuyển KCS"')
+    ve_trang(gd43, f'#/ho-so/{hs50["id"]}')
+    gd43.wait_for_selector('.tien-do')
+    expect(gd43.locator('.tien-do li').nth(5)).to_have_class(re.compile('xong'))
+    expect(gd43.locator('.tien-do li[aria-current=step] .buoc-ten')).to_contain_text('KCS')
+    expect(gd43.locator('[data-the=detailing] .ds-don li')).to_have_count(2)
+    expect(gd43.locator('.dang-cho-ai')).to_contain_text('Long')
+    chup(gd43, '050-sau-detailing')
+    ghi('050 Hồ sơ: bước 6 Detailing xong, đang chờ KCS (giao Long); thẻ Detailing có 2 lần (chưa đạt / đạt)')
+    # CVDV bỏ qua Detailing cho xe không cần
+    hs50b = gd43.evaluate(TAO_50, ['51K-050.12', '0909050112'])
+    ve_trang(duy, f'#/ho-so/{hs50b["id"]}')
+    duy.wait_for_selector('[data-the=detailing]')
+    duy.locator('[data-bo-detailing]').click()
+    modal(duy).locator('.modal-chan .nut.chinh').click()
+    toast_co(duy, 'Xe không qua Detailing')
+    expect(duy.locator('h1 .nhan')).to_contain_text('Chờ KCS')
+    expect(duy.locator('.tien-do li').nth(5)).to_have_class(re.compile('bo'))
+    expect(duy.locator('[data-them-detailing]')).to_have_count(0)
+    chup(duy, '050-bo-qua-detailing')
+    ghi('050 CVDV bấm "Bỏ qua Detailing" lúc xe chờ Detailing → sang Chờ KCS, bước 6 "Không áp dụng"')
     b.close()
 
 print('\nLỖI TRÌNH DUYỆT:' if loi else '\nKhông có lỗi JavaScript.')

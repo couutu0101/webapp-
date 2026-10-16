@@ -99,7 +99,7 @@ export default async function trangThuChi(el) {
     let tachTienBo = () => null;
     let choTraDu = () => false;
 
-    const hoSoMo = await api.doc('v_ho_so', (q) => q.not('trang_thai', 'in', '(huy)').or('con_no_khach.gt.0,con_no_bh.gt.0,trang_thai.in.(tiep_nhan,bao_gia,da_duyet,dang_sua,cho_kcs,dat_kcs)').order('ngay_vao', { ascending: false }).limit(300));
+    const hoSoMo = await api.doc('v_ho_so', (q) => q.not('trang_thai', 'in', '(huy)').or('con_no_khach.gt.0,con_no_bh.gt.0,trang_thai.in.(tiep_nhan,bao_gia,da_duyet,dang_sua,cho_detailing,cho_kcs,dat_kcs)').order('ngay_vao', { ascending: false }).limit(300));
     const nhanHoSo = (x) => `${x.bien_so_hien_thi || x.ma} – ${x.ten_khach}`;
 
     async function doiMuc() {

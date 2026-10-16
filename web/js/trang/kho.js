@@ -103,7 +103,7 @@ async function hoSoDangSua() {
     const ds = await api.bangViecTo().catch(() => []);
     return ds.map((x) => ({ id: x.ho_so_id, ma: x.ma, bien_so_hien_thi: x.bien_so, xe: x.xe }));
   }
-  return api.doc('v_ho_so', (q) => q.in('trang_thai', ['dang_sua', 'cho_kcs']).order('ngay_vao', { ascending: false }));
+  return api.doc('v_ho_so', (q) => q.in('trang_thai', ['dang_sua', 'cho_detailing', 'cho_kcs']).order('ngay_vao', { ascending: false }));
 }
 const nhanXe = (x) => `${x.bien_so_hien_thi || x.ma} · ${x.ma}${x.xe ? ` · ${x.xe}` : ''}`;
 
@@ -980,7 +980,7 @@ export async function khoiPhuTungXe(hs, veLai, cho) {
     cho !== undefined ? [cho] : api.doc('v_cho_phu_tung', (q) => q.eq('ho_so_id', hs.id)),
   ]).catch(() => [[], [], []]);
   cho = choPT;
-  const duocDeXuat = ['dang_sua', 'cho_kcs'].includes(hs.trang_thai) && api.coVaiTro('truong_nhom', 'cvdv', 'kho', 'quan_ly', 'giam_doc');
+  const duocDeXuat = ['dang_sua', 'cho_detailing', 'cho_kcs'].includes(hs.trang_thai) && api.coVaiTro('truong_nhom', 'cvdv', 'kho', 'quan_ly', 'giam_doc');
   if (!dx.length && !px.length && !duocDeXuat) return null;
   const giaVon = px.reduce((s, p) => s + Number(p.gia_von), 0);
   return h('div', { class: 'khoi-phu-tung' },

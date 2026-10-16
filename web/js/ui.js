@@ -83,7 +83,7 @@ export function choODatetime(d) {
 
 export const TRANG_THAI = {
   tiep_nhan: 'Tiếp nhận', bao_gia: 'Chờ duyệt giá', da_duyet: 'Đã duyệt giá', dang_sua: 'Đang sửa',
-  cho_kcs: 'Chờ KCS', dat_kcs: 'Đạt KCS – chờ giao', da_giao: 'Đã giao xe', da_gui_hs: 'Đã gửi hồ sơ BH',
+  cho_detailing: 'Chờ Detailing', cho_kcs: 'Chờ KCS', dat_kcs: 'Đạt KCS – chờ giao', da_giao: 'Đã giao xe', da_gui_hs: 'Đã gửi hồ sơ BH',
   dong: 'Đã đóng', huy: 'Đã hủy',
 };
 // Nhóm hạng mục báo giá. Chọn mới: Đồng, Sơn, Phụ tùng, Detailing; "Đồng sơn", "Điện – máy – gầm" chỉ còn ở dòng cũ.
@@ -103,15 +103,18 @@ export function nhanTrangThai(tt) {
   return h('span', { class: `nhan tt-${tt}` }, TRANG_THAI[tt] || tt);
 }
 
-// ---------- 9 bước của xe ----------
-export const BUOC_XE = ['Tiếp nhận', 'Báo giá', 'Duyệt giá', 'Lệnh sửa chữa', 'Cấp phụ tùng – Sửa chữa', 'KCS', 'Giao xe', 'Hồ sơ BH', 'Chăm sóc'];
-// Bước xe ĐANG CHỜ làm (1–9, khớp "Bước tiếp theo"); 0 = đã xong cả 9 bước; null = hồ sơ hủy.
-// boQua: bước không áp dụng (khách ngoài bảo hiểm không có hồ sơ BH; hồ sơ bảo hành không báo giá, không duyệt giá – 036).
-// Chăm sóc làm trước khi gửi hồ sơ BH vẫn tính xong.
+// ---------- 10 bước của xe ----------
+// 050: thêm bước 6 "Detailing" (rửa xe, đánh bóng) giữa sửa chữa và KCS – hồ sơ không có cờ qua_detailing thì "Không áp dụng"
+export const BUOC_XE = ['Tiếp nhận', 'Báo giá', 'Duyệt giá', 'Lệnh sửa chữa', 'Cấp phụ tùng – Sửa chữa', 'Detailing', 'KCS', 'Giao xe', 'Hồ sơ BH', 'Chăm sóc'];
+export const BUOC_SO = { DETAILING: 6, KCS: 7, GIAO_XE: 8, HO_SO_BH: 9, CHAM_SOC: 10 };
+// Bước xe ĐANG CHỜ làm (1–10, khớp "Bước tiếp theo"); 0 = đã xong cả 10 bước; null = hồ sơ hủy.
+// boQua: bước không áp dụng (khách ngoài bảo hiểm không có hồ sơ BH; hồ sơ bảo hành không báo giá, không duyệt giá – 036;
+// hồ sơ không qua Detailing – 050). Chăm sóc làm trước khi gửi hồ sơ BH vẫn tính xong.
 export function buocXe(hs) {
   if (!hs || hs.trang_thai === 'huy') return { dang: null, boQua: [], xong: () => false };
   const daDuyet = !['tiep_nhan', 'bao_gia'].includes(hs.trang_thai);
-  const boQua = coBuocHoSoBH(hs) ? [] : [8];
+  const boQua = coBuocHoSoBH(hs) ? [] : [BUOC_SO.HO_SO_BH];
+  if (!hs.qua_detailing && hs.trang_thai !== 'cho_detailing') boQua.unshift(BUOC_SO.DETAILING);
   if (hs.loai === 'bao_hanh' && daDuyet) boQua.unshift(2, 3);
   const chamSoc = !!hs.cham_soc_luc;
   let dang;
@@ -121,16 +124,17 @@ export function buocXe(hs) {
     case 'bao_gia': dang = 3; break;
     case 'da_duyet': dang = 4; break;
     case 'dang_sua': dang = 5; break;
-    case 'cho_kcs': dang = 6; break;
-    case 'dat_kcs': dang = 7; break;
-    case 'da_giao': dang = coBuocHoSoBH(hs) && !hs.gui_hs_ngay ? 8 : chamSoc ? 0 : 9; break;
-    case 'da_gui_hs': case 'dong': dang = chamSoc ? 0 : 9; break;
+    case 'cho_detailing': dang = BUOC_SO.DETAILING; break;
+    case 'cho_kcs': dang = BUOC_SO.KCS; break;
+    case 'dat_kcs': dang = BUOC_SO.GIAO_XE; break;
+    case 'da_giao': dang = coBuocHoSoBH(hs) && !hs.gui_hs_ngay ? BUOC_SO.HO_SO_BH : chamSoc ? 0 : BUOC_SO.CHAM_SOC; break;
+    case 'da_gui_hs': case 'dong': dang = chamSoc ? 0 : BUOC_SO.CHAM_SOC; break;
     default: dang = 1;
   }
-  const xong = (so) => !boQua.includes(so) && (dang === 0 || so < dang || (so === 9 && chamSoc));
+  const xong = (so) => !boQua.includes(so) && (dang === 0 || so < dang || (so === BUOC_SO.CHAM_SOC && chamSoc));
   return { dang, boQua, xong };
 }
-// Có bước 8 "Hồ sơ BH" không (043, khớp máy chủ): xe khách ngoài bảo hiểm, hồ sơ bảo hành, hoặc đã duyệt giá mà phần
+// Có bước 9 "Hồ sơ BH" không (043, khớp máy chủ): xe khách ngoài bảo hiểm, hồ sơ bảo hành, hoặc đã duyệt giá mà phần
 // bảo hiểm chi trả (sau khấu trừ) bằng 0 thì không có hồ sơ gửi bảo hiểm
 export function coBuocHoSoBH(hs) {
   if (!hs || hs.nguon_tt === 'khach') return false;
@@ -139,12 +143,12 @@ export function coBuocHoSoBH(hs) {
   if (hs.loai === 'bao_hanh') return false;
   return hs.phai_thu_bh === undefined || hs.phai_thu_bh === null || Number(hs.phai_thu_bh) > 0;
 }
-// Thanh 9 vạch thu nhỏ: danh sách hồ sơ, thẻ xe ở bảng việc
+// Thanh 10 vạch thu nhỏ: danh sách hồ sơ, thẻ xe ở bảng việc
 export function thanhBuocNho(hs) {
   const { dang, boQua, xong } = buocXe(hs);
   if (dang === null) return null;
   const soXong = BUOC_XE.filter((_, i) => xong(i + 1)).length;
-  const moTa = dang === 0 ? 'Đã xong cả 9 bước' : `Bước ${dang}/9: ${BUOC_XE[dang - 1]} – đã xong ${soXong} bước`;
+  const moTa = dang === 0 ? `Đã xong cả ${BUOC_XE.length} bước` : `Bước ${dang}/${BUOC_XE.length}: ${BUOC_XE[dang - 1]} – đã xong ${soXong} bước`;
   return h('span', { class: 'buoc-nho', role: 'img', 'aria-label': moTa, title: moTa },
     BUOC_XE.map((_, i) => h('i', { class: boQua.includes(i + 1) ? 'bo' : xong(i + 1) ? 'xong' : i + 1 === dang ? 'dang' : null })));
 }

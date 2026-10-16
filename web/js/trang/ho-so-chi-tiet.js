@@ -1,4 +1,4 @@
-// Chi tiết hồ sơ xe: 9 bước trên một trang, mỗi bước chỉ hiện nút cho đúng người
+// Chi tiết hồ sơ xe: 10 bước trên một trang, mỗi bước chỉ hiện nút cho đúng người
 import {
   h, oChonTep, bienSo, oNgayVN, oNgayGioVN, vnSangIso, tien, ngay, ngayGio, homNay, truong, oChu, oTien, oChon, oVung, oCheck, docForm, docTien, chay, moModal, toast, nhanTrangThai, bang, NHOM, NHOM_CHON, NGUON, TRANG_THAI, xacNhan, dat, veDanhSachHoSo, icon, buocXe, BUOC_XE, chipNguoi, hoiLyDo, coBuocHoSoBH,
 } from '../ui.js';
@@ -8,6 +8,7 @@ import { hanHoSo, chuHan } from '../han-viec.js';
 import * as api from '../api.js';
 import { ghiTiep, tuGhiNgayKhiBam, nhacHetHan, layLichSu, khoiLichSu } from './lich-su-xe.js';
 import { khungChonBaoHiem } from '../chon-bao-hiem.js';
+import { duocDetailing, detailingDat, moDetailingTraVe } from '../detailing.js';
 import { khungAnhNhanXe, anhNhanXeThieu, coFileBaoGiaMoi, coFileDuyetMoi, soAnhKcs, SO_ANH_KCS, NHAN_BUOC_MOI, ANH_NHAN_XE, taiVaoBuoc, oDinhKem } from '../anh-bat-buoc.js';
 
 const TT_DONG = { cho_duyet: 'Chờ duyệt', duyet: 'Đã duyệt', tu_choi: 'Không duyệt', dang_lam: 'Đang làm', xong: 'Xong' };
@@ -19,18 +20,19 @@ export default async function trangChiTiet(el, idChu) {
   let hsDangXem = { id, ma: '' };
   const ve = () => veDanhSachHoSo(hsDangXem);
   const veLai = ve.lai = async () => {
-    const [hs, hm, nk, tep, ps, dsKcs, [viec], [gv], [cho]] = await Promise.all([
+    const [hs, hm, nk, tep, ps, dsKcs, dsDet, [viec], [gv], [cho]] = await Promise.all([
       api.layHoSo(id), api.layHangMuc(id), api.layNhatKy(id), api.layTep(id), api.layPhatSinh(id), api.layKcs(id),
+      api.layDetailing(id).catch(() => []),
       api.doc('v_viec_ho_so', (q) => q.eq('ho_so_id', id)).catch(() => []),
       api.doc('v_gia_von_ho_so', (q) => q.eq('ho_so_id', id)).catch(() => []),
       api.doc('v_cho_phu_tung', (q) => q.eq('ho_so_id', id)).catch(() => [])]);
     if (!hs) { dat(el, h('p', { class: 'trong' }, 'Không tìm thấy hồ sơ, hoặc bạn không có quyền xem.')); return; }
     hsDangXem = hs;
-    const ctx = { hs, hm, nk, tep, ps, dsKcs, ve, viec, giaVon: Number(gv?.gia_von || 0), cho };
+    const ctx = { hs, hm, nk, tep, ps, dsKcs, dsDet, ve, viec, giaVon: Number(gv?.gia_von || 0), cho };
     dat(el, 
       dau(ctx), theTienDo(ctx, veLai),
       h('div', { class: 'cot-doi' },
-        h('div', null, theThongTin(ctx), theAnhNhanXe(ctx), theBaoGia(ctx), theSuaChua(ctx), theKcs(ctx), theGiaoXe(ctx), theHoSoBH(ctx), theChamSoc(ctx)),
+        h('div', null, theThongTin(ctx), theAnhNhanXe(ctx), theBaoGia(ctx), theSuaChua(ctx), theDetailing(ctx), theKcs(ctx), theGiaoXe(ctx), theHoSoBH(ctx), theChamSoc(ctx)),
         h('div', null, theTien(ctx), theTep(ctx), theNhatKy(ctx))));
   };
   await veLai();
@@ -60,7 +62,7 @@ function dau({ hs, cho }) {
         ? h('a', { class: 'nut', href: `#/ho-so/moi?bao_hanh=${hs.id}` }, 'Tạo hồ sơ bảo hành') : null));
 }
 
-// Thẻ tiến độ: dòng "Đang chờ" (bước, người được giao, hạn) + đường 9 bước, xe dừng ở bước đang chờ
+// Thẻ tiến độ: dòng "Đang chờ" (bước, người được giao, hạn) + đường 10 bước, xe dừng ở bước đang chờ
 const daChayTienDo = new Set();   // hiệu ứng xe chạy chỉ một lần cho mỗi hồ sơ + bước (vẽ lại sau thao tác thì thôi)
 function theTienDo({ hs, hm, nk, viec }, veLai) {
   if (hs.trang_thai === 'huy') return h('p', { class: 'thong-bao canh-bao' }, 'Hồ sơ đã hủy: ', hs.ly_do_huy || '');
@@ -75,12 +77,12 @@ function tienDo(hs, nk, aiDang) {
   const nguoi = nguoiLamTungBuoc(nk);
   const { dang, boQua, xong } = buocXe(hs);
   const soXong = BUOC_XE.filter((_, i) => xong(i + 1)).length;
-  const tien = dang === 0 ? 1 : Math.max(0, (dang - 1) / 8);
+  const tien = dang === 0 ? 1 : Math.max(0, (dang - 1) / (BUOC_XE.length - 1));
   const khoa = `${hs.id}-${dang}`;
   const chayLan = !daChayTienDo.has(khoa);
   daChayTienDo.add(khoa);
   return h('div', { class: 'tien-do-khung' },
-    h('ol', { class: `tien-do${chayLan ? ' chay' : ''}`, style: `--tien:${tien}`, 'aria-label': 'Tiến độ 9 bước' }, BUOC_XE.map((b, i) => {
+    h('ol', { class: `tien-do${chayLan ? ' chay' : ''}`, style: `--tien:${tien};--so-buoc:${BUOC_XE.length}`, 'aria-label': `Tiến độ ${BUOC_XE.length} bước` }, BUOC_XE.map((b, i) => {
       const so = i + 1;
       const lop = boQua.includes(so) ? 'bo' : xong(so) ? 'xong' : so === dang ? 'dang' : '';
       const ai = nguoi[so];
@@ -100,7 +102,7 @@ function tienDo(hs, nk, aiDang) {
         h('span', { class: 'buoc-ten' }, h('span', { class: 'buoc-so' }, `${so}`), ' ', b),
         nguoiLam);
     })),
-    h('p', { class: 'tien-do-chu' }, dang === 0 ? 'Đã xong cả 9 bước' : `Bước ${dang}/9: ${BUOC_XE[dang - 1]} · đã xong ${soXong} bước`));
+    h('p', { class: 'tien-do-chu' }, dang === 0 ? `Đã xong cả ${BUOC_XE.length} bước` : `Bước ${dang}/${BUOC_XE.length}: ${BUOC_XE[dang - 1]} · đã xong ${soXong} bước`));
 }
 
 // ---------- Thông tin ----------
@@ -204,7 +206,7 @@ function theBaoGia({ hs, hm, ve, tep }) {
   }
   const thieuGdv = !khach && !hs.gdv_id && choDuyet.length > 0;
   const goc = ['tiep_nhan', 'bao_gia'].includes(hs.trang_thai);
-  const boSung = ['da_duyet', 'dang_sua', 'cho_kcs'].includes(hs.trang_thai);
+  const boSung = ['da_duyet', 'dang_sua', 'cho_detailing', 'cho_kcs'].includes(hs.trang_thai);
   // Cột "Lần" chỉ hiện khi có báo giá bổ sung; nhóm (đồng, sơn, phụ tùng…) ghi nhỏ dưới tên để bảng vừa khung
   const coBoSung = hm.some((m) => m.lan_bao_gia);
   const cotLan = coBoSung ? { nhan: 'Lần', lay: (m) => (m.lan_bao_gia ? `Bổ sung ${m.lan_bao_gia}` : 'Gốc') } : null;
@@ -455,9 +457,9 @@ function moDuyetGia(hs, choDuyet, ve, hm = [], tep = []) {
   });
 }
 
-// ---------- Lệnh sửa chữa, sửa chữa (bước 4–6) ----------
+// ---------- Lệnh sửa chữa, sửa chữa (bước 4–5) ----------
 function theSuaChua({ hs, hm, ps, ve, cho }) {
-  if (!['da_duyet', 'dang_sua', 'cho_kcs', 'dat_kcs'].includes(hs.trang_thai) && !hm.some((m) => m.to_id)) return null;
+  if (!['da_duyet', 'dang_sua', 'cho_detailing', 'cho_kcs', 'dat_kcs'].includes(hs.trang_thai) && !hm.some((m) => m.to_id)) return null;
   // Cấp phụ tùng, vật tư (kho): tải sau, chèn vào cuối thẻ (dùng lại "chờ phụ tùng" đã đọc ở đầu trang)
   const khoiPT = h('div');
   khoiPhuTungXe(hs, ve, cho).then((k) => { if (k) dat(khoiPT, k); }).catch((e) => console.warn(e));
@@ -470,12 +472,12 @@ function theSuaChua({ hs, hm, ps, ve, cho }) {
       h('div', { class: 'hang-nut' },
         duocLap && chuaGiao.length && ['da_duyet', 'dang_sua'].includes(hs.trang_thai)
           ? nut(hs.trang_thai === 'da_duyet' ? 'Lập lệnh sửa chữa' : `Giao thêm cho tổ (${chuaGiao.length})`, () => moLenh(hs, chuaGiao, ve), true) : null,
-        ['dang_sua', 'cho_kcs'].includes(hs.trang_thai) && q('truong_nhom', 'cvdv', 'quan_ly', 'giam_doc') ? nut('Báo phát sinh', () => moPhatSinh(hs, ve)) : null)),
+        ['dang_sua', 'cho_detailing', 'cho_kcs'].includes(hs.trang_thai) && q('truong_nhom', 'cvdv', 'quan_ly', 'giam_doc') ? nut('Báo phát sinh', () => moPhatSinh(hs, ve)) : null)),
     psMo.length ? h('div', { class: 'thong-bao canh-bao', 'data-phat-sinh': '' },
       h('b', null, hs.loai === 'bao_hanh' ? 'Phát sinh chờ xử lý: ' : 'Phát sinh chờ báo giá bổ sung: '),
       psMo.map((p) => h('div', null, `${ngayGio(p.luc)} – ${p.mo_ta}`)),
       duocLap ? h('div', { class: 'hang-nut' },
-        hs.loai === 'bao_hanh' && ['da_duyet', 'dang_sua', 'cho_kcs'].includes(hs.trang_thai)
+        hs.loai === 'bao_hanh' && ['da_duyet', 'dang_sua', 'cho_detailing', 'cho_kcs'].includes(hs.trang_thai)
           ? nut('+ Thêm hạng mục bảo hành', () => moThemBaoHanh(hs, ve), true) : null,
         nut('Không cần làm thêm', () => moXuLyPhatSinh(hs, ve))) : null) : null,
     !dangLam.length ? h('p', { class: 'trong' }, 'Chưa giao việc cho tổ nào. Chưa có lệnh sửa chữa thì chưa làm, chưa cấp phụ tùng.') :
@@ -562,6 +564,42 @@ function moPhatSinh(hs, ve) {
   });
 }
 
+// ---------- Detailing (bước 6) – 050 ----------
+// Sửa xong hết hạng mục → tổ Detailing rửa xe, đánh bóng → đạt thì sang KCS, chưa đạt trả về sửa lại.
+// CVDV / quản lý / giám đốc bật – tắt bước này cho từng xe (trước khi sang KCS).
+const TRUOC_KCS = ['tiep_nhan', 'bao_gia', 'da_duyet', 'dang_sua', 'cho_detailing'];
+function theDetailing({ hs, hm, ps, dsDet, ve }) {
+  if (hs.trang_thai === 'huy' || hs.tu_excel) return null;
+  const coBuoc = hs.qua_detailing || hs.trang_thai === 'cho_detailing';
+  const doiDuoc = !api.laCoDong() && q('cvdv', 'quan_ly', 'giam_doc') && TRUOC_KCS.includes(hs.trang_thai);
+  if (!coBuoc && !dsDet.length && !doiDuoc) return null;
+  const cho = hs.trang_thai === 'cho_detailing';
+  const conPhatSinh = (ps || []).some((p) => !p.da_xu_ly);
+  const duoc = duocDetailing();
+  const bat = async (qua) => {
+    if (!qua && !(await xacNhan(cho ? 'Bỏ bước Detailing của xe này? Xe chuyển sang chờ KCS ngay.' : 'Xe này không qua Detailing – sửa xong chuyển thẳng KCS?', 'Bỏ qua Detailing'))) return;
+    await chay(() => api.datQuaDetailing(hs.id, qua), { thanhCong: qua ? 'Đã thêm bước Detailing.' : 'Xe không qua Detailing.' }).then(ve.lai, ve.lai);
+  };
+  return h('section', { class: 'the', 'data-the': 'detailing' },
+    h('div', { class: 'the-dau' }, h('h2', null, '6. Detailing – rửa xe, đánh bóng'),
+      h('div', { class: 'hang-nut' },
+        cho && duoc ? nut('Chưa đạt – trả về sửa chữa', () => moDetailingTraVe(hs, hm, ve)) : null,
+        cho && duoc ? nut('Đạt – chuyển KCS', () => {
+          if (conPhatSinh) { toast('Còn hư hỏng phát sinh chưa xử lý – CVDV lập báo giá bổ sung hoặc ghi "Không cần làm thêm" trước.', 'loi'); return; }
+          detailingDat(hs, ve, ve.lai);
+        }, true) : null)),
+    !coBuoc ? h('p', { class: 'goi-y' }, 'Xe này không qua Detailing – sửa xong chuyển thẳng KCS.')
+      : cho ? h('p', { class: 'goi-y' }, duoc ? 'Rửa xe, đánh bóng xong thì bấm "Đạt – chuyển KCS". Thấy lỗi sửa chữa thì trả về tổ sửa lại.'
+        : 'Chờ tổ Detailing rửa xe, đánh bóng.')
+        : TRUOC_KCS.includes(hs.trang_thai) ? h('p', { class: 'goi-y' }, 'Sửa xong hết hạng mục, xe chuyển sang tổ Detailing rửa xe, đánh bóng rồi mới KCS.') : null,
+    cho && conPhatSinh ? h('p', { class: 'thong-bao canh-bao' }, 'Còn hư hỏng phát sinh chờ xử lý (mục 4–5) – xử lý xong mới chuyển KCS.') : null,
+    doiDuoc ? h('div', { class: 'hang-nut' }, coBuoc
+      ? h('button', { class: 'nut nho', type: 'button', 'data-bo-detailing': '', onclick: () => bat(false) }, 'Bỏ qua Detailing')
+      : h('button', { class: 'nut nho', type: 'button', 'data-them-detailing': '', onclick: () => bat(true) }, 'Thêm bước Detailing')) : null,
+    dsDet.length ? h('ul', { class: 'ds-don' }, dsDet.map((k) => h('li', null, ngayGio(k.luc), ' – ',
+      k.dat ? h('b', { class: 'chu-tot' }, 'Đạt') : h('b', { class: 'chu-loi' }, 'Chưa đạt: '), k.loi || ''))) : null);
+}
+
 // ---------- KCS (bước 7) ----------
 // 047: quản lý chung, CVDV, giám đốc nghiệm thu; hồ sơ bắt ảnh cần tối thiểu 6 ảnh KCS (tổng các lần)
 // 043 (khớp máy chủ): lần KCS gần nhất chưa đạt thì phải có ảnh "Sau sửa" chụp SAU lần đó; còn phát sinh chờ xử lý thì chưa ký đạt
@@ -591,7 +629,7 @@ function theKcs({ hs, hm, tep, dsKcs, ps, ve }) {
     ve.lai();
   });
   return h('section', { class: 'the' },
-    h('div', { class: 'the-dau' }, h('h2', null, '6. Nghiệm thu (KCS) và rửa xe'),
+    h('div', { class: 'the-dau' }, h('h2', null, hs.qua_detailing ? '7. Nghiệm thu (KCS)' : '7. Nghiệm thu (KCS) và rửa xe'),
       choKcs && duocKcs ? h('div', { class: 'hang-nut' },
         nut('Chưa đạt – làm lại', () => moKhongDat(hs, hm, ve)),
         nut('Đạt KCS', async () => {
@@ -668,7 +706,7 @@ function theGiaoXe({ hs, hm, ve }) {
     // 041: đã giao mà khách còn nợ – giám đốc / quản lý chung vẫn duyệt giảm giá được (hết nợ thì hồ sơ tự đóng)
     const giamSauGiao = q('quan_ly', 'giam_doc') && !['dong', 'huy'].includes(hs.trang_thai) && Number(hs.con_no_khach) > 0;
     return h('section', { class: 'the' },
-      h('div', { class: 'the-dau' }, h('h2', null, '7. Thanh toán và giao xe'),
+      h('div', { class: 'the-dau' }, h('h2', null, '8. Thanh toán và giao xe'),
         giamSauGiao ? nut('Duyệt giảm giá cho khách', () => moGiamGia(hs, ve)) : null),
       h('p', null, 'Đã giao lúc ', h('b', null, ngayGio(hs.giao_luc)), hs.cho_giao_no_boi ? ' (được duyệt giao khi khách còn nợ)' : ''),
       hs.cam_nhan_khach ? h('p', null, 'Cảm nhận của khách: ', hs.cam_nhan_khach) : null,
@@ -679,7 +717,7 @@ function theGiaoXe({ hs, hm, ve }) {
   const noKhach = Number(hs.con_no_khach) || 0;
   const form = h('form', { class: 'luoi-o' }, keToan ? null : cacOGiaoXe(hs));
   return h('section', { class: 'the' },
-    h('div', { class: 'the-dau' }, h('h2', null, '7. Thanh toán và giao xe')),
+    h('div', { class: 'the-dau' }, h('h2', null, '8. Thanh toán và giao xe')),
     h('div', { class: 'luoi-dem tien' },
       bh ? h('div', { class: 'o-dem' }, h('b', null, tien(hs.con_no_bh)), h('span', null, 'Bảo hiểm chi trả – còn nợ (đ)')) : null,
       h('div', { class: `o-dem ${noKhach > 0 ? 'canh-bao' : ''}`, 'data-no-khach': '' }, h('b', null, tien(hs.con_no_khach)), h('span', null, 'Khách hàng chi trả – còn nợ (đ)'))),
@@ -761,7 +799,7 @@ function theHoSoBH({ hs, ve }) {
   const oNgayGui = oNgayVN('ngay_gui', homNay(), { 'aria-label': 'Ngày gửi hồ sơ' });
   const thangHH = hs.hoa_hong_ky ? `${String(hs.hoa_hong_ky).slice(5, 7)}/${String(hs.hoa_hong_ky).slice(0, 4)}` : null;
   return h('section', { class: 'the' },
-    h('h2', null, '8. Hồ sơ bảo hiểm, thu nợ, hoa hồng'),
+    h('h2', null, '9. Hồ sơ bảo hiểm, thu nợ, hoa hồng'),
     hs.gui_hs_ngay ? h('p', null, 'Đã gửi hồ sơ ngày ', h('b', null, ngay(hs.gui_hs_ngay)))
       : !canGui ? h('p', { class: 'goi-y' }, 'Bảo hiểm không chi trả phần nào của xe này – không cần gửi hồ sơ bảo hiểm.')
         : keToan && hs.trang_thai === 'da_giao' && !hs.tu_excel ? h('div', { class: 'hang-nut' },
@@ -797,7 +835,7 @@ function moHoaHong(hs, ve) {
 function theChamSoc({ hs, ve }) {
   if (!hs.giao_luc) return null;
   return h('section', { class: 'the' },
-    h('div', { class: 'the-dau' }, h('h2', null, '9. Chăm sóc sau giao'),
+    h('div', { class: 'the-dau' }, h('h2', null, '10. Chăm sóc sau giao'),
       q('quan_ly', 'giam_doc') ? nut(hs.cham_soc_luc ? 'Ghi lại' : 'Ghi kết quả gọi', () => moChamSoc(hs, ve), !hs.cham_soc_luc) : null),
     hs.cham_soc_luc ? h('p', null, `${ngayGio(hs.cham_soc_luc)}: ${hs.cham_soc_ket_qua}`,
       hs.hen_bao_duong ? h('br') : null, hs.hen_bao_duong ? `Hẹn bảo dưỡng: ${ngay(hs.hen_bao_duong)}` : null)
@@ -875,7 +913,7 @@ function theTep({ hs, tep, ve }) {
     }
   })();
   const chonBuoc = oChon('buoc', Object.entries(BUOC_TEP).map(([value, label]) => ({ value, label })),
-    { tiep_nhan: 'tiep_nhan', bao_gia: 'duyet_gia', da_duyet: 'duyet_gia', dang_sua: 'phat_sinh', cho_kcs: 'kcs', dat_kcs: 'giao_xe', da_giao: 'ho_so_bh' }[hs.trang_thai] || 'khac',
+    { tiep_nhan: 'tiep_nhan', bao_gia: 'duyet_gia', da_duyet: 'duyet_gia', dang_sua: 'phat_sinh', cho_detailing: 'kcs', cho_kcs: 'kcs', dat_kcs: 'giao_xe', da_giao: 'ho_so_bh' }[hs.trang_thai] || 'khac',
     { trong: null, 'aria-label': 'Ảnh của bước' });
   const oTep = h('input', { type: 'file', accept: 'image/*,application/pdf', multiple: true, 'aria-label': 'Chọn ảnh hoặc tệp' });
   const dangTai = h('small', { class: 'goi-y', role: 'status', 'aria-live': 'polite' });

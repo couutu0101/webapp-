@@ -62,6 +62,7 @@ export function hanHoSo(hs, giaoLuc) {
     case 'bao_gia': return cong(hs.ngay_vao, ngayCaiDat('so_ngay_cho_duyet', 3));
     case 'da_duyet': return cong(giaoLuc, gioCaiDat('so_gio_lap_lenh', 24));
     case 'dang_sua': return hs.hen_giao ? new Date(hs.hen_giao) : null;
+    case 'cho_detailing': { const h1 = cong(giaoLuc, gioCaiDat('so_gio_detailing', 3)); const h2 = hs.hen_giao ? new Date(hs.hen_giao) : null; return h1 && h2 ? (h1 < h2 ? h1 : h2) : (h1 || h2); }
     case 'cho_kcs': { const h1 = cong(giaoLuc, gioCaiDat('so_gio_kcs', 4)); const h2 = hs.hen_giao ? new Date(hs.hen_giao) : null; return h1 && h2 ? (h1 < h2 ? h1 : h2) : (h1 || h2); }
     case 'dat_kcs': return hs.hen_giao ? new Date(hs.hen_giao) : null;
     case 'da_giao': return v.ten === 'Gửi hồ sơ bảo hiểm' ? cong(hs.giao_luc, ngayCaiDat('so_ngay_gui_ho_so', 3)) : cong(hs.giao_luc, ngayCaiDat('so_ngay_goi_cham_soc', 3));

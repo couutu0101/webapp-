@@ -155,6 +155,10 @@ export default async function trangTiepNhan(el) {
         truong('Những gì có thể tư vấn', oTuVan, 'Anh Long dùng để tư vấn khi giao xe. Bảo hiểm hết hạn sẽ tự ghi nhắc ở đầu.', { batBuoc: true, rong: true }))),
     h('fieldset', { class: 'nhom-o' }, h('legend', null, 'Ảnh nhận xe – bắt buộc 6 ảnh'),
       h('p', { class: 'goi-y' }, 'Chụp đủ 4 góc quanh xe và 2 ảnh nội thất. Bấm vào từng ô để chụp (điện thoại mở camera).'), khungAnh),
+    // 050: sửa xong → tổ Detailing rửa xe, đánh bóng → KCS. Xe không cần thì tích (đổi lại được trong hồ sơ trước khi KCS)
+    h('fieldset', { class: 'nhom-o' }, h('legend', null, 'Detailing trước KCS'),
+      oCheck('khong_qua_detailing', false, 'Không qua Detailing (xe không cần rửa, đánh bóng trước khi KCS)'),
+      h('p', { class: 'goi-y' }, 'Mặc định: sửa xong, tổ Detailing rửa xe, đánh bóng rồi mới KCS.')),
     giao.el,
     h('div', { class: 'hang-nut' },
       h('a', { class: 'nut', href: '#/ho-so' }, 'Hủy'),
@@ -238,6 +242,7 @@ export default async function trangTiepNhan(el) {
       loai: hoSoGoc ? 'bao_hanh' : 'sua_chua', ho_so_goc_id: hoSoGoc ? hoSoGoc.id : null,
       hang_muc: hoSoGoc ? hangMucBH : undefined,
       bat_buoc_anh: true,   // 047: hồ sơ này bắt ảnh / file ở các bước sau (máy chủ kiểm)
+      qua_detailing: !d.khong_qua_detailing,   // 050: có bước Detailing trước KCS
     };
     const nut = form.querySelector('button[type=submit]');
     nut.disabled = true; nut.textContent = 'Đang lưu…';

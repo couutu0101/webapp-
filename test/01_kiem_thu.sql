@@ -2017,6 +2017,91 @@ select kt.ghi('049 Hãng nào cũng có dòng "Khác"; MPV 7 không bị thêm t
 select kt.ghi('049 Có các dòng hay gặp: Toyota Vios, Hyundai Accent, Kia K3, Honda City, VinFast Limo Green, BYD Atto 3',
   (select count(*) from public.dong_xe d join public.hang_xe h on h.id = d.hang_xe_id
     where (h.ten, d.ten) in (('Toyota','Vios'),('Hyundai','Accent'),('Kia','K3'),('Honda','City'),('VinFast','Limo Green'),('BYD','Atto 3'))) = 6);
+
+-- ---------------------------------------------------------------------
+-- 050: bước Detailing giữa sửa chữa và KCS
+-- ---------------------------------------------------------------------
+insert into auth.users (email, raw_user_meta_data) values ('giang@gara.vn', '{"ho_ten":"Trần Thị Giang"}');
+select kt.dong_vai('thuan@gara.vn');
+select public.luu_nhan_vien(id, '{"chi_nhanh_id":"TK","vai_tro":["truong_nhom"],"to_id":"DT"}') from public.nhan_vien where email='giang@gara.vn';
+select kt.dong_vai('duy@gara.vn');
+insert into ctx select 'hs50', (public.tiep_nhan_xe(jsonb_build_object(
+  'bien_so','51K-050.01','ten_khach','Khách 050','dien_thoai','0909050001','dong_xe_id',(select id from public.dong_xe where ten='VF3'),
+  'nguon_tt','khach','tinh_trang_xe','Móp cửa','tu_van','Không','qua_detailing',true)))->>'id';
+select kt.ghi('050 Giao diện mới gửi qua_detailing → hồ sơ có bước Detailing', (select qua_detailing from public.ho_so where id = (select v::bigint from ctx where k='hs50')));
+select public.lap_bao_gia((select v::bigint from ctx where k='hs50'), '[{"ten":"Gò cửa","nhom":"dong","gia_bao":900000},{"ten":"Đánh bóng","nhom":"detailing","gia_bao":500000}]', 0.08);
+select public.lap_lenh_sua_chua((select v::bigint from ctx where k='hs50'), now() + interval '1 day', (select jsonb_agg(jsonb_build_object('id',id,'to_id',case when nhom='detailing' then 'DT' else 'DS' end)) from public.hang_muc where ho_so_id=(select v::bigint from ctx where k='hs50')));
+insert into ctx select 'hm50_ds', id from public.hang_muc where ho_so_id = (select v::bigint from ctx where k='hs50') and nhom = 'dong';
+select kt.dong_vai('thuan@gara.vn');
+select public.bao_xong_hang_muc(id) from public.hang_muc where ho_so_id = (select v::bigint from ctx where k='hs50');
+select kt.ghi('050 Sửa xong hết hạng mục → Chờ Detailing, giao trưởng nhóm Detailing',
+  (select h.trang_thai = 'cho_detailing' and h.nguoi_tiep_theo = (select id from public.nhan_vien where email='giang@gara.vn')
+   from public.ho_so h where h.id = (select v::bigint from ctx where k='hs50')));
+select kt.ghi('050 Nhật ký ghi "chờ Detailing"', exists (select 1 from public.ho_so_nhat_ky where ho_so_id = (select v::bigint from ctx where k='hs50')
+  and sang_trang_thai = 'cho_detailing' and ghi_chu ilike '%chờ Detailing%'));
+select kt.dong_vai('long@gara.vn');
+select kt.mong_loi('050 Chờ Detailing thì chưa KCS được', format($$select public.kcs(%s, true)$$, (select v from ctx where k='hs50')), 'chưa sửa xong');
+select kt.dong_vai('giang@gara.vn');
+select kt.ghi('050 Bảng việc tổ Detailing có xe chờ Detailing với đủ hạng mục (cả hạng mục tổ khác)',
+  (select jsonb_array_length(x->'hang_muc') = 2 and (x->>'qua_detailing')::boolean from jsonb_array_elements(public.bang_viec_to()) x
+   where (x->>'ho_so_id')::bigint = (select v::bigint from ctx where k='hs50')));
+select kt.dong_vai('han@gara.vn');
+select kt.mong_loi('050 Trưởng nhóm Đồng sơn không làm bước Detailing', format($$select public.detailing(%s, true)$$, (select v from ctx where k='hs50')), 'Chỉ tổ Detailing');
+select kt.dong_vai('giang@gara.vn');
+select kt.mong_loi('050 Detailing chưa đạt phải ghi lỗi', format($$select public.detailing(%s, false, '', array[%s]::bigint[])$$, (select v from ctx where k='hs50'), (select v from ctx where k='hm50_ds')), 'Ghi lỗi');
+select kt.mong_loi('050 Detailing chưa đạt phải chọn hạng mục làm lại', format($$select public.detailing(%s, false, 'Cửa còn gợn', null)$$, (select v from ctx where k='hs50')), 'Chọn hạng mục');
+select public.detailing((select v::bigint from ctx where k='hs50'), false, 'Cửa còn gợn sóng', array[(select v::bigint from ctx where k='hm50_ds')]);
+select kt.dong_vai('thuan@gara.vn');
+select kt.ghi('050 Detailing trả về: xe về Đang sửa, hạng mục Đồng sơn làm lại, có kết quả chưa đạt',
+  (select trang_thai = 'dang_sua' from public.ho_so where id = (select v::bigint from ctx where k='hs50'))
+  and (select trang_thai = 'dang_lam' from public.hang_muc where id = (select v::bigint from ctx where k='hm50_ds'))
+  and exists (select 1 from public.ket_qua_detailing where ho_so_id = (select v::bigint from ctx where k='hs50') and not dat and loi = 'Cửa còn gợn sóng'));
+select kt.dong_vai('han@gara.vn');
+select public.bao_xong_hang_muc((select v::bigint from ctx where k='hm50_ds'));
+select kt.dong_vai('thuan@gara.vn');
+select kt.ghi('050 Sửa lại xong → quay lại Chờ Detailing', (select trang_thai from public.ho_so where id = (select v::bigint from ctx where k='hs50')) = 'cho_detailing');
+select kt.dong_vai('giang@gara.vn');
+select public.bao_phat_sinh((select v::bigint from ctx where k='hs50'), 'Trầy cản sau');
+select kt.mong_loi('050 Còn phát sinh chưa xử lý thì Detailing chưa đạt được', format($$select public.detailing(%s, true)$$, (select v from ctx where k='hs50')), 'phát sinh');
+select kt.dong_vai('duy@gara.vn');
+select public.xu_ly_phat_sinh((select v::bigint from ctx where k='hs50'), 'Không cần làm thêm');
+select kt.ghi('050 Xử lý phát sinh lúc chờ Detailing: vẫn ở Chờ Detailing', (select trang_thai from public.ho_so where id = (select v::bigint from ctx where k='hs50')) = 'cho_detailing');
+select kt.dong_vai('giang@gara.vn');
+select public.detailing((select v::bigint from ctx where k='hs50'), true);
+select kt.dong_vai('thuan@gara.vn');
+select kt.ghi('050 Detailing đạt → Chờ KCS, giao quản lý chung',
+  (select h.trang_thai = 'cho_kcs' and h.nguoi_tiep_theo = (select id from public.nhan_vien where email='long@gara.vn')
+   from public.ho_so h where h.id = (select v::bigint from ctx where k='hs50')));
+select kt.dong_vai('long@gara.vn');
+select kt.tep((select v from ctx where k='hs50'), 'kcs', 1);
+select public.kcs((select v::bigint from ctx where k='hs50'), false, 'Khe cửa lệch', array[(select v::bigint from ctx where k='hm50_ds')]);
+select kt.dong_vai('han@gara.vn');
+select public.bao_xong_hang_muc((select v::bigint from ctx where k='hm50_ds'));
+select kt.dong_vai('thuan@gara.vn');
+select kt.ghi('050 KCS chưa đạt, sửa lại xong → qua Detailing lần nữa', (select trang_thai from public.ho_so where id = (select v::bigint from ctx where k='hs50')) = 'cho_detailing');
+select kt.dong_vai('giang@gara.vn');
+select kt.mong_loi('050 Trưởng nhóm không bật / tắt bước Detailing', format($$select public.dat_qua_detailing(%s, false)$$, (select v from ctx where k='hs50')), 'quyền');
+select kt.dong_vai('duy@gara.vn');
+select public.lap_bao_gia((select v::bigint from ctx where k='hs50'), '[{"ten":"Thay ốp gương","nhom":"phu_tung","gia_bao":300000}]', 0.08);
+select kt.ghi('050 Báo giá bổ sung lúc chờ Detailing → về Đang sửa', (select trang_thai from public.ho_so where id = (select v::bigint from ctx where k='hs50')) = 'dang_sua');
+select public.dat_qua_detailing((select v::bigint from ctx where k='hs50'), false);
+select kt.ghi('050 CVDV bỏ bước Detailing: tắt cờ, ghi nhật ký', (select not qua_detailing from public.ho_so where id = (select v::bigint from ctx where k='hs50'))
+  and exists (select 1 from public.ho_so_nhat_ky where ho_so_id = (select v::bigint from ctx where k='hs50') and ghi_chu = 'Không qua Detailing'));
+select public.dat_qua_detailing((select v::bigint from ctx where k='hs50'), true);
+select kt.dong_vai('thuan@gara.vn');
+select public.duyet_gia_chia((select v::bigint from ctx where k='hs50'), current_date, (select jsonb_agg(jsonb_build_object('id',id,'dong_y',true,'gia_duyet',gia_bao)) from public.hang_muc where ho_so_id=(select v::bigint from ctx where k='hs50') and trang_thai='cho_duyet'), null);
+select public.lap_lenh_sua_chua((select v::bigint from ctx where k='hs50'), null, (select jsonb_agg(jsonb_build_object('id',id,'to_id','DS')) from public.hang_muc where ho_so_id=(select v::bigint from ctx where k='hs50') and trang_thai='duyet'));
+select public.bao_xong_hang_muc(id) from public.hang_muc where ho_so_id = (select v::bigint from ctx where k='hs50') and trang_thai = 'dang_lam';
+select kt.ghi('050 Bật lại bước Detailing → sửa xong vào Chờ Detailing', (select trang_thai from public.ho_so where id = (select v::bigint from ctx where k='hs50')) = 'cho_detailing');
+select kt.dong_vai('duy@gara.vn');
+select public.dat_qua_detailing((select v::bigint from ctx where k='hs50'), false);
+select kt.ghi('050 Tắt bước Detailing khi xe đang chờ Detailing → sang Chờ KCS ngay', (select trang_thai from public.ho_so where id = (select v::bigint from ctx where k='hs50')) = 'cho_kcs');
+select kt.mong_loi('050 Xe đã sang KCS thì không bật lại bước Detailing', format($$select public.dat_qua_detailing(%s, true)$$, (select v from ctx where k='hs50')), 'không đổi bước Detailing');
+select kt.ghi('050 Hồ sơ giao diện cũ (không gửi qua_detailing) không có bước Detailing',
+  (select not qua_detailing from public.ho_so where id = (select v::bigint from ctx where k='hs47k')));
+select kt.dong_vai('codong@gara.vn');
+select kt.ghi('050 Cổ đông đọc được kết quả Detailing (chỉ xem)', (select count(*) from public.ket_qua_detailing) >= 2);
+select kt.dong_vai(null);
 \o
 \echo '======== KẾT QUẢ ========'
 select stt, case when dat then 'ĐẠT ' else 'LỖI ' end as kq, ten, left(coalesce(chi_tiet,''), 140) as chi_tiet from kt.ket_qua order by stt;

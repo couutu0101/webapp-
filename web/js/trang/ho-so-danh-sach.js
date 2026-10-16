@@ -5,7 +5,7 @@ import { nutXuatExcel, xuatExcelKhachHang } from './xuat-excel.js';
 import { viecTiepTheo, chipsViec } from './giao-viec.js';
 
 const LOC = [
-  { ma: 'dang', nhan: 'Đang ở xưởng', tt: ['tiep_nhan', 'bao_gia', 'da_duyet', 'dang_sua', 'cho_kcs', 'dat_kcs'] },
+  { ma: 'dang', nhan: 'Đang ở xưởng', tt: ['tiep_nhan', 'bao_gia', 'da_duyet', 'dang_sua', 'cho_detailing', 'cho_kcs', 'dat_kcs'] },
   { ma: 'no', nhan: 'Chờ thu tiền', tt: ['da_giao', 'da_gui_hs'] },
   { ma: 'dong', nhan: 'Đã đóng', tt: ['dong'] },
   { ma: 'huy', nhan: 'Đã hủy', tt: ['huy'] },

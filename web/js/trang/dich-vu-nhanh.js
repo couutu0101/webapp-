@@ -1,4 +1,4 @@
-// Dịch vụ nhanh: rửa xe, vá lốp, thay bóng đèn, kích bình… (không đi qua 9 bước)
+// Dịch vụ nhanh: rửa xe, vá lốp, thay bóng đèn, kích bình… (không đi qua 10 bước)
 // 032: gõ biển số / SĐT → gợi ý xe cũ, hiện khách, lần vào gần nhất, số km lần trước, hạn BH, tư vấn còn ghi.
 //      Mỗi lượt lưu kèm xe – khách (chưa có thì tạo), số km BẮT BUỘC; lượt dịch vụ nhanh vào lịch sử xe.
 import {
