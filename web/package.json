@@ -1,0 +1,12 @@
+{
+  "name": "gara-hoang-son-web",
+  "private": true,
+  "type": "module",
+  "description": "Giao diện web quản lý Gara Hoàng Sơn. Mã nguồn ở js/, css/; `node build.mjs` đóng gói ra dist/ (Vercel tự chạy lệnh này).",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "esbuild": "0.28.2"
+  }
+}

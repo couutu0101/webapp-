@@ -7,8 +7,12 @@ import json, os, re, subprocess, sys
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 
 GOC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-WEB = os.path.join(GOC, 'web')
+# WEB=web/dist để thử bản đã đóng gói (đường dẫn tính từ thư mục gốc của kho); mặc định chạy thẳng mã nguồn web/
+WEB = os.path.join(GOC, os.environ.get('WEB') or 'web')
 DB = os.environ.get('DB', 'gara')
+# NHO_API=1 (chỉ dùng khi đo tốc độ): nhớ kết quả các lời gọi đọc để lần sau trả ngay, loại thời gian CSDL ra khỏi phép đo giao diện
+NHO_API = os.environ.get('NHO_API') == '1'
+NHO = {}
 TEN_COT = re.compile(r'^[a-z_][a-z0-9_]*$')
 
 
@@ -142,6 +146,8 @@ class XuLy(SimpleHTTPRequestHandler):
 
     def tra(self, data, err=None):
         body = json.dumps({'data': data, 'error': err}, ensure_ascii=False).encode()
+        if NHO_API and getattr(self, 'khoa_nho', None) and err is None:
+            NHO[self.khoa_nho] = body
         self.send_response(200)
         self.send_header('Content-Type', 'application/json; charset=utf-8')
         self.send_header('Content-Length', str(len(body)))
@@ -152,6 +158,16 @@ class XuLy(SimpleHTTPRequestHandler):
         n = int(self.headers.get('Content-Length', 0))
         q = json.loads(self.rfile.read(n) or b'{}')
         TL.user = q.get('user')
+        if NHO_API and self.path in ('/api/doc', '/api/rpc', '/api/dang-nhap'):
+            self.khoa_nho = (self.path, json.dumps(q, sort_keys=True))
+            if self.khoa_nho in NHO:
+                body = NHO[self.khoa_nho]
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.send_header('Content-Length', str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+                return
         try:
             if self.path == '/api/dang-nhap':
                 # Tài khoản có mật khẩu thật (tạo trong phần mềm) thì kiểm mật khẩu; tài khoản thử cũ thì bỏ qua

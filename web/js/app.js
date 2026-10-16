@@ -218,7 +218,11 @@ async function dieuHuong() {
 async function vaoUngDung() {
   const phien = await api.layPhien();
   if (!phien) { khung = null; manDangNhap(); return; }
-  const toi = await api.taiToi(phien.user.id);
+  // 052: mở thẳng trang Việc hôm nay thì gọi sẵn dữ liệu trang ngay, song song với khởi động (trước: 3 đợt nối tiếp – người dùng,
+  // danh mục, rồi mới tới dữ liệu trang). Trang lấy lại kết quả này; lỗi thì tự quay về cách cũ.
+  const duongDau = (location.hash.replace(/^#\/?/, '') || '').split('?')[0];
+  if (duongDau === 'viec' || duongDau === '') api.taiSanViecHomNay();
+  const { toi, coDanhMuc } = await api.khoiDong(phien.user.id);
   if (!toi || !toi.hoat_dong || !toi.vai_tro.length) {
     khung = null;
     dat(goc, h('main', { class: 'man-hinh' }, h('div', { class: 'the dang-nhap' },
@@ -229,7 +233,7 @@ async function vaoUngDung() {
   }
   // Tài khoản giám đốc vừa tạo / vừa đặt lại mật khẩu: bắt đổi mật khẩu riêng trước khi dùng
   if (toi.phai_doi_mat_khau) { khung = null; manDatMatKhau({ lanDau: true }); return; }
-  await api.taiDanhMuc();
+  if (!coDanhMuc) await api.taiDanhMuc();
   dungKhung();
   await dieuHuong();
 }

@@ -2111,6 +2111,173 @@ select kt.tep((select v from ctx where k='hs47'), 'huy_vat_tu', 2);
 select kt.ghi('051 Tải được ảnh bước "huy_vat_tu"', (select count(*) from public.ho_so_tep where ho_so_id = (select v::bigint from ctx where k='hs47') and buoc = 'huy_vat_tu') = 2);
 select kt.mong_loi('051 Bước tệp lạ vẫn bị chặn', format($$select public.them_tep(%s, 'linh_tinh', 'anh', 'TK/' || (select ma from public.ho_so where id = %s) || '/y.jpg')$$, (select v from ctx where k='hs47'), (select v from ctx where k='hs47')), 'không hợp lệ');
 select kt.dong_vai(null);
+-- ---------------------------------------------------------------------
+-- 052: tối ưu tốc độ – hàm tính tiền nhẹ hơn, khởi động một lượt, Việc hôm nay một lượt
+-- ---------------------------------------------------------------------
+select kt.dong_vai(null);
+select kt.ghi('052 tien_dong_co_vat không cài múi giờ riêng (Postgres ép thẳng công thức vào câu lệnh gọi)',
+  (select proconfig is null from pg_proc where oid = 'public.tien_dong_co_vat(numeric,boolean,date,numeric)'::regprocedure));
+select kt.ghi('052 tien_dong_co_vat giữ đúng công thức: không VAT, có VAT theo tỷ lệ cho trước, thiếu số tiền = 0, tỷ lệ theo ngày',
+  public.tien_dong_co_vat(1000000, false, current_date, 0.08) = 1000000
+  and public.tien_dong_co_vat(1000000, true, current_date, 0.08) = 1080000
+  and public.tien_dong_co_vat(1000000, true, current_date, 0.1) = 1100000
+  and public.tien_dong_co_vat(1234567, true, current_date, 0.08) = 1333332
+  and public.tien_dong_co_vat(null, true, current_date, 0.08) = 0
+  and public.tien_dong_co_vat(1000000, true, current_date, null) = round(1000000 * (1 + public.vat_ty_le(current_date)))
+  and public.tien_dong_co_vat(1000000, true, null, null) = round(1000000 * (1 + public.vat_ty_le((now() at time zone 'Asia/Ho_Chi_Minh')::date))));
+select kt.ghi('052 Các hàm mới không bị gắn múi giờ riêng (múi giờ đã đặt cho cả vai trò API – 033)',
+  not exists (select 1 from pg_proc p where p.proname in ('khoi_dong', 'viec_hom_nay', 'canh_bao_hom_nay', 'doc_bang', 'tien_dong_co_vat')
+              and p.pronamespace in ('public'::regnamespace, 'app'::regnamespace) and coalesce(p.proconfig::text, '') ilike '%timezone%'));
+select kt.ghi('052 Hàm mới: chỉ người đã đăng nhập gọi được (khách ẩn danh không gọi được)',
+  not has_function_privilege('anon', 'public.khoi_dong()', 'execute') and not has_function_privilege('anon', 'public.viec_hom_nay()', 'execute')
+  and not has_function_privilege('anon', 'public.canh_bao_hom_nay()', 'execute')
+  and has_function_privilege('authenticated', 'public.khoi_dong()', 'execute') and has_function_privilege('authenticated', 'public.viec_hom_nay()', 'execute')
+  and has_function_privilege('authenticated', 'public.canh_bao_hom_nay()', 'execute'));
+
+-- 052: so khớp hàm một lượt với các lượt đọc riêng lẻ mà giao diện cũ gọi, theo từng vai trò
+create or replace function kt.cung_tap(a jsonb, b jsonb) returns boolean language sql immutable as $$
+  select coalesce((select jsonb_agg(x order by x::text) from jsonb_array_elements(coalesce(a, '[]'::jsonb)) x), '[]'::jsonb)
+       = coalesce((select jsonb_agg(x order by x::text) from jsonb_array_elements(coalesce(b, '[]'::jsonb)) x), '[]'::jsonb) $$;
+
+create or replace function kt.so_viec_hom_nay(p_ten text) returns void language plpgsql as $$
+declare
+  n public.nhan_vien; vt text[]; r jsonb; e jsonb; sai text := ''; dem text := '';
+  vp boolean; ql boolean; ktoan boolean; kh boolean; gd boolean; cn text;
+begin
+  select * into n from public.nhan_vien where id = auth.uid();
+  vt := case when n.hoat_dong then n.vai_tro else '{}'::text[] end;     -- tài khoản khóa: không có vai trò nào
+  r := public.viec_hom_nay()::jsonb;
+  vp := vt && array['giam_doc','quan_ly','ke_toan','cvdv','kho'];
+  ql := vt && array['quan_ly','giam_doc']; ktoan := vt && array['ke_toan','giam_doc']; kh := vt && array['kho','giam_doc','quan_ly'];
+  gd := vt && array['giam_doc']; cn := case when gd then n.chi_nhanh_id end;
+
+  e := case when vp then (select jsonb_agg(to_jsonb(v)) from public.v_ho_so v where v.trang_thai not in ('dong','huy') and (cn is null or v.chi_nhanh_id = cn)) end;
+  if not kt.cung_tap(r->'ho_so', e) then sai := sai || ' ho_so'; end if;
+  dem := dem || 'ho_so=' || jsonb_array_length(r->'ho_so');
+
+  e := case when vp and ql then (select jsonb_agg(to_jsonb(x)) from (select * from public.v_ho_so v where (cn is null or v.chi_nhanh_id = cn)
+         and v.trang_thai = 'dong' and v.giao_luc is not null and not v.tu_excel and v.cham_soc_luc is null order by v.giao_luc desc limit 300) x) end;
+  if not kt.cung_tap(r->'cham_soc_dong', e) then sai := sai || ' cham_soc_dong'; end if;
+  dem := dem || ' cs=' || jsonb_array_length(r->'cham_soc_dong');
+
+  e := case when vp and ktoan then (select jsonb_agg(to_jsonb(x)) from (select * from public.v_ho_so v where (cn is null or v.chi_nhanh_id = cn)
+         and v.trang_thai = 'dong' and v.giao_luc is not null and not v.tu_excel and v.gdv_id is not null and v.hoa_hong_gdv is null order by v.giao_luc desc limit 300) x) end;
+  if not kt.cung_tap(r->'hoa_hong_dong', e) then sai := sai || ' hoa_hong_dong'; end if;
+  dem := dem || ' hh=' || jsonb_array_length(r->'hoa_hong_dong');
+
+  e := case when vp then (select jsonb_agg(to_jsonb(c)) from public.v_canh_bao c where c.loai <> 'thieu_gdv' and (cn is null or c.chi_nhanh_id = cn)) end;
+  if not kt.cung_tap(public.canh_bao_hom_nay()::jsonb, e) then sai := sai || ' canh_bao'; end if;
+  dem := dem || ' cb=' || jsonb_array_length(public.canh_bao_hom_nay()::jsonb);
+
+  e := case when vt && array['truong_nhom','quan_ly','cvdv','ke_toan','giam_doc'] then public.bang_viec_to() end;
+  if not kt.cung_tap(r->'bang_viec', e) then sai := sai || ' bang_viec'; end if;
+  dem := dem || ' bv=' || jsonb_array_length(r->'bang_viec');
+
+  e := case when vp and kh then (select jsonb_agg(to_jsonb(x)) from public.v_de_xuat x where x.trang_thai = 'cho_xuat' and (cn is null or x.chi_nhanh_id = cn)) end;
+  if not kt.cung_tap(r->'de_xuat', e) then sai := sai || ' de_xuat'; end if;
+  dem := dem || ' dx=' || jsonb_array_length(r->'de_xuat');
+
+  e := case when vp and vt && array['quan_ly','giam_doc','kho'] then (select jsonb_agg(to_jsonb(x)) from public.v_de_nghi_mua x
+         where x.trang_thai in ('cho_duyet','da_duyet') and (cn is null or x.chi_nhanh_id = cn)) end;
+  if not kt.cung_tap(r->'mua', e) then sai := sai || ' mua'; end if;
+  dem := dem || ' mua=' || jsonb_array_length(r->'mua');
+
+  e := case when vp and ktoan then (select jsonb_agg(to_jsonb(x)) from public.v_phieu_nhap x
+         where x.trang_thai in ('cho_khop','treo') and (cn is null or x.chi_nhanh_id = cn)) end;
+  if not kt.cung_tap(r->'nhap', e) then sai := sai || ' nhap'; end if;
+  dem := dem || ' nhap=' || jsonb_array_length(r->'nhap');
+
+  e := case when vp and vt && array['quan_ly','giam_doc','ke_toan'] then (select jsonb_agg(to_jsonb(x)) from public.v_de_nghi_chi x
+         where x.trang_thai in ('cho_duyet','da_duyet') and (cn is null or x.chi_nhanh_id = cn)) end;
+  if not kt.cung_tap(r->'chi', e) then sai := sai || ' chi'; end if;
+  dem := dem || ' chi=' || jsonb_array_length(r->'chi');
+
+  e := case when vp and ktoan then (select jsonb_agg(to_jsonb(x)) from (select * from public.v_dich_vu_nhanh d where d.trang_thai = 'hieu_luc'
+         and d.con_thu > 0 and (cn is null or d.chi_nhanh_id = cn) order by d.ngay limit 200) x) end;
+  if not kt.cung_tap(r->'dvn', e) then sai := sai || ' dvn'; end if;
+  dem := dem || ' dvn=' || jsonb_array_length(r->'dvn');
+
+  e := case when vp and kh then (select jsonb_agg(jsonb_build_object('id', t.id)) from public.v_ton_kho t
+         where t.duoi_toi_thieu and t.hoat_dong and (cn is null or t.chi_nhanh_id = cn)) end;
+  if not kt.cung_tap(r->'thieu', e) then sai := sai || ' thieu'; end if;
+  dem := dem || ' thieu=' || jsonb_array_length(r->'thieu');
+
+  e := case when (vp or vt && array['truong_nhom']) and vt && array['giam_doc','quan_ly','ke_toan','kho','truong_nhom']
+         then (select jsonb_agg(to_jsonb(s)) from public.v_viec_tai_san s where s.chi_nhanh_id = n.chi_nhanh_id) end;
+  if not kt.cung_tap(r->'tai_san', e) then sai := sai || ' tai_san'; end if;
+  dem := dem || ' ts=' || jsonb_array_length(r->'tai_san');
+
+  perform kt.ghi('052 Việc hôm nay một lượt = các lượt đọc riêng – ' || p_ten, sai = '', coalesce(nullif(sai, ''), dem));
+end $$;
+
+create or replace function kt.so_khoi_dong(p_ten text) returns void language plpgsql as $$
+declare
+  n public.nhan_vien; r jsonb; sai text := ''; b text; e jsonb; dm jsonb; so int := 0;
+  co_quyen boolean;
+begin
+  select * into n from public.nhan_vien where id = auth.uid();
+  r := public.khoi_dong();
+  if (r->'toi') is distinct from coalesce(to_jsonb(n), 'null'::jsonb) then sai := sai || ' toi'; end if;
+  co_quyen := found and n.hoat_dong and cardinality(n.vai_tro) > 0 and not coalesce(n.phai_doi_mat_khau, false);
+  dm := r->'danh_muc';
+  if not co_quyen then
+    if dm is distinct from 'null'::jsonb then sai := sai || ' danh_muc_phai_rong'; end if;
+  else
+    foreach b in array array['chi_nhanh','hang_bao_hiem','giam_dinh_vien','hang_xe','dong_xe','to_thuc_hien','muc_thu_chi','nha_cung_cap','don_vi_lien_quan','cai_dat','tai_khoan_quy','nhan_vien'] loop
+      -- Bảng nào vai trò này không được tải thì không có khóa; còn lại khớp đúng lượt đọc riêng (xếp theo id, cai_dat theo khoa)
+      if b = 'tai_khoan_quy' and not (n.vai_tro && array['giam_doc','ke_toan','quan_ly','co_dong']) then
+        if dm ? b then sai := sai || ' thua_' || b; end if; continue;
+      end if;
+      if b = 'nhan_vien' and not (n.vai_tro && array['giam_doc','quan_ly','ke_toan','cvdv','kho','co_dong']) then
+        if dm ? b then sai := sai || ' thua_' || b; end if; continue;
+      end if;
+      execute format('select coalesce(jsonb_agg(to_jsonb(t) order by t.%I), %L::jsonb) from public.%I t', case when b = 'cai_dat' then 'khoa' else 'id' end, '[]',
+        case when b = 'don_vi_lien_quan' and not (n.vai_tro && array['giam_doc','ke_toan','quan_ly','co_dong']) then 'v_don_vi_lien_quan' else b end) into e;
+      if (dm -> b) is distinct from e then sai := sai || ' ' || b; end if;
+      so := so + jsonb_array_length(e);
+    end loop;
+  end if;
+  perform kt.ghi('052 Khởi động một lượt = người dùng + danh mục đọc riêng – ' || p_ten, sai = '', coalesce(nullif(sai, ''), so || ' dòng danh mục'));
+end $$;
+
+grant execute on all functions in schema kt to authenticated;
+
+insert into auth.users (email, raw_user_meta_data) values ('moi052@gara.vn', '{"ho_ten":"Người mới 052"}');
+select kt.dong_vai('thuan@gara.vn');  select kt.so_viec_hom_nay('giám đốc');           select kt.so_khoi_dong('giám đốc');
+select kt.ghi('052 Khởi động trả đủ danh mục: giám đốc thấy quỹ + nhân viên + cài đặt đúng khóa',
+  (select (r->'danh_muc') ? 'tai_khoan_quy' and (r->'danh_muc') ? 'nhan_vien'
+          and exists (select 1 from jsonb_array_elements(r->'danh_muc'->'cai_dat') c where c->>'khoa' = 'so_ngay_goi_cham_soc')
+   from (select public.khoi_dong() as r) x));
+select kt.dong_vai('long@gara.vn');   select kt.so_viec_hom_nay('quản lý chung');       select kt.so_khoi_dong('quản lý chung');
+select kt.dong_vai('tien@gara.vn');   select kt.so_viec_hom_nay('kế toán');             select kt.so_khoi_dong('kế toán');
+select kt.dong_vai('duy@gara.vn');    select kt.so_viec_hom_nay('CVDV kiêm kho');       select kt.so_khoi_dong('CVDV kiêm kho');
+select kt.ghi('052 Khởi động: CVDV không có danh sách tài khoản quỹ (như giao diện cũ)',
+  (select not ((r->'danh_muc') ? 'tai_khoan_quy') and (r->'danh_muc') ? 'nhan_vien' from (select public.khoi_dong() as r) x));
+select kt.dong_vai('han@gara.vn');    select kt.so_viec_hom_nay('trưởng nhóm DS');      select kt.so_khoi_dong('trưởng nhóm DS');
+select kt.ghi('052 Khởi động: trưởng nhóm không có danh sách nhân viên, quỹ; đơn vị liên quan chỉ qua view tên (043)',
+  (select not ((r->'danh_muc') ? 'tai_khoan_quy') and not ((r->'danh_muc') ? 'nhan_vien')
+          and not exists (select 1 from jsonb_array_elements(r->'danh_muc'->'don_vi_lien_quan') d where d ? 'so_du_dau_ky')
+   from (select public.khoi_dong() as r) x));
+select kt.dong_vai('vinh@gara.vn');   select kt.so_viec_hom_nay('trưởng nhóm DMG');     select kt.so_khoi_dong('trưởng nhóm DMG');
+select kt.dong_vai('codong@gara.vn'); select kt.so_viec_hom_nay('cổ đông');             select kt.so_khoi_dong('cổ đông');
+select kt.ghi('052 Việc hôm nay: cổ đông nhận danh sách rỗng',
+  (select jsonb_array_length(r->'ho_so') = 0 and jsonb_array_length(r->'bang_viec') = 0 and jsonb_array_length(r->'tai_san') = 0
+   from (select public.viec_hom_nay()::jsonb as r) x) is not distinct from true);
+select kt.dong_vai('moi052@gara.vn'); select kt.so_viec_hom_nay('chưa có vai trò');     select kt.so_khoi_dong('chưa có vai trò');
+select kt.ghi('052 Khởi động: tài khoản chưa có vai trò → có toi, danh_muc = null',
+  (select (r->'toi'->>'email') = 'moi052@gara.vn' and (r->'danh_muc') = 'null'::jsonb from (select public.khoi_dong() as r) x));
+select kt.dong_vai(null);
+-- Tài khoản đã khóa / đang phải đổi mật khẩu: giao diện hiện màn hình riêng, không tải danh mục
+insert into auth.users (email, raw_user_meta_data) values ('khoa052@gara.vn', '{"ho_ten":"Đã khóa 052"}'), ('doimk052@gara.vn', '{"ho_ten":"Đổi mật khẩu 052"}');
+update public.nhan_vien set vai_tro = '{cvdv}', chi_nhanh_id = 'TK', hoat_dong = false where email = 'khoa052@gara.vn';
+update public.nhan_vien set vai_tro = '{cvdv}', chi_nhanh_id = 'TK', phai_doi_mat_khau = true where email = 'doimk052@gara.vn';
+select kt.dong_vai('khoa052@gara.vn');   select kt.so_viec_hom_nay('tài khoản đã khóa');         select kt.so_khoi_dong('tài khoản đã khóa');
+select kt.ghi('052 Khởi động: tài khoản đã khóa → danh_muc = null',
+  (select (r->'danh_muc') = 'null'::jsonb from (select public.khoi_dong() as r) x));
+select kt.dong_vai('doimk052@gara.vn');  select kt.so_viec_hom_nay('đang phải đổi mật khẩu');    select kt.so_khoi_dong('đang phải đổi mật khẩu');
+select kt.ghi('052 Khởi động: tài khoản đang phải đổi mật khẩu → danh_muc = null',
+  (select (r->'danh_muc') = 'null'::jsonb and (r->'toi'->>'phai_doi_mat_khau')::boolean from (select public.khoi_dong() as r) x));
+select kt.dong_vai(null);
 \o
 \echo '======== KẾT QUẢ ========'
 select stt, case when dat then 'ĐẠT ' else 'LỖI ' end as kq, ten, left(coalesce(chi_tiet,''), 140) as chi_tiet from kt.ket_qua order by stt;

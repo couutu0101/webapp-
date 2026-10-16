@@ -1,5 +1,6 @@
 """Kiểm thử giao diện từ đầu đến cuối: một chiếc xe bảo hiểm đi hết 9 bước, đổi người dùng theo vai trò.
-Chạy: test/lam_moi_csdl.sh && python3 test/may_chu_thu.py 8765 & python3 test/thu_giao_dien.py"""
+Chạy: test/lam_moi_csdl.sh && python3 test/may_chu_thu.py 8765 & python3 test/thu_giao_dien.py
+Thử bản đóng gói: (cd web && node build.mjs --thu) && WEB=web/dist-thu python3 test/may_chu_thu.py 8765 & python3 test/thu_giao_dien.py"""
 import subprocess
 import os, sys, base64, re
 from playwright.sync_api import sync_playwright, expect
@@ -13,6 +14,13 @@ with open(ANH, 'wb') as f:
     f.write(base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='))
 GIA = open(os.path.join(GOC, 'supabase-gia.js'), encoding='utf-8').read()
 SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect width="80" height="80" fill="#9ab"/></svg>'
+
+# Lấy mô-đun api / kho theo tên, chạy được trên cả mã nguồn (web/) lẫn bản đóng gói thử (web/dist-thu, xuất sẵn api và kho)
+MOD_JS = """window.__mod = async (ten) => {
+  const dau = document.querySelector('script[type=module]').getAttribute('src');
+  if (dau.startsWith('assets/')) return (await import(new URL(dau, location.href).href))[ten];
+  return import(ten === 'api' ? './js/api.js' : './js/trang/' + ten + '.js');
+};"""
 
 loi = []
 buoc = 0
@@ -36,6 +44,7 @@ def chup(page, ten):
 
 def mo(browser, email, rong=1280):
     ctx = browser.new_context(viewport={'width': rong, 'height': 900}, locale='vi-VN')
+    ctx.add_init_script(MOD_JS)
     page = ctx.new_page()
     page.route(re.compile(r'.*supabase-js@2\.45\.4/\+esm$'), lambda r: r.fulfill(status=200, content_type='application/javascript', body=GIA))
     page.route(re.compile(r'.*/test-anh\.svg(\?.*)?$'), lambda r: r.fulfill(status=200, content_type='image/svg+xml', body=SVG))
@@ -905,6 +914,7 @@ with sync_playwright() as p:
     expect(thuan.locator('tbody')).to_contain_text('Chờ đổi mật khẩu')
     ghi(f'Giám đốc tạo tài khoản Lê Văn Bảo – Kho: tên đăng nhập gợi ý "{ten_goi_y}", mật khẩu tạm {len(mk_tam)} ký tự')
     ctx_bao = b.new_context(viewport={'width': 1280, 'height': 900}, locale='vi-VN')
+    ctx_bao.add_init_script(MOD_JS)
     bao = ctx_bao.new_page()
     bao.route(re.compile(r'.*supabase-js@2\.45\.4/\+esm$'), lambda r: r.fulfill(status=200, content_type='application/javascript', body=GIA))
     bao.on('pageerror', lambda e: loi.append(f'bao: {e}'))
@@ -1113,7 +1123,7 @@ with sync_playwright() as p:
     codong.locator('[role=tab]', has_text='Kết quả kinh doanh').click()
     codong.wait_for_selector('text=LÃI TRƯỚC THUẾ')
     expect(codong.locator('[data-chot]')).to_have_count(0)
-    chan = codong.evaluate("""async () => { const api = await import('./js/api.js'); try { await api.rpc('lap_de_nghi_chi', { p: { so_tien: 1000, noi_dung: 'thử' } }); return 'GHI ĐƯỢC'; } catch (e) { return e.message; } }""")
+    chan = codong.evaluate("""async () => { const api = await window.__mod('api'); try { await api.rpc('lap_de_nghi_chi', { p: { so_tien: 1000, noi_dung: 'thử' } }); return 'GHI ĐƯỢC'; } catch (e) { return e.message; } }""")
     assert 'chỉ được xem' in chan, chan
     chup(codong, '28-co-dong-ket-qua-kinh-doanh')
     ghi(f'Cổ đông xem hồ sơ (nút thao tác: {so_nut_hs}), Kho → Thiết bị đồ nghề 6 thẻ, Kết quả kinh doanh mọi tháng; lệnh ghi: {chan}')
@@ -1135,7 +1145,7 @@ with sync_playwright() as p:
     # ---- Kế toán: Thu chi – tiền BH chưa chia, chuyển phần chia
     kt43 = mo(b, 'tien@gara.vn')
     kq = kt43.evaluate("""async () => {
-      const api = await import('./js/api.js');
+      const api = await window.__mod('api');
       const muc = api.dm.muc_thu_chi.find((m) => m.tinh_chat === 'thu_bao_hiem');
       const tk = api.dm.tai_khoan_quy.find((t) => t.hoat_dong);
       const hs = await api.doc('v_ho_so', (q) => q.gt('con_no_bh', 0).limit(1));
@@ -1173,7 +1183,7 @@ with sync_playwright() as p:
     m.locator('.modal-chan button', has_text='Đóng').click()
 
     # ---- Trả lại khách: điền sẵn số tối đa theo máy chủ
-    hs_du = kt43.evaluate("""async () => { const api = await import('./js/api.js');
+    hs_du = kt43.evaluate("""async () => { const api = await window.__mod('api');
       const r = await api.doc('v_ho_so', (q) => q.lt('con_no_khach', 0).limit(1)); return r[0] ? r[0].id : null; }""")
     if hs_du:
         ve_trang(kt43, f"#/de-nghi?lap=1&muc={'Trả lại cọc cho khách'}&ho_so={hs_du}&nd=thử")
@@ -1188,10 +1198,10 @@ with sync_playwright() as p:
     ve_trang(kt43, '#/kho?the=cong_no')
     kt43.wait_for_selector('text=Tổng còn nợ nhà cung cấp')
     ghi('Kho → Công nợ NCC (kế toán): ' + kt43.locator('.luoi-dem').first.inner_text().replace('\n', ' '))
-    pn = kt43.evaluate("""async () => { const api = await import('./js/api.js');
+    pn = kt43.evaluate("""async () => { const api = await window.__mod('api');
       const r = await api.doc('v_phieu_nhap', (q) => q.in('trang_thai', ['cho_khop', 'treo']).limit(1)); return r[0] ? r[0].id : null; }""")
     if pn:
-        kt43.evaluate(f"""async () => {{ const k = await import('./js/trang/kho.js'); k.moChiTietNhap({pn}, () => {{}}); }}""")
+        kt43.evaluate(f"""async () => {{ const k = await window.__mod('kho'); k.moChiTietNhap({pn}, () => {{}}); }}""")
         kt43.locator('button', has_text='Điều chỉnh giá theo hóa đơn').click()
         m = modal(kt43)
         expect(m.locator('tbody tr')).not_to_have_count(0)
@@ -1267,20 +1277,20 @@ with sync_playwright() as p:
     expect(sel).to_be_visible()
     expect(sel).to_have_value('TK')
     ghi('045 Giám đốc: ô chọn chi nhánh trên menu – ' + ' / '.join(sel.locator('option').all_inner_texts()))
-    so_tk = gd43.evaluate("async () => (await (await import('./js/api.js')).doc('v_ho_so', (q) => q)).length")
+    so_tk = gd43.evaluate("async () => (await (await window.__mod('api')).doc('v_ho_so', (q) => q)).length")
     gd43_2 = mo(b, 'thuan@gara.vn')            # thẻ thứ hai của giám đốc (để thử tự tải lại)
     with gd43.expect_navigation():
         sel.select_option('PHI')
     gd43.wait_for_selector('.menu')
     expect(gd43.locator('.chon-cn-menu')).to_have_value('PHI')
-    ds = gd43.evaluate("""async () => { const api = await import('./js/api.js');
+    ds = gd43.evaluate("""async () => { const api = await window.__mod('api');
       const [hs, quy, dvn] = await Promise.all([api.doc('v_ho_so', (q) => q), api.doc('v_so_du_quy', (q) => q), api.doc('v_dich_vu_nhanh', (q) => q)]);
       return { hs: hs.map((r) => r.chi_nhanh_id), quy: quy.map((r) => r.chi_nhanh_id + ':' + r.ten), dvn: dvn.length, cn: api.toi.chi_nhanh_id }; }""")
     assert ds['cn'] == 'PHI' and all(c == 'PHI' for c in ds['hs']) and ds['quy'] == ['PHI:Tiền mặt'], ds
     ghi(f'045 Chọn PHI → trang tải lại; hồ sơ {len(ds["hs"])} (Tô Ký có {so_tk}), quỹ chỉ còn {ds["quy"]}, dịch vụ nhanh {ds["dvn"]}')
-    kq = gd43.evaluate("""async () => (await import('./js/api.js')).tiepNhanXe({ bien_so: '51K-045.46', ten_khach: 'Khách PHI giao diện',
+    kq = gd43.evaluate("""async () => (await window.__mod('api')).tiepNhanXe({ bien_so: '51K-045.46', ten_khach: 'Khách PHI giao diện',
       dien_thoai: '0909045046', nguon_tt: 'khach', tinh_trang_xe: 'Trầy cản', tu_van: 'Không',
-      dong_xe_id: (await import('./js/api.js')).dm.dong_xe.find((d) => d.ten === 'VF3').id })""")
+      dong_xe_id: (await window.__mod('api')).dm.dong_xe.find((d) => d.ten === 'VF3').id })""")
     assert kq['chi_nhanh_id'] == 'PHI' and kq['ma'].startswith('PHI-'), kq
     ve_trang(gd43, '#/ho-so')
     gd43.wait_for_selector(f'tr[data-id="{kq["id"]}"]')
@@ -1303,14 +1313,14 @@ with sync_playwright() as p:
         dt45.locator('.dau .chon-cn-dau').select_option('TK')
     dt45.wait_for_selector('.menu')
     expect(dt45.locator('.dau .chon-cn-dau')).to_have_value('TK')
-    hs_tk = dt45.evaluate("async () => (await (await import('./js/api.js')).doc('v_ho_so', (q) => q)).map((r) => r.chi_nhanh_id)")
+    hs_tk = dt45.evaluate("async () => (await (await window.__mod('api')).doc('v_ho_so', (q) => q)).map((r) => r.chi_nhanh_id)")
     assert hs_tk and all(c == 'TK' for c in hs_tk) and len(hs_tk) == so_tk, (len(hs_tk), so_tk)
     ghi(f'045 Điện thoại: ô chọn ở thanh trên; đổi về Tô Ký → {len(hs_tk)} hồ sơ, không lẫn PHI')
 
     # ---- 046: nhãn màu chi nhánh ở trang Nhân viên, xóa tài khoản chưa dùng
     ve_trang(gd43, '#/nhan-vien')
     gd43.wait_for_selector('.nhan-cn')
-    tao = gd43.evaluate("""async () => (await import('./js/api.js')).taoTaiKhoan({ ho_ten: 'Tạo nhầm PHI', ten_dang_nhap: 'nham.phi',
+    tao = gd43.evaluate("""async () => (await window.__mod('api')).taoTaiKhoan({ ho_ten: 'Tạo nhầm PHI', ten_dang_nhap: 'nham.phi',
       mat_khau: 'hs0046', chi_nhanh_id: 'PHI', vai_tro: ['cvdv'], to_id: null })""")
     ve_trang(gd43, '#/nhan-vien')
     hang_moi = gd43.locator('tr', has_text='Tạo nhầm PHI')
@@ -1367,7 +1377,7 @@ with sync_playwright() as p:
     # ---- 050: bước Detailing (rửa xe, đánh bóng) giữa sửa chữa và KCS
     ve_trang(gd43, '#/ho-so/moi')
     expect(gd43.locator('input[name=khong_qua_detailing]')).not_to_be_checked()
-    TAO_50 = """async ([bien, sdt]) => { const api = await import('./js/api.js');
+    TAO_50 = """async ([bien, sdt]) => { const api = await window.__mod('api');
       const kq = await api.tiepNhanXe({ bien_so: bien, ten_khach: 'Khách 050', dien_thoai: sdt, nguon_tt: 'khach', tinh_trang_xe: 'Móp cửa',
         tu_van: 'Không', qua_detailing: true, dong_xe_id: api.dm.dong_xe.find((d) => d.ten === 'VF3').id });
       await api.lapBaoGia(kq.id, [{ ten: 'Gò cửa', nhom: 'dong', gia_bao: 900000 }, { ten: 'Đánh bóng', nhom: 'detailing', gia_bao: 500000 }], 0.08);
@@ -1398,7 +1408,7 @@ with sync_playwright() as p:
     toast_co(giang, 'Đã trả xe về tổ sửa lại')
     expect(giang.locator('.the-xe', has_text='51K-050.11').locator('.nhan').first).to_contain_text('Đang sửa')
     ghi('050 Trưởng nhóm Detailing (bảng việc tổ) trả xe về sửa: ghi lỗi, tích "Gò cửa" → xe về Đang sửa')
-    gd43.evaluate("""async (id) => { const api = await import('./js/api.js');
+    gd43.evaluate("""async (id) => { const api = await window.__mod('api');
       for (const m of (await api.layHangMuc(id)).filter((x) => x.trang_thai === 'dang_lam')) await api.baoXong(m.id); }""", hs50['id'])
     ve_trang(giang, '#/')
     the50 = giang.locator('.the-xe', has_text='51K-050.11')

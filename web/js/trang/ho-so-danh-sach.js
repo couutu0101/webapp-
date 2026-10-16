@@ -39,11 +39,25 @@ export default async function trangHoSo(el) {
     ketQua);
 
   let soLan = 0;   // gõ tìm nhanh: chỉ vẽ kết quả của lần tải mới nhất
+  // 052: hai lượt đọc phụ (người làm từng tổ của xe đang sửa; xe chờ phụ tùng) lấy theo trạng thái chứ không theo từng mã xe trong danh sách,
+  // nên không phải chờ danh sách đọc xong mới gọi: chạy song song với danh sách (trước đây nối tiếp sau danh sách). Số dòng nhỏ.
+  // Dùng lại kết quả trong 15 giây để gõ tìm kiếm liên tục không đọc lại.
+  let phu = null; let phuLuc = 0;
+  const docPhu = () => {
+    if (!phu || Date.now() - phuLuc > 15000) {
+      phuLuc = Date.now();
+      phu = Promise.all([
+        api.doc('v_viec_ho_so', (q) => q.eq('trang_thai', 'dang_sua')).catch(() => []),
+        api.doc('v_cho_phu_tung').catch(() => []),
+      ]);
+    }
+    return phu;
+  };
   async function tai() {
     const lan = ++soLan;
     dat(ketQua, h('div', { class: 'dang-tai' }, 'Đang tải…'));
     const tt = ttRieng || LOC.find((l) => l.ma === loc)?.tt;
-    const ds = await api.doc('v_ho_so', (q) => {
+    const dsDoc = api.doc('v_ho_so', (q) => {
       if (tt) q = q.in('trang_thai', tt);
       if (tuKhoa) {
         const gon = tuKhoa.toUpperCase().replace(/[^0-9A-Z]/g, '');
@@ -52,14 +66,8 @@ export default async function trangHoSo(el) {
       }
       return q.order('ngay_vao', { ascending: false }).limit(300);
     });
-    if (lan !== soLan) return ds;
     // Ai đang được giao bước tiếp theo: v_ho_so có sẵn người được giao (040); xe đang sửa cần tên trưởng nhóm các tổ → v_viec_ho_so.
-    // Hai lượt đọc phụ chạy song song.
-    const idDangSua = ds.filter((d) => d.trang_thai === 'dang_sua').map((d) => d.id);
-    const [viec, cho] = await Promise.all([
-      idDangSua.length ? api.doc('v_viec_ho_so', (q) => q.in('ho_so_id', idDangSua)).catch(() => []) : [],
-      ds.length ? api.doc('v_cho_phu_tung', (q) => q.in('ho_so_id', ds.map((d) => d.id))).catch(() => []) : [],
-    ]);
+    const [ds, [viec, cho]] = await Promise.all([dsDoc, docPhu()]);
     if (lan !== soLan) return ds;
     const viecCua = Object.fromEntries(ds.map((d) => [d.id, { nguoi_tiep_theo: d.nguoi_tiep_theo, giao_viec_luc: d.giao_viec_luc }]));
     for (const v of viec) viecCua[v.ho_so_id] = v;

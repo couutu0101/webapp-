@@ -20,12 +20,44 @@ const MUC_DO = { cao: 'Cần làm ngay', vua: 'Trong tuần', thap: 'Bổ sung k
 // Việc cần xử lý không gắn xe (hoặc cần xử lý ở trang khác): mở đúng chỗ làm
 const LIEN_KET_CANH_BAO = { thu_chua_phan_bo: '#/thu-chi?chua_chia=1', nhap_ngoai_de_nghi: '#/kho?the=nhap', de_nghi_cho_duyet: '#/de-nghi' };
 
-// Mọi thứ của trang tải MỘT đợt song song (040): trước đây ~19 lượt, 4 đợt nối tiếp, đọc hồ sơ 4 lần.
-// Phần nào tải lỗi (mạng, quyền) thì ghi lại và báo ở đầu trang, không để danh sách trống mà không nói gì.
+// 052: máy chủ trả mọi thứ của trang trong HAI lượt song song (viec_hom_nay + canh_bao_hom_nay; v_ho_so chỉ tính một lần). Hai lượt này
+// thường đã được gọi sẵn từ lúc khởi động ứng dụng. Máy chủ chưa có hàm (hoặc hàm báo lỗi) thì quay về cách cũ: nhiều lượt đọc song song.
+let thieuHamMotLuot = false;
+const hamThieu = (e) => e?.code === 'PGRST202' || e?.code === '42883';     // máy chủ chưa cập nhật: chưa có hàm
+// Việc cần xử lý theo cách cũ (một lượt đọc view; bỏ nhắc "thiếu GDV" – 048: trùng việc chờ duyệt giá)
+const docCanhBaoCu = () => api.doc('v_canh_bao').then((ds) => ds.filter((x) => x.loai !== 'thieu_gdv'));
 async function taiDuLieu() {
   const vp = api.laNhanVien(); const toi = api.toi;
   const quanLy = api.coVaiTro('quan_ly', 'giam_doc'); const keToan = api.coVaiTro('ke_toan', 'giam_doc');
   const xemKho = api.coVaiTro('kho', 'giam_doc', 'quan_ly');
+  let r = null; let canhBao = null;
+  if (!thieuHamMotLuot) {
+    const { chinh, canhBao: cb } = api.layViecHomNay();
+    const [a, b] = await Promise.allSettled([chinh, cb]);
+    if (a.status === 'fulfilled' && Array.isArray(a.value?.ho_so)) r = a.value;
+    else { console.warn('Việc hôm nay – tải một lượt không được, dùng cách cũ:', a.reason); if (hamThieu(a.reason)) thieuHamMotLuot = true; }
+    if (b.status === 'fulfilled' && Array.isArray(b.value)) canhBao = b.value;
+    else if (hamThieu(b.reason)) thieuHamMotLuot = true;
+  }
+  if (!r) return taiTungPhan({ vp, toi, quanLy, keToan, xemKho });
+  const loi = [];
+  if (!canhBao) {                 // phần việc cần xử lý lỗi riêng: đọc lại bằng cách cũ, vẫn báo nếu cũng lỗi
+    canhBao = vp ? await docCanhBaoCu().catch((e) => { console.warn('Việc hôm nay – việc cần xử lý:', e); loi.push('việc cần xử lý'); return []; }) : [];
+  }
+  const d = {
+    vp, toi, quanLy, keToan, xemKho, loi,
+    hoSo: r.ho_so, canhBao, bangViec: api.locBangViec(r.bang_viec),
+    deXuat: r.de_xuat, mua: r.mua, nhap: r.nhap, chi: r.chi, dvn: r.dvn, thieu: r.thieu,
+    taiSan: viecTaiSanTu(r.tai_san),
+  };
+  d.tatCaHoSo = gopHoSo(r.cham_soc_dong, r.hoa_hong_dong, r.ho_so);
+  return d;
+}
+const gopHoSo = (...nhom) => [...new Map(nhom.flat().map((x) => [x.id, x])).values()];
+
+// Cách cũ (trước 052): mọi thứ của trang tải MỘT đợt song song (040): ~12 lượt đọc, đọc hồ sơ 4 lần.
+// Phần nào tải lỗi (mạng, quyền) thì ghi lại và báo ở đầu trang, không để danh sách trống mà không nói gì.
+async function taiTungPhan({ vp, toi, quanLy, keToan, xemKho }) {
   const loi = [];
   const an = (p, ten) => Promise.resolve(p).catch((e) => { console.warn(`Việc hôm nay – ${ten}:`, e); loi.push(ten); return []; });
   const xeDaGiao = (q) => q.eq('trang_thai', 'dong').not('giao_luc', 'is', null).eq('tu_excel', false).order('giao_luc', { ascending: false }).limit(300);
@@ -35,7 +67,7 @@ async function taiDuLieu() {
     vp && quanLy ? an(api.doc('v_ho_so', (q) => xeDaGiao(q.is('cham_soc_luc', null))), 'chăm sóc sau giao') : [],
     vp && keToan ? an(api.doc('v_ho_so', (q) => xeDaGiao(q.not('gdv_id', 'is', null).is('hoa_hong_gdv', null))), 'hoa hồng GDV') : [],
     // 048: hãng BH / GDV chọn lúc nhập kết quả duyệt giá → bỏ nhắc "chưa có giám định viên" (trùng việc chờ duyệt giá)
-    vp ? an(api.doc('v_canh_bao').then((ds) => ds.filter((x) => x.loai !== 'thieu_gdv')), 'việc cần xử lý') : [],
+    vp ? an(docCanhBaoCu(), 'việc cần xử lý') : [],
     api.coVaiTro('truong_nhom', 'quan_ly', 'cvdv', 'ke_toan', 'giam_doc') ? an(api.bangViecTo(), 'bảng việc xưởng') : [],
     vp && xemKho ? an(api.doc('v_de_xuat', (q) => q.eq('trang_thai', 'cho_xuat').order('id')), 'đề xuất vật tư') : [],
     vp && api.coVaiTro('quan_ly', 'giam_doc', 'kho') ? an(api.doc('v_de_nghi_mua', (q) => q.in('trang_thai', ['cho_duyet', 'da_duyet']).order('id')), 'đề nghị mua') : [],
@@ -46,8 +78,7 @@ async function taiDuLieu() {
     vp && xemKho ? an(api.doc('v_ton_kho', (q) => q.eq('duoi_toi_thieu', true).eq('hoat_dong', true), 'id'), 'tồn kho') : [],
     vp || api.coVaiTro('truong_nhom') ? an(viecTaiSanCuaToi(), 'đồ nghề') : [],
   ]);
-  const theoId = new Map([...chamSocDong, ...hoaHongDong, ...hoSo].map((x) => [x.id, x]));
-  return { vp, toi, quanLy, keToan, xemKho, loi, hoSo, tatCaHoSo: [...theoId.values()], canhBao, bangViec, deXuat, mua, nhap, chi, dvn, thieu, taiSan };
+  return { vp, toi, quanLy, keToan, xemKho, loi, hoSo, tatCaHoSo: gopHoSo(chamSocDong, hoaHongDong, hoSo), canhBao, bangViec, deXuat, mua, nhap, chi, dvn, thieu, taiSan };
 }
 
 export default async function trangViec(el) {
@@ -222,9 +253,12 @@ function viecSauGiaoXe(d, daCo) {
 // Việc về thiết bị đồ nghề (028): kiểm tra tuần, kiểm kê tháng, xác nhận nhận, bảo dưỡng tới hạn, thiếu / hỏng chờ xử lý – theo vai trò
 async function viecTaiSanCuaToi() {
   if (!api.coVaiTro('giam_doc', 'quan_ly', 'ke_toan', 'kho', 'truong_nhom')) return [];
-  const ds = await api.doc('v_viec_tai_san', (q) => q.eq('chi_nhanh_id', api.toi.chi_nhanh_id));
+  return viecTaiSanTu(await api.doc('v_viec_tai_san', (q) => q.eq('chi_nhanh_id', api.toi.chi_nhanh_id)));
+}
+// Từ các dòng v_viec_tai_san của chi nhánh → việc của riêng người đăng nhập (theo vai trò / tổ)
+function viecTaiSanTu(ds) {
   const truongNhom = api.coVaiTro('truong_nhom');
-  return ds.filter((x) => (x.vai || []).some((v) => api.coVaiTro(v)) && (!x.to_id || !truongNhom || api.laNhanVien() || x.to_id === api.toi.to_id))
+  return (ds || []).filter((x) => (x.vai || []).some((v) => api.coVaiTro(v)) && (!x.to_id || !truongNhom || api.laNhanVien() || x.to_id === api.toi.to_id))
     .map((x) => ({
       dau: h('b', { class: 'dau-tai-san' }, x.loai === 'bao_duong' ? x.chi_tiet : 'Đồ nghề'),
       ten: x.tieu_de,

@@ -9,7 +9,8 @@ function loi(error) {
 }
 // Cổ đông chỉ xem (030): chặn mọi lệnh ghi ngay ở trình duyệt; máy chủ cũng không cho cổ đông ghi
 const RPC_CHI_DOC = new Set(['bang_viec_to', 'bao_cao_co_dong', 'ket_qua_kinh_doanh', 'tra_cuu_xe', 'tra_cuu_xe_nhanh', 'da_doi_mat_khau',
-  'nhap_xuat_ton', 'doanh_thu_theo_thang', 'chi_tiet_kqkd', 'chi_phi_theo_muc', 'lai_gop_theo_to', 'so_du_cuoi_thang', 'so_tien_tra_lai_khach']);
+  'nhap_xuat_ton', 'doanh_thu_theo_thang', 'chi_tiet_kqkd', 'chi_phi_theo_muc', 'lai_gop_theo_to', 'so_du_cuoi_thang', 'so_tien_tra_lai_khach',
+  'khoi_dong', 'viec_hom_nay', 'canh_bao_hom_nay']);
 // Đếm số lần ghi thành công trong phiên: bộ nhớ tạm (vd danh sách hàng kho) biết khi nào phải tải lại
 let soGhi = 0;
 export const soLanGhi = () => soGhi;
@@ -94,6 +95,15 @@ export const laCoDong = () => coVaiTro('co_dong');
 export const duocXem = (...ds) => coVaiTro(...ds) || laCoDong();          // chỉ dùng cho phần XEM: menu, thẻ, cột tiền
 export const xemNhuNhanVien = () => laNhanVien() || laCoDong();
 
+// Đặt lại toàn bộ danh mục trong bộ nhớ (xóa phần của người dùng trước nếu đổi tài khoản không tải lại trang)
+function ganDanhMuc(duLieu) {
+  for (const k of Object.keys(dm)) delete dm[k];
+  Object.assign(dm, duLieu);
+  dm.ten = (bang, id) => (dm[bang] || []).find((x) => String(x.id) === String(id))?.ten ?? '';
+  return dm;
+}
+
+// Cách cũ: nhiều lượt đọc riêng (dùng khi máy chủ chưa có hàm khoi_dong hoặc hàm báo lỗi)
 export async function taiDanhMuc() {
   const bangs = ['chi_nhanh', 'hang_bao_hiem', 'giam_dinh_vien', 'hang_xe', 'dong_xe',
     'to_thuc_hien', 'muc_thu_chi', 'nha_cung_cap', 'don_vi_lien_quan', 'cai_dat'];
@@ -101,10 +111,28 @@ export async function taiDanhMuc() {
   if (xemNhuNhanVien()) bangs.push('nhan_vien');
   // 043: nợ đầu kỳ nội bộ chỉ giám đốc / quản lý chung / kế toán / cổ đông đọc; vai khác đọc tên đơn vị qua view
   const nguon = { don_vi_lien_quan: duocXem('giam_doc', 'ke_toan', 'quan_ly') ? 'don_vi_lien_quan' : 'v_don_vi_lien_quan' };
-  const kq = await Promise.all(bangs.map((b) => doc(nguon[b] || b, (q) => q.order('id', { ascending: true })).catch(() => [])));
-  bangs.forEach((b, i) => { dm[b] = kq[i]; });
-  dm.ten = (bang, id) => (dm[bang] || []).find((x) => String(x.id) === String(id))?.ten ?? '';
-  return dm;
+  // 052: bảng cai_dat khóa theo "khoa", không có cột id (xếp theo id trước đây báo lỗi nên cài đặt luôn rỗng → dùng giá trị mặc định)
+  const cotKhoa = { cai_dat: 'khoa' };
+  const kq = await Promise.all(bangs.map((b) => doc(nguon[b] || b, (q) => q.order(cotKhoa[b] || 'id', { ascending: true })).catch(() => [])));
+  return ganDanhMuc(Object.fromEntries(bangs.map((b, i) => [b, kq[i]])));
+}
+
+// 052: MỘT lượt máy chủ trả người đăng nhập + danh mục (trước: đọc nhan_vien rồi mới đọc ~12 bảng danh mục = 2 đợt nối tiếp).
+// Trả { toi, coDanhMuc }: coDanhMuc = false khi chưa có danh mục (chưa cấp vai trò, phải đổi mật khẩu, hoặc dùng cách cũ).
+export async function khoiDong(userId) {
+  if (!new URLSearchParams(location.search).has('khoi_dong_cu')) {
+    try {
+      const kq = await rpc('khoi_dong');
+      if (kq && 'toi' in kq) {
+        toi = kq.toi || null;
+        if (kq.danh_muc) ganDanhMuc(kq.danh_muc);
+        return { toi, coDanhMuc: !!kq.danh_muc };
+      }
+    } catch (e) {
+      console.warn('Khởi động một lượt không được, dùng cách cũ:', e);
+    }
+  }
+  return { toi: await taiToi(userId), coDanhMuc: false };
 }
 // 049: hãng xe / dòng xe xếp cho ô chọn – hãng hay gặp lên đầu (theo thứ tự này), còn lại A–Z, "Khác" cuối
 const HANG_XE_HAY_GAP = ['VinFast', 'Toyota', 'Hyundai', 'Kia', 'Mazda', 'Mitsubishi', 'Ford', 'Honda'];
@@ -154,10 +182,27 @@ export const lapLenh = (id, henGiao, phanCong) => rpc('lap_lenh_sua_chua', { p_h
 export const baoXong = (hangMucId) => rpc('bao_xong_hang_muc', { p_id: hangMucId });
 export const baoPhatSinh = (id, moTa) => rpc('bao_phat_sinh', { p_ho_so: id, p_mo_ta: moTa });
 // 045: máy chủ trả xe của mọi chi nhánh cho giám đốc → chỉ giữ chi nhánh đang chọn
-export const bangViecTo = async () => {
-  const ds = (await rpc('bang_viec_to')) || [];
+export const locBangViec = (ds) => {
+  ds = ds || [];
   return coVaiTro('giam_doc') && toi?.chi_nhanh_id ? ds.filter((x) => !x.chi_nhanh_id || x.chi_nhanh_id === toi.chi_nhanh_id) : ds;
 };
+export const bangViecTo = async () => locBangViec(await rpc('bang_viec_to'));
+
+// 052: mọi thứ trang "Việc hôm nay" cần trong HAI lượt chạy song song (viec_hom_nay + canh_bao_hom_nay: hai phần nặng nhất ở máy chủ
+// chạy cùng lúc). Khi mở app thẳng vào trang này, ứng dụng bấm gọi sẵn ngay từ lúc khởi động (song song với khoi_dong)
+// và trang lấy kết quả đã gọi sẵn.
+let viecSan = null;
+const goiViecHomNay = () => {
+  const p = { chinh: rpc('viec_hom_nay'), canhBao: rpc('canh_bao_hom_nay') };
+  p.chinh.catch(() => {}); p.canhBao.catch(() => {});             // lỗi được xử lý ở nơi trang dùng kết quả
+  return p;
+};
+export function taiSanViecHomNay() { viecSan = { luc: Date.now(), p: goiViecHomNay() }; }
+// Trả { chinh, canhBao } (hai Promise riêng: phần nào lỗi thì trang tự đọc lại phần đó bằng cách cũ)
+export function layViecHomNay() {
+  const s = viecSan; viecSan = null;
+  return s && Date.now() - s.luc < 30000 ? s.p : goiViecHomNay();
+}
 export const kcs = (id, dat, loi, lamLai) => rpc('kcs', { p_ho_so: id, p_dat: dat, p_loi: loi, p_lam_lai: lamLai });
 // 050: bước Detailing (rửa xe, đánh bóng) trước KCS; CVDV bật / tắt bước này cho từng xe
 export const detailing = (id, dat, loi = null, lamLai = null) => rpc('detailing', { p_ho_so: id, p_dat: dat, p_loi: loi, p_lam_lai: lamLai });
@@ -216,14 +261,15 @@ export async function taiNhieu(files, buoc, taiMot, { toiDa = 3, tienDo = null }
 // Ảnh và biên bản: tải lên kho 'ho-so-xe' rồi ghi nhận vào hồ sơ
 export async function taiTep(hoSo, buoc, file, loai = 'anh') {
   const duongDan = `${hoSo.chi_nhanh_id}/${hoSo.ma}/${buoc}-${tenLuu(file)}`;
-  const { error } = await sb.storage.from('ho-so-xe').upload(duongDan, file, { upsert: false });
+  const kho = sb.storage.from('ho-so-xe');
+  // 052: ảnh thu nhỏ làm và tải lên cùng lúc với ảnh chính (trước: xong ảnh chính mới bắt đầu). Lỗi ảnh nhỏ thì bỏ qua,
+  // hồ sơ sẽ dùng ảnh lớn thay thế.
+  const anhNho = taoAnhNho(file)
+    .then((nho) => nho && kho.upload(duongDanAnhNho(duongDan), nho, { upsert: false, contentType: 'image/jpeg' }))
+    .catch(() => {});
+  const { error } = await kho.upload(duongDan, file, { upsert: false });
+  await anhNho;
   if (error) throw loi(error);
-  // Ảnh thu nhỏ: lỗi thì bỏ qua, hồ sơ sẽ dùng ảnh lớn thay thế
-  const nho = await taoAnhNho(file);
-  if (nho) {
-    try { await sb.storage.from('ho-so-xe').upload(duongDanAnhNho(duongDan), nho, { upsert: false, contentType: 'image/jpeg' }); }
-    catch { /* bỏ qua */ }
-  }
   return rpc('them_tep', { p_ho_so: hoSo.id, p_buoc: buoc, p_loai: loai, p_duong_dan: duongDan });
 }
 // Lấy link cho nhiều tệp một lần: { duong_dan: { lon, nho } }. Ảnh cũ chưa có bản nhỏ thì nho = lon.
@@ -290,13 +336,13 @@ export const ghiBaoDuong = (p) => rpc('ghi_bao_duong', { p });
 export const xuatDuLieuTaiSan = () => rpc('xuat_du_lieu_tai_san');
 export async function taiAnhTaiSan(ts, file) {
   const duongDan = `${ts.chi_nhanh_id}/tai-san/${ts.ma}/${tenLuu(file)}`;
-  const { error } = await sb.storage.from('ho-so-xe').upload(duongDan, file, { upsert: false });
+  const kho = sb.storage.from('ho-so-xe');
+  const anhNho = taoAnhNho(file)
+    .then((nho) => nho && kho.upload(duongDanAnhNho(duongDan), nho, { upsert: false, contentType: 'image/jpeg' }))
+    .catch(() => {});
+  const { error } = await kho.upload(duongDan, file, { upsert: false });
+  await anhNho;
   if (error) throw loi(error);
-  const nho = await taoAnhNho(file);
-  if (nho) {
-    try { await sb.storage.from('ho-so-xe').upload(duongDanAnhNho(duongDan), nho, { upsert: false, contentType: 'image/jpeg' }); }
-    catch { /* bỏ qua */ }
-  }
   return rpc('anh_tai_san', { p_id: ts.id, p_duong_dan: duongDan });
 }
 export const chiTien = (id, taiKhoan, ngay, chiHoBoi = null) => rpc('chi_tien', { p_de_nghi: id, p_tai_khoan: taiKhoan, p_ngay: ngay, ...(chiHoBoi ? { p_chi_ho_boi: chiHoBoi } : {}) });
