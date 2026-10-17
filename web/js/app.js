@@ -3,7 +3,9 @@ import { h, $, toast, baoLoi, docForm, truong, VAI_TRO, dat, icon } from './ui.j
 import * as api from './api.js';
 import { TEN_GARA } from './cau-hinh.js';
 
-import trangViec from './trang/viec-hom-nay.js';
+import trangViec, { taiViecQuaHan } from './trang/viec-hom-nay.js';
+import trangThongBao from './trang/thong-bao.js';
+import * as thongBao from './thong-bao.js';
 import trangHoSo from './trang/ho-so-danh-sach.js';
 import trangTiepNhan from './trang/tiep-nhan.js';
 import trangChiTiet from './trang/ho-so-chi-tiet.js';
@@ -18,6 +20,8 @@ import trangNhanVien from './trang/nhan-vien.js';
 const MENU = [
   { duong: 'co-dong', nhan: 'Báo cáo cổ đông', ic: 'doanhThu', ai: () => api.laCoDong() },
   { duong: 'viec', nhan: 'Việc hôm nay', ic: 'viec', ai: () => api.laNhanVien() || api.coVaiTro('truong_nhom') },
+  // 054: mục này ẩn cho tới khi máy chủ trả lời được thông báo (chưa chạy bản cập nhật 054 thì không hiện) – xem thong-bao.js
+  { duong: 'thong-bao', nhan: 'Thông báo', ic: 'chuong', ai: () => api.laNhanVien() || api.coVaiTro('truong_nhom') },
   // Cổ đông (030) xem được các trang số liệu, không có nút thao tác
   { duong: 'ho-so', nhan: 'Hồ sơ xe', ic: 'xe', ai: () => api.xemNhuNhanVien() },
   { duong: 'dich-vu', nhan: 'Dịch vụ nhanh', ic: 'nhanh', ai: () => api.xemNhuNhanVien() || api.coVaiTro('truong_nhom') },
@@ -33,6 +37,7 @@ const MENU = [
 const quyenMenu = (duong) => MENU.find((m) => m.duong === duong).ai;
 const TUYEN = [
   [/^viec$/, trangViec, quyenMenu('viec')],
+  [/^thong-bao$/, trangThongBao, quyenMenu('thong-bao')],
   [/^ho-so$/, trangHoSo, quyenMenu('ho-so')],
   [/^ho-so\/moi$/, trangTiepNhan, () => api.coVaiTro('cvdv', 'quan_ly', 'giam_doc')],
   [/^ho-so\/(\d+)$/, trangChiTiet, quyenMenu('ho-so')],
@@ -125,7 +130,10 @@ function dungKhung() {
       h('img', { class: 'logo-ngang', src: 'img/logo-ngang.svg', alt: 'Auto Hoàng Sơn', width: 5662, height: 1323 }),
       chiNhanh && !chonCn ? h('small', null, h('span', { class: `nhan-cn cn-${api.mauChiNhanh(toi.chi_nhanh_id)}` }, chiNhanh)) : null),
     chonCn ? oChonChiNhanh('chon-cn-menu') : null,
-    h('div', { class: 'menu-ds' }, menu.map((m) => h('a', { href: `#/${m.duong}`, 'data-duong': m.duong }, icon(m.ic), h('span', null, m.nhan)))),
+    h('div', { class: 'menu-ds' }, menu.map((m) => {
+      const laTb = m.duong === 'thong-bao';
+      return h('a', { href: `#/${m.duong}`, 'data-duong': m.duong, hidden: laTb }, icon(m.ic), h('span', null, m.nhan), laTb ? h('b', { class: 'tb-dem', hidden: true }) : null);
+    })),
     h('div', { class: 'menu-chan' },
       h('div', { class: 'ai-dang-dung' }, h('b', null, toi.ho_ten), h('small', null, toi.vai_tro.map((v) => VAI_TRO[v]).join(', '))),
       h('button', { class: 'nut-chu', type: 'button', onclick: doiMatKhau }, 'Đổi mật khẩu'),
@@ -220,14 +228,14 @@ async function dieuHuong() {
 
 async function vaoUngDung() {
   const phien = await api.layPhien();
-  if (!phien) { khung = null; manDangNhap(); return; }
+  if (!phien) { khung = null; thongBao.dung(); manDangNhap(); return; }
   // 052: mở thẳng trang Việc hôm nay thì gọi sẵn dữ liệu trang ngay, song song với khởi động (trước: 3 đợt nối tiếp – người dùng,
   // danh mục, rồi mới tới dữ liệu trang). Trang lấy lại kết quả này; lỗi thì tự quay về cách cũ.
   const duongDau = (location.hash.replace(/^#\/?/, '') || '').split('?')[0];
   if (duongDau === 'viec' || duongDau === '') api.taiSanViecHomNay();
   const { toi, coDanhMuc } = await api.khoiDong(phien.user.id);
   if (!toi || !toi.hoat_dong || !toi.vai_tro.length) {
-    khung = null;
+    khung = null; thongBao.dung();
     dat(goc, h('main', { class: 'man-hinh' }, h('div', { class: 'the dang-nhap' },
       h('h1', null, 'Chờ cấp quyền'),
       h('p', null, `Tài khoản ${phien.user.email} đã đăng nhập nhưng chưa được giám đốc cấp vai trò. Báo giám đốc vào mục Nhân viên để cấp quyền.`),
@@ -235,9 +243,10 @@ async function vaoUngDung() {
     return;
   }
   // Tài khoản giám đốc vừa tạo / vừa đặt lại mật khẩu: bắt đổi mật khẩu riêng trước khi dùng
-  if (toi.phai_doi_mat_khau) { khung = null; manDatMatKhau({ lanDau: true }); return; }
+  if (toi.phai_doi_mat_khau) { khung = null; thongBao.dung(); manDatMatKhau({ lanDau: true }); return; }
   if (!coDanhMuc) await api.taiDanhMuc();
   dungKhung();
+  thongBao.batDau({ taiQuaHan: taiViecQuaHan });         // 054: khung thông báo + nhắc quá hạn (cổ đông và bản chưa có 054: tự bỏ qua)
   await dieuHuong();
 }
 

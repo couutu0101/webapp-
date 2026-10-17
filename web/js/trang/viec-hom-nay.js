@@ -81,11 +81,20 @@ async function taiTungPhan({ vp, toi, quanLy, keToan, xemKho }) {
   return { vp, toi, quanLy, keToan, xemKho, loi, hoSo, tatCaHoSo: gopHoSo(chamSocDong, hoaHongDong, hoSo), canhBao, bangViec, deXuat, mua, nhap, chi, dvn, thieu, taiSan };
 }
 
+// 054: có thông báo mới (vd trưởng nhóm vừa được giao việc) thì trang này đang mở sẽ tự tải lại để thấy ngay việc mới
+let elDangXem = null;
+window.addEventListener('gara:thong-bao-moi', () => {
+  if (elDangXem && elDangXem.isConnected && /^#\/viec(\?|$)/.test(location.hash)) trangViec(elDangXem).catch((e) => console.warn('Việc hôm nay – tải lại khi có thông báo mới lỗi:', e));
+});
+
 export default async function trangViec(el) {
+  elDangXem = el;
   const d = await taiDuLieu();
   const laVanPhong = d.vp;
   const { hoSo, canhBao, bangViec } = d;
   const viecCuaToi = laVanPhong ? viecCuaToiTu(d) : d.taiSan;
+  // 054: đưa việc đã quá hạn cho khung "Nhắc quá hạn" (không gọi lại máy chủ)
+  try { window.dispatchEvent(new CustomEvent('gara:viec-qua-han', { detail: viecQuaHanTu(d, viecCuaToi) })); } catch { /* bỏ qua */ }
   const kho = laVanPhong ? demKho(d) : null;
 
   const nut = [];
@@ -187,7 +196,8 @@ function viecCuaToiTu(d) {
     .sort((a, b) => String(a.giao_viec_luc || '').localeCompare(String(b.giao_viec_luc || '')))) {
     const b = viecTiepTheo(x);
     if (!b) continue;
-    ds.push({ hoSoId: x.id, dau: bienSo(x.bien_so_hien_thi, { maThay: x.ma }), ten: b.ten, phu: [x.xe, x.ten_khach].filter(Boolean).join(' · '),
+    ds.push({ khoa: `xe:${x.id}:${b.ten}`, bien: x.bien_so_hien_thi || null, nhanDau: x.ma,
+      hoSoId: x.id, dau: bienSo(x.bien_so_hien_thi, { maThay: x.ma }), ten: b.ten, phu: [x.xe, x.ten_khach].filter(Boolean).join(' · '),
       luc: x.giao_viec_luc, han: hanHoSo(x, x.giao_viec_luc), href: `#/ho-so/${x.id}` });
   }
   const deXuat = api.coVaiTro('kho', 'giam_doc') ? d.deXuat : [];
@@ -197,7 +207,7 @@ function viecCuaToiTu(d) {
   const themPhieu = (loai, r, dau, phu, mo) => {
     const b = buocTiepPhieu(loai, r);
     if (!b || !b.vaiTro.some((vt) => api.coVaiTro(vt))) return;
-    ds.push({ dau: h('b', null, dau), ten: b.ten, phu, luc: r.tao_luc, han: hanPhieu(loai, r),
+    ds.push({ khoa: `${loai}:${r.id ?? r.ma}:${b.ten}`, nhanDau: dau, dau: h('b', null, dau), ten: b.ten, phu, luc: r.tao_luc, han: hanPhieu(loai, r),
       ...(typeof mo === 'string' ? { href: mo } : { moChiTiet: mo }) });
   };
   for (const r of deXuat) themPhieu('de_xuat', r, r.ma, `Xe ${r.bien_so} · ${r.nguoi_lap_ten || ''} đề xuất · ${r.so_dong} dòng`, (ve) => moDeXuat(r.id, ve));
@@ -235,16 +245,19 @@ function viecSauGiaoXe(d, daCo) {
     if (daCoViec(x.id, 'Chăm sóc sau giao')) continue;
     // Bước chăm sóc đã giao cho người khác thì hiện ở việc của người đó
     if (b?.ten === 'Chăm sóc sau giao' && x.nguoi_tiep_theo && x.nguoi_tiep_theo !== toi.id) continue;
-    ds.push({ hoSoId: x.id, dau: bienSo(x.bien_so_hien_thi, { maThay: x.ma }), ten: 'Chăm sóc sau giao', phu: [x.xe, x.ten_khach, b?.ten && b.ten !== 'Chăm sóc sau giao' ? `đang chờ ${b.ten.toLowerCase()}` : null].filter(Boolean).join(' · '),
+    ds.push({ khoa: `cs:${x.id}`, bien: x.bien_so_hien_thi || null, nhanDau: x.ma,
+      hoSoId: x.id, dau: bienSo(x.bien_so_hien_thi, { maThay: x.ma }), ten: 'Chăm sóc sau giao', phu: [x.xe, x.ten_khach, b?.ten && b.ten !== 'Chăm sóc sau giao' ? `đang chờ ${b.ten.toLowerCase()}` : null].filter(Boolean).join(' · '),
       luc: x.giao_luc, han: new Date(new Date(x.giao_luc).getTime() + soNgay * 864e5), href: `#/ho-so/${x.id}` });
   }
   for (const x of hoaHong) {
     if (daCoViec(x.id, 'Nhập hoa hồng GDV')) continue;
-    ds.push({ hoSoId: x.id, dau: bienSo(x.bien_so_hien_thi, { maThay: x.ma }), ten: 'Nhập hoa hồng GDV', phu: [x.xe, x.gdv ? `GDV ${x.gdv}` : null].filter(Boolean).join(' · '),
+    ds.push({ khoa: `hh:${x.id}`, bien: x.bien_so_hien_thi || null, nhanDau: x.ma,
+      hoSoId: x.id, dau: bienSo(x.bien_so_hien_thi, { maThay: x.ma }), ten: 'Nhập hoa hồng GDV', phu: [x.xe, x.gdv ? `GDV ${x.gdv}` : null].filter(Boolean).join(' · '),
       luc: x.giao_luc, han: null, href: `#/ho-so/${x.id}` });
   }
   for (const r of (keToan ? dvn : []).filter((v) => Number(v.con_thu ?? (Number(v.so_tien) - Number(v.da_thu))) > 0)) {
-    ds.push({ dau: r.bien_so_hien_thi ? bienSo(r.bien_so_hien_thi) : h('b', null, 'Dịch vụ nhanh'), ten: `Thu tiền dịch vụ nhanh ${tien(r.con_thu ?? (Number(r.so_tien) - Number(r.da_thu)))} đ`,
+    ds.push({ khoa: `dvn:${r.id}`, bien: r.bien_so_hien_thi || null, nhanDau: 'Dịch vụ nhanh',
+      dau: r.bien_so_hien_thi ? bienSo(r.bien_so_hien_thi) : h('b', null, 'Dịch vụ nhanh'), ten: `Thu tiền dịch vụ nhanh ${tien(r.con_thu ?? (Number(r.so_tien) - Number(r.da_thu)))} đ`,
       phu: `${r.dich_vu} · ${r.nguoi_lam || ''}`, luc: r.tao_luc, han: null, href: `#/thu-chi?dvn=${r.id}` });
   }
   return ds;
@@ -260,6 +273,7 @@ function viecTaiSanTu(ds) {
   const truongNhom = api.coVaiTro('truong_nhom');
   return (ds || []).filter((x) => (x.vai || []).some((v) => api.coVaiTro(v)) && (!x.to_id || !truongNhom || api.laNhanVien() || x.to_id === api.toi.to_id))
     .map((x) => ({
+      khoa: `ts:${x.loai}:${x.nhom_id}:${x.tieu_de}`, nhanDau: x.loai === 'bao_duong' ? x.chi_tiet : 'Đồ nghề',
       dau: h('b', { class: 'dau-tai-san' }, x.loai === 'bao_duong' ? x.chi_tiet : 'Đồ nghề'),
       ten: x.tieu_de,
       phu: x.loai === 'bao_duong' ? `Nhóm ${x.nhom_ten}` : x.chi_tiet,
@@ -267,6 +281,30 @@ function viecTaiSanTu(ds) {
       luc: null,
       moChiTiet: () => { nhoPhien.ghi('ts_the', x.nhom_id); nhoPhien.ghi('kho_the', 'thiet_bi'); location.hash = '#/kho'; },
     }));
+}
+
+// 054 – Nhắc quá hạn: việc của tôi đã quá hạn (khớp phần tô vàng "quá hạn" bên dưới); trưởng nhóm thêm xe của tổ đã quá hẹn giao.
+// Mỗi việc có khoa ổn định để "Đã biết" nhớ được 4 giờ. Trả mảng thuần (không phần tử DOM) để gửi qua sự kiện.
+export function viecQuaHanTu(d, viecCuaToi) {
+  const ds = [];
+  for (const v of viecCuaToi || []) {
+    if (!v.khoa || !v.han || !quaHan(v.han)) continue;
+    ds.push({ khoa: v.khoa, bien: v.bien || null, nhan: v.nhanDau || '', ten: v.ten, phu: v.phu || '', han: v.han.getTime(), href: v.href || '#/viec' });
+  }
+  if (!d.vp && api.coVaiTro('truong_nhom')) {
+    for (const x of d.bangViec || []) {
+      if (!x.hen_giao || !quaHan(new Date(x.hen_giao))) continue;
+      const con = (x.hang_muc || []).filter((m) => m.trang_thai === 'dang_lam').length;
+      ds.push({ khoa: `xe-tre:${x.ho_so_id}`, bien: x.bien_so || null, nhan: x.ma || '', ten: 'Xe đã quá hẹn giao', phu: con ? `còn ${con} hạng mục đang làm` : '',
+        han: new Date(x.hen_giao).getTime(), href: '#/viec' });
+    }
+  }
+  return ds.sort((a, b) => a.han - b.han);
+}
+// Tính riêng (khi người dùng đang ở trang khác): nạp lại dữ liệu của trang Việc hôm nay rồi lọc việc quá hạn
+export async function taiViecQuaHan() {
+  const d = await taiDuLieu();
+  return viecQuaHanTu(d, d.vp ? viecCuaToiTu(d) : d.taiSan);
 }
 
 function khoiViecCuaToi(ds, taiLai) {

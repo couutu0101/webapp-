@@ -53,6 +53,7 @@ def chup(page, ten):
 def mo(browser, email, rong=1280):
     ctx = browser.new_context(viewport={'width': rong, 'height': 900}, locale='vi-VN')
     ctx.add_init_script(MOD_JS)
+    ctx.add_init_script('window.__TAT_THONG_BAO = true;')       # 054: khung thông báo có bộ thử riêng (test/thu_thong_bao.py); ở đây tắt để không che các bước cũ
     page = ctx.new_page()
     page.route(re.compile(r'.*supabase-js@2\.45\.4/\+esm$'), lambda r: r.fulfill(status=200, content_type='application/javascript', body=GIA))
     page.route(re.compile(r'.*/test-anh\.svg(\?.*)?$'), lambda r: r.fulfill(status=200, content_type='image/svg+xml', body=SVG))

@@ -10,7 +10,9 @@ function loi(error) {
 // Cổ đông chỉ xem (030): chặn mọi lệnh ghi ngay ở trình duyệt; máy chủ cũng không cho cổ đông ghi
 const RPC_CHI_DOC = new Set(['bang_viec_to', 'bao_cao_co_dong', 'ket_qua_kinh_doanh', 'tra_cuu_xe', 'tra_cuu_xe_nhanh', 'da_doi_mat_khau',
   'nhap_xuat_ton', 'doanh_thu_theo_thang', 'chi_tiet_kqkd', 'chi_phi_theo_muc', 'lai_gop_theo_to', 'so_du_cuoi_thang', 'so_tien_tra_lai_khach',
-  'khoi_dong', 'viec_hom_nay', 'canh_bao_hom_nay']);
+  'khoi_dong', 'viec_hom_nay', 'canh_bao_hom_nay',
+  // 054: xem thông báo của hồ sơ; bấm "Đã nhận" chỉ đổi dòng thông báo của chính mình (không đụng số liệu nào, không làm bộ nhớ tạm kho tải lại)
+  'thong_bao_ho_so', 'nhan_thong_bao']);
 // Đếm số lần ghi thành công trong phiên: bộ nhớ tạm (vd danh sách hàng kho) biết khi nào phải tải lại
 let soGhi = 0;
 export const soLanGhi = () => soGhi;
@@ -363,6 +365,19 @@ export const laiGopTheoTo = (tu, den) => rpc('lai_gop_theo_to', { p_tu: tu, p_de
 export const doanhThuTheoThang = (cn) => rpc('doanh_thu_theo_thang', cn ? { p_chi_nhanh: cn } : {});
 export const soDuCuoiThang = (thang) => rpc('so_du_cuoi_thang', { p_thang: thang });
 export const ghiKiemQuy = (taiKhoan, soDem, ghiChu) => rpc('ghi_kiem_quy', { p_tai_khoan: taiKhoan, p_so_dem: soDem, p_ghi_chu: ghiChu });
+
+// ---------- Thông báo trên màn hình (054) ----------
+// Máy chủ chưa chạy 054 (bảng chưa có) thì các hàm đọc báo lỗi; thongBaoThieuBang(e) nhận ra lỗi đó để giao diện lặng lẽ bỏ qua.
+const COT_THONG_BAO = 'id,loai,khoa,tieu_de,noi_dung,chi_tiet,dich,ho_so_id,chi_nhanh_id,tao_luc,cap_nhat_luc,so_lan,da_nhan_luc';
+export const thongBaoChuaNhan = () =>
+  doc('thong_bao', (q) => q.is('da_nhan_luc', null).order('cap_nhat_luc', { ascending: true }).limit(50), COT_THONG_BAO);
+export const thongBaoGanDay = (soDong = 80) =>
+  doc('thong_bao', (q) => q.order('cap_nhat_luc', { ascending: false }).limit(soDong), COT_THONG_BAO);
+// soLan = "số lần cập nhật" (so_lan) của từng thông báo lúc màn hình hiện – máy chủ chỉ ghi nhận đúng bản đó; trả về danh sách id đã ghi nhận
+export const nhanThongBao = (ids, soLan = null) => rpc('nhan_thong_bao', soLan ? { p_ids: ids, p_so_lan: soLan } : { p_ids: ids });
+export const thongBaoHoSo = (id) => rpc('thong_bao_ho_so', { p_ho_so: id });
+export const thongBaoThieuBang = (e) => ['PGRST205', 'PGRST202', '42P01', '42883'].includes(e?.code)
+  || /thong_bao/.test(e?.message || '') && /(schema cache|does not exist|Could not find)/i.test(e?.message || '');
 
 // ---------- Kho (012) ----------
 export const luuHangKho = (p) => rpc('luu_hang_kho', { p });

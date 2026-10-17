@@ -72,7 +72,32 @@ def de_nhau(page, ai, cho):
 def mo(b, email, ai, dien_thoai=True):
     ctx = b.new_context(viewport={'width': 390, 'height': 844} if dien_thoai else {'width': 1366, 'height': 860},
                         is_mobile=dien_thoai, has_touch=dien_thoai, locale='vi-VN')
+    if os.environ.get('TB') == '1':
+        # Chạy kịch bản với khung thông báo BẬT: người dùng thật gặp khung thì bấm "Đã nhận" rồi làm tiếp → Playwright tự bấm khi khung chặn thao tác
+        ctx.add_init_script('window.__HOI_TB_MS = 1500;')
+    else:
+        ctx.add_init_script('window.__TAT_THONG_BAO = true;')     # 054: mặc định tắt khung để kịch bản cũ không đổi; TB=1 để chạy kèm khung
     page = ctx.new_page()
+    if os.environ.get('TB') == '1':
+        def _nhan_het():
+            """Người dùng thật gặp khung thì bấm "Đã nhận" rồi làm tiếp. Thông báo khác có thể đến liền sau (khung hiện lại ngay) → bấm tiếp tới khi hết khung."""
+            for lan in range(15):
+                bam = None
+                for sel in ('[data-tb=nhan-tat-ca]', '[data-tb=nhan]', '[data-tb=biet]'):
+                    if page.locator(sel).count():
+                        bam = sel
+                        break
+                if bam:
+                    try:
+                        chu = page.locator('.tb-nen').inner_text(timeout=2000).replace('\n', ' | ')[:170]
+                        print(f'   (TB {ai}: khung hiện{" LẠI" if lan else ""} → bấm {bam}: {chu})', flush=True)
+                        page.locator(bam).first.click(timeout=5000)
+                    except PwTimeout:
+                        pass                                   # nút vừa được vẽ lại / đang chờ máy chủ: vòng sau thử tiếp
+                page.wait_for_timeout(400)
+                if not page.locator('.tb-nen').count():
+                    return
+        page.add_locator_handler(page.locator('.tb-nen'), _nhan_het)
     page.route(re.compile(r'.*supabase-js@2\.45\.4/\+esm$'), lambda r: r.fulfill(status=200, content_type='application/javascript', body=GIA))
     page.route(re.compile(r'.*/test-anh\.svg(\?.*)?$'), lambda r: r.fulfill(status=200, content_type='image/svg+xml', body=SVG))
     page.on('pageerror', lambda e: loi_js.append(f'{ai}: {e}'))

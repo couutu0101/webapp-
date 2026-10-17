@@ -207,6 +207,8 @@ const ICON = {
   them: '<path d="M12 5v14M5 12h14"/>',
   kho: '<path d="M3 8 12 4l9 4v11H3z"/><path d="M7 19v-7h10v7"/><path d="M7 15h10"/>',
   check: '<path d="m5 12.5 4.2 4.2L19 7"/>',
+  // Chuông – thông báo (054)
+  chuong: '<path d="M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>',
   // Hộp đồ nghề – mục Tài sản
   taiSan: '<path d="M3 10h18v9H3z"/><path d="M8 10V7a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v3"/><path d="M3 14h18"/><path d="M10 13v2M14 13v2"/>',
   // Xe nhìn ngang, hướng sang phải – xe đang ở bước nào trên thanh tiến độ

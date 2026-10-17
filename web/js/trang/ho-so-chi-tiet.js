@@ -1,10 +1,11 @@
 // Chi tiết hồ sơ xe: 10 bước trên một trang, mỗi bước chỉ hiện nút cho đúng người
 import {
-  h, oChonTep, bienSo, oNgayVN, oNgayGioVN, vnSangIso, tien, ngay, ngayGio, homNay, truong, oChu, oTien, oChon, oVung, oCheck, docForm, docTien, chay, moModal, toast, nhanTrangThai, bang, NHOM, NHOM_CHON, NGUON, TRANG_THAI, xacNhan, dat, veDanhSachHoSo, icon, buocXe, BUOC_XE, chipNguoi, hoiLyDo, coBuocHoSoBH,
+  h, oChonTep, bienSo, oNgayVN, oNgayGioVN, vnSangIso, tien, ngay, ngayGio, homNay, truong, oChu, oTien, oChon, oVung, oCheck, docForm, docTien, chay, moModal, toast, nhanTrangThai, bang, NHOM, NHOM_CHON, NGUON, TRANG_THAI, xacNhan, dat, veDanhSachHoSo, icon, buocXe, BUOC_XE, chipNguoi, hoiLyDo, coBuocHoSoBH, vaiChinh,
 } from '../ui.js';
 import { khoiPhuTungXe } from './kho.js';
 import { khungGiaoViec, giaoSauKhiLuu, dongDangCho, nguoiLamTungBuoc, tenGoi, VAI_TRO_BUOC, aiDangLam, chipNhanVien } from './giao-viec.js';
 import { hanHoSo, chuHan } from '../han-viec.js';
+import { gioBao, tachTieuDe, TEN_LOAI } from '../thong-bao.js';
 import * as api from '../api.js';
 import { ghiTiep, tuGhiNgayKhiBam, nhacHetHan, layLichSu, khoiLichSu } from './lich-su-xe.js';
 import { khungChonBaoHiem } from '../chon-bao-hiem.js';
@@ -20,20 +21,22 @@ export default async function trangChiTiet(el, idChu) {
   let hsDangXem = { id, ma: '' };
   const ve = () => veDanhSachHoSo(hsDangXem);
   const veLai = ve.lai = async () => {
-    const [hs, hm, nk, tep, ps, dsKcs, dsDet, [viec], [gv], [cho]] = await Promise.all([
+    const [hs, hm, nk, tep, ps, dsKcs, dsDet, [viec], [gv], [cho], tb] = await Promise.all([
       api.layHoSo(id), api.layHangMuc(id), api.layNhatKy(id), api.layTep(id), api.layPhatSinh(id), api.layKcs(id),
       api.layDetailing(id).catch(() => []),
       api.doc('v_viec_ho_so', (q) => q.eq('ho_so_id', id)).catch(() => []),
       api.doc('v_gia_von_ho_so', (q) => q.eq('ho_so_id', id)).catch(() => []),
-      api.doc('v_cho_phu_tung', (q) => q.eq('ho_so_id', id)).catch(() => [])]);
+      api.doc('v_cho_phu_tung', (q) => q.eq('ho_so_id', id)).catch(() => []),
+      // 054: thông báo đã gửi về hồ sơ này (ai nhận lúc nào); máy chủ chưa có 054 hoặc không đủ quyền thì bỏ qua
+      api.laNhanVien() ? api.thongBaoHoSo(id).catch(() => []) : []]);
     if (!hs) { dat(el, h('p', { class: 'trong' }, 'Không tìm thấy hồ sơ, hoặc bạn không có quyền xem.')); return; }
     hsDangXem = hs;
-    const ctx = { hs, hm, nk, tep, ps, dsKcs, dsDet, ve, viec, giaVon: Number(gv?.gia_von || 0), cho };
+    const ctx = { hs, hm, nk, tep, ps, dsKcs, dsDet, ve, viec, giaVon: Number(gv?.gia_von || 0), cho, tb: Array.isArray(tb) ? tb : [] };
     dat(el, 
       dau(ctx), theTienDo(ctx, veLai),
       h('div', { class: 'cot-doi' },
         h('div', null, theThongTin(ctx), theAnhNhanXe(ctx), theBaoGia(ctx), theSuaChua(ctx), theHuyVatTu(ctx), theDetailing(ctx), theKcs(ctx), theGiaoXe(ctx), theHoSoBH(ctx), theChamSoc(ctx)),
-        h('div', null, theTien(ctx), theTep(ctx), theNhatKy(ctx))));
+        h('div', null, theTien(ctx), theTep(ctx), theThongBao(ctx), theNhatKy(ctx))));
   };
   await veLai();
 }
@@ -1007,6 +1010,26 @@ function theTep({ hs, tep, ve }) {
     !api.laCoDong() && (!['dong', 'huy'].includes(hs.trang_thai) || q('ke_toan', 'giam_doc'))
       ? h('div', { class: 'tai-tep' }, chonBuoc, h('label', { class: 'nut noi-bat' }, 'Tải ảnh / tệp', oTep), dangTai) : null,
     tep.length ? luoi : h('p', { class: 'trong' }, 'Chưa có ảnh.'));
+}
+
+// 054: thông báo đã gửi cho từng người về hồ sơ này – hồ sơ ghi AI nhận LÚC NÀO (người nhận bấm "Đã nhận" ở khung giữa màn hình)
+function theThongBao({ tb }) {
+  if (!tb.length) return null;
+  const chua = tb.filter((n) => !n.da_nhan_luc).length;
+  return h('details', { class: 'the the-thong-bao', open: chua > 0 || tb.length <= 8 },
+    h('summary', null, h('h2', null, `Thông báo đã gửi (${tb.length})`),
+      chua ? h('span', { class: 'nhan tb-chua' }, `${chua} chưa nhận`) : h('span', { class: 'nhan tt-tot' }, 'Đã nhận hết')),
+    h('ul', { class: 'tb-ho-so' }, tb.map((n) => {
+      const { chu } = tachTieuDe(n.tieu_de);
+      return h('li', { class: n.da_nhan_luc ? 'da-nhan' : 'chua-nhan', 'data-tb-id': n.id },
+        h('div', { class: 'tb-hs-nguoi' },
+          chipNguoi(n.ho_ten, { vai: vaiChinh(n.vai_tro || []), gon: true }),
+          h('small', null, TEN_LOAI[n.loai] || '')),
+        h('div', { class: 'tb-hs-nd' }, h('b', null, chu),
+          n.chi_tiet?.length ? h('small', null, n.chi_tiet.join('; ')) : null,
+          h('small', null, `Gửi lúc ${gioBao(n.tao_luc)}${n.cap_nhat_luc && n.cap_nhat_luc !== n.tao_luc && !n.da_nhan_luc ? ` · cập nhật ${gioBao(n.cap_nhat_luc)}` : ''}`)),
+        n.da_nhan_luc ? h('span', { class: 'nhan tt-tot' }, `Đã nhận ${gioBao(n.da_nhan_luc)}`) : h('span', { class: 'nhan tb-chua' }, 'Chưa nhận'));
+    })));
 }
 
 function theNhatKy({ nk }) {

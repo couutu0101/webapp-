@@ -2301,6 +2301,254 @@ select kt.dong_vai('doimk052@gara.vn');  select kt.so_viec_hom_nay('đang phải
 select kt.ghi('052 Khởi động: tài khoản đang phải đổi mật khẩu → danh_muc = null',
   (select (r->'danh_muc') = 'null'::jsonb and (r->'toi'->>'phai_doi_mat_khau')::boolean from (select public.khoi_dong() as r) x));
 select kt.dong_vai(null);
+-- =====================================================================
+-- 054: Thông báo hiện lên màn hình người đảm nhận tiếp theo
+-- =====================================================================
+select kt.dong_vai(null);
+create or replace function kt.nv(p_email text) returns uuid language sql stable as $$ select id from public.nhan_vien where email = p_email $$;
+-- Một dòng thông báo (người nhận + khóa) đọc bằng quyền cao; dùng để so nội dung
+create or replace function kt.tb(p_email text, p_khoa text) returns public.thong_bao language sql stable as
+$$ select t from public.thong_bao t where t.nguoi_nhan = kt.nv(p_email) and t.khoa = p_khoa order by t.id desc limit 1 $$;
+grant execute on all functions in schema kt to authenticated;
+
+-- ----- Tổ sửa chữa -----
+select kt.ghi('054 Lập lệnh sửa chữa → trưởng nhóm tổ Đồng sơn nhận "Việc mới" kèm tên hạng mục, thợ, người giao; chưa nhận',
+  exists (select 1 from public.thong_bao t where t.nguoi_nhan = kt.nv('han@gara.vn') and t.khoa = 'to:moi:' || (select v from ctx where k='hs1') || ':DS'
+    and t.loai = 'to' and t.dich = 'ho_so' and t.ho_so_id = (select v::bigint from ctx where k='hs1') and t.chi_nhanh_id = 'TK'
+    and t.chi_tiet @> array['Gò sơn cửa trước trái (Lương)', 'Thay tay nắm cửa (Lương)'] and t.noi_dung = 'Nguyễn Trọng Duy giao việc'
+    and t.tieu_de = 'Việc mới cho tổ Đồng sơn – xe 50H-923.61' and t.da_nhan_luc is null),
+  (kt.tb('han@gara.vn', 'to:moi:' || (select v from ctx where k='hs1') || ':DS')).tieu_de);
+select kt.ghi('054 Giao thêm hạng mục khi thông báo cũ chưa nhận → gộp vào CÙNG một thông báo (không chồng khung mới)',
+  (select count(*) = 1 and bool_and(so_lan = 3 and chi_tiet @> array['Thay đèn pha trái'] and cardinality(chi_tiet) = 3)
+   from public.thong_bao where nguoi_nhan = kt.nv('han@gara.vn') and khoa = 'to:moi:' || (select v from ctx where k='hs1') || ':DS'));
+select kt.ghi('054 Người lập lệnh không nhận thông báo về lệnh của chính mình',
+  not exists (select 1 from public.thong_bao where nguoi_nhan = kt.nv('duy@gara.vn') and khoa like 'to:moi:' || (select v from ctx where k='hs1') || ':%'));
+select kt.ghi('054 Tổ chưa có trưởng nhóm đăng nhập → quản lý chung nhận thay, tiêu đề ghi rõ',
+  exists (select 1 from public.thong_bao t where t.nguoi_nhan = kt.nv('long@gara.vn') and t.khoa = 'to:moi:' || (select v from ctx where k='hs1') || ':DT'
+    and t.tieu_de like '%chưa có trưởng nhóm đăng nhập%'));
+select kt.ghi('054 Trưởng nhóm tổ Đồng sơn không nhận việc của tổ Detailing',
+  not exists (select 1 from public.thong_bao where nguoi_nhan = kt.nv('han@gara.vn') and khoa = 'to:moi:' || (select v from ctx where k='hs1') || ':DT'));
+select kt.ghi('054 Tổ báo hư hỏng phát sinh → CVDV tiếp nhận hồ sơ nhận thông báo kèm mô tả và tên người báo; người báo không nhận',
+  exists (select 1 from public.thong_bao t where t.nguoi_nhan = kt.nv('duy@gara.vn') and t.khoa = 'to:phat_sinh:' || (select v from ctx where k='hs1')
+    and t.chi_tiet @> array['Phát hiện nứt đèn pha trái'] and t.noi_dung like 'Đặng Thanh Hận báo.%')
+  and not exists (select 1 from public.thong_bao where nguoi_nhan = kt.nv('han@gara.vn') and khoa like 'to:phat_sinh:%'));
+select kt.ghi('054 KCS chưa đạt → trưởng nhóm tổ nhận "Làm lại (KCS chưa đạt)" kèm lỗi, hạng mục và người trả về',
+  exists (select 1 from public.thong_bao t where t.nguoi_nhan = kt.nv('han@gara.vn') and t.khoa = 'to:lam_lai:' || (select v from ctx where k='hs1') || ':DS:kcs'
+    and t.tieu_de like 'Làm lại (KCS chưa đạt) – xe %' and t.noi_dung = 'Lỗi cần sửa: Sơn chảy cửa trái · Trần Tử Long trả về'
+    and t.chi_tiet @> array['Gò sơn cửa trước trái (Lương)']));
+select kt.ghi('054 Xe đến lượt Detailing → trưởng nhóm tổ Detailing nhận thông báo',
+  exists (select 1 from public.thong_bao t where t.nguoi_nhan = kt.nv('giang@gara.vn') and t.khoa = 'to:detailing:' || (select v from ctx where k='hs50')
+    and t.tieu_de = 'Xe 51K-050.01 đến lượt Detailing' and t.noi_dung like '%Detailing xong%'));
+select kt.ghi('054 Detailing trả về → trưởng nhóm tổ Đồng sơn nhận "Làm lại (Detailing trả về)" với lỗi và người trả về; KCS trả về là thông báo riêng',
+  exists (select 1 from public.thong_bao t where t.nguoi_nhan = kt.nv('han@gara.vn') and t.khoa = 'to:lam_lai:' || (select v from ctx where k='hs50') || ':DS:det'
+    and t.tieu_de like 'Làm lại (Detailing trả về)%' and t.noi_dung = 'Lỗi cần sửa: Cửa còn gợn sóng · Trần Thị Giang trả về')
+  and exists (select 1 from public.thong_bao t where t.nguoi_nhan = kt.nv('han@gara.vn') and t.khoa = 'to:lam_lai:' || (select v from ctx where k='hs50') || ':DS:kcs'
+    and t.noi_dung = 'Lỗi cần sửa: Khe cửa lệch · Trần Tử Long trả về'));
+
+-- ----- Kho -----
+select kt.ghi('054 Trưởng nhóm đề xuất vật tư → kho nhận kèm danh sách hàng, tổ và người đề xuất; người đề xuất không nhận',
+  exists (select 1 from public.thong_bao t where t.nguoi_nhan = kt.nv('duy@gara.vn') and t.khoa = 'kho:de_xuat:' || (select v from ctx where k='dx1')
+    and t.loai = 'kho' and t.dich = 'kho_de_xuat' and t.tieu_de like 'Đề xuất vật tư %chờ xuất kho' and t.noi_dung = 'Tổ Đồng sơn · Đặng Thanh Hận đề xuất'
+    and t.chi_tiet = array['Sơn trắng 2K × 10 Lít', 'Gương chiếu hậu trái VF3 × 1 Cái'])
+  and not exists (select 1 from public.thong_bao where nguoi_nhan = kt.nv('han@gara.vn') and khoa like 'kho:%'));
+select kt.ghi('054 Người kiêm kho tự đề xuất → không báo chính mình, nhưng báo thủ kho khác',
+  not exists (select 1 from public.de_xuat_vat_tu d join public.thong_bao t on t.khoa = 'kho:de_xuat:' || d.id and t.nguoi_nhan = d.nguoi_lap)
+  and exists (select 1 from public.de_xuat_vat_tu d join public.thong_bao t on t.khoa = 'kho:de_xuat:' || d.id and t.nguoi_nhan = kt.nv('bao.kho@nv.autohoangson.com')
+              where d.nguoi_lap = kt.nv('duy@gara.vn')));
+select kt.ghi('054 Đề nghị mua → quản lý chung nhận "chờ duyệt" kèm nhà cung cấp, tổng tiền, người lập, danh sách hàng',
+  exists (select 1 from public.thong_bao t where t.nguoi_nhan = kt.nv('long@gara.vn') and t.khoa = 'kho:mua_cho_duyet:' || (select v from ctx where k='dm1')
+    and t.dich = 'kho_mua' and t.noi_dung = 'Phụ tùng VinFast · 6.480.000 đ · Nguyễn Trọng Duy lập' and t.chi_tiet = array['Gương chiếu hậu trái VF3 × 1 Cái']));
+select kt.ghi('054 Duyệt đề nghị mua → người lập (kiêm kho) nhận "đã duyệt – đi mua / nhập hàng"; người duyệt không nhận',
+  exists (select 1 from public.thong_bao t where t.nguoi_nhan = kt.nv('duy@gara.vn') and t.khoa = 'kho:mua_da_duyet:' || (select v from ctx where k='dm1')
+    and t.noi_dung = 'Phụ tùng VinFast · 6.480.000 đ · Trần Tử Long duyệt')
+  and not exists (select 1 from public.thong_bao where nguoi_nhan = kt.nv('long@gara.vn') and khoa like 'kho:mua_da_duyet:%'));
+select kt.ghi('054 Phiếu nhập kho → kế toán nhận "cần khớp hóa đơn" kèm nhà cung cấp, tiền, số hóa đơn',
+  exists (select 1 from public.thong_bao t where t.nguoi_nhan = kt.nv('tien@gara.vn') and t.khoa = 'kho:phieu_nhap:' || (select v from ctx where k='pn1')
+    and t.dich = 'kho_nhap' and t.noi_dung = 'Vật tư sơn VTN · 2.160.000 đ · HĐ HD-01 · Nguyễn Trọng Duy nhập'));
+
+-- ----- Tiền -----
+select kt.ghi('054 Đề nghị chi trên hạn mức quản lý (2 triệu) → chỉ giám đốc nhận; quản lý chung không',
+  exists (select 1 from public.thong_bao where nguoi_nhan = kt.nv('thuan@gara.vn') and khoa = 'tien:cho_duyet:' || (select v from ctx where k='dn1'))
+  and not exists (select 1 from public.thong_bao where nguoi_nhan = kt.nv('long@gara.vn') and khoa = 'tien:cho_duyet:' || (select v from ctx where k='dn1')));
+select kt.ghi('054 Đề nghị chi trong hạn mức → quản lý chung nhận; giám đốc tự lập thì không báo chính mình',
+  exists (select 1 from public.thong_bao t where t.nguoi_nhan = kt.nv('long@gara.vn') and t.khoa = 'tien:cho_duyet:' || (select v from ctx where k='dn_gd')
+    and t.loai = 'tien' and t.dich = 'de_nghi' and t.tieu_de = 'Đề nghị chi 150.000 đ chờ duyệt' and t.noi_dung = 'Cơm · Lê Ngọc Thuận đề nghị')
+  and not exists (select 1 from public.thong_bao where nguoi_nhan = kt.nv('thuan@gara.vn') and khoa = 'tien:cho_duyet:' || (select v from ctx where k='dn_gd')));
+select kt.ghi('054 Đề nghị chi được duyệt → kế toán nhận "đã duyệt – chi tiền"',
+  exists (select 1 from public.thong_bao t where t.nguoi_nhan = kt.nv('tien@gara.vn') and t.khoa = 'tien:can_chi:' || (select v from ctx where k='dn1')
+    and t.tieu_de = 'Đề nghị chi 2.500.000 đ đã duyệt – chi tiền' and t.noi_dung = 'Điện · Lê Ngọc Thuận duyệt'));
+
+select kt.ghi('054 Quản lý chung (người duyệt duy nhất) tự lập đề nghị chi → không tự duyệt được nên giám đốc nhận để duyệt',
+  exists (select 1 from public.thong_bao where nguoi_nhan = kt.nv('thuan@gara.vn') and khoa = 'tien:cho_duyet:' || (select v from ctx where k='dn2'))
+  and not exists (select 1 from public.thong_bao where nguoi_nhan = kt.nv('long@gara.vn') and khoa = 'tien:cho_duyet:' || (select v from ctx where k='dn2')));
+
+-- Từ chối → người lập nhận lý do
+select kt.dong_vai('duy@gara.vn');
+insert into ctx select 'dn54', public.lap_de_nghi_chi(jsonb_build_object('muc_id',(select id from public.muc_thu_chi where ten='Nước'),'so_tien',120000,'noi_dung','Nước uống 054'))::text;
+insert into ctx select 'dm54', (public.lap_de_nghi_mua(jsonb_build_object('nha_cung_cap_id',(select id from public.nha_cung_cap where ten='Phụ tùng VinFast'),
+  'dong',jsonb_build_array(jsonb_build_object('hang_id',(select v::bigint from ctx where k='hang_guong'),'so_luong',1,'don_gia',100000,'ty_le_vat',0.08)))))->>'id';
+select kt.dong_vai('long@gara.vn');
+select public.duyet_de_nghi_chi((select v::bigint from ctx where k='dn54'), false, 'Chưa cần lúc này');
+select public.duyet_de_nghi_mua((select v::bigint from ctx where k='dm54'), false, 'Giá cao, hỏi lại NCC khác');
+select kt.dong_vai(null);
+select kt.ghi('054 Đề nghị chi bị từ chối → người đề nghị nhận kèm lý do và người từ chối; kế toán không nhận',
+  exists (select 1 from public.thong_bao t where t.nguoi_nhan = kt.nv('duy@gara.vn') and t.khoa = 'tien:tu_choi:' || (select v from ctx where k='dn54')
+    and t.tieu_de = 'Đề nghị chi 120.000 đ bị từ chối' and t.noi_dung = 'Lý do: Chưa cần lúc này · Trần Tử Long từ chối')
+  and not exists (select 1 from public.thong_bao where nguoi_nhan = kt.nv('tien@gara.vn') and khoa = 'tien:can_chi:' || (select v from ctx where k='dn54')));
+select kt.ghi('054 Đề nghị mua bị từ chối → người lập nhận kèm lý do',
+  exists (select 1 from public.thong_bao t where t.nguoi_nhan = kt.nv('duy@gara.vn') and t.khoa = 'kho:mua_tu_choi:' || (select v from ctx where k='dm54')
+    and t.tieu_de like 'Đề nghị mua % bị từ chối' and t.noi_dung like '%Lý do: Giá cao, hỏi lại NCC khác'));
+
+-- ----- Quyền đọc / ghi, bấm "Đã nhận" -----
+select kt.dong_vai('han@gara.vn');
+select kt.ghi('054 Mỗi người chỉ đọc được thông báo của chính mình',
+  (select count(*) from public.thong_bao) > 0 and not exists (select 1 from public.thong_bao where nguoi_nhan <> auth.uid()));
+select kt.mong_loi('054 Không thêm thông báo trực tiếp vào bảng', $$insert into public.thong_bao (nguoi_nhan, loai, khoa, tieu_de) values (auth.uid(), 'to', 'tu-tao', 'Tự tạo')$$, 'permission denied');
+select kt.mong_loi('054 Không sửa thông báo trực tiếp (chỉ qua nhan_thong_bao)', $$update public.thong_bao set da_nhan_luc = now()$$, 'permission denied');
+select kt.mong_loi('054 Không xóa thông báo', $$delete from public.thong_bao$$, 'permission denied');
+create temp table tb_han as select id, khoa from public.thong_bao where da_nhan_luc is null;
+grant all on tb_han to authenticated;
+select kt.dong_vai('duy@gara.vn');
+select kt.ghi('054 Nhận hộ thông báo của người khác không được (trả 0, thông báo vẫn chờ)',
+  cardinality(public.nhan_thong_bao((select array_agg(id) from tb_han))) = 0 and (select count(*) from tb_han) > 0);
+select kt.dong_vai(null);
+select kt.ghi('054 … thông báo của trưởng nhóm vẫn chưa nhận sau khi người khác thử nhận hộ',
+  not exists (select 1 from public.thong_bao t join tb_han x on x.id = t.id where t.da_nhan_luc is not null));
+select kt.dong_vai('han@gara.vn');
+create temp table kq_nhan (so integer);
+grant all on kq_nhan to authenticated;
+insert into kq_nhan select cardinality(public.nhan_thong_bao((select array_agg(id) from tb_han)));
+select kt.ghi('054 Người nhận bấm "Đã nhận" → ghi lúc nhận cho đúng các thông báo gửi lên',
+  (select so from kq_nhan) = (select count(*) from tb_han) and not exists (select 1 from public.thong_bao t join tb_han x on x.id = t.id where t.da_nhan_luc is null));
+select kt.ghi('054 Bấm "Đã nhận" lần nữa không đổi gì (trả danh sách rỗng)', cardinality(public.nhan_thong_bao((select array_agg(id) from tb_han))) = 0);
+select kt.ghi('054 Danh sách rỗng hoặc trống → trả danh sách rỗng', cardinality(public.nhan_thong_bao(array[]::bigint[])) = 0 and cardinality(public.nhan_thong_bao(null)) = 0);
+
+-- Sau khi đã nhận, việc mới tạo thông báo MỚI (không dồn vào thông báo cũ)
+select kt.dong_vai('duy@gara.vn');
+insert into ctx select 'hs54', (public.tiep_nhan_xe(jsonb_build_object('bien_so','51K-054.01','ten_khach','Khách 054','dien_thoai','0909054001',
+  'dong_xe_id',(select id from public.dong_xe where ten='VF3'),'nguon_tt','khach','tinh_trang_xe','Móp cửa','tu_van','Không')))->>'id';
+select public.lap_bao_gia((select v::bigint from ctx where k='hs54'), '[{"ten":"Gò cánh cửa 054","nhom":"dong","gia_bao":900000},{"ten":"Sơn cánh cửa 054","nhom":"son","gia_bao":700000}]', 0.08);
+select public.lap_lenh_sua_chua((select v::bigint from ctx where k='hs54'), now() + interval '1 day',
+  (select jsonb_agg(jsonb_build_object('id', id, 'to_id', 'DS', 'nguoi_lam', 'Minh')) from public.hang_muc where ho_so_id = (select v::bigint from ctx where k='hs54')));
+select kt.dong_vai(null);
+select kt.ghi('054 Lệnh mới của hồ sơ 54: trưởng nhóm có thông báo chưa nhận gồm 2 hạng mục',
+  exists (select 1 from public.thong_bao t where t.nguoi_nhan = kt.nv('han@gara.vn') and t.khoa = 'to:moi:' || (select v from ctx where k='hs54') || ':DS'
+    and t.da_nhan_luc is null and cardinality(t.chi_tiet) = 2 and t.chi_tiet @> array['Gò cánh cửa 054 (Minh)', 'Sơn cánh cửa 054 (Minh)']));
+select kt.dong_vai('han@gara.vn');
+select public.nhan_thong_bao((select array_agg(id) from public.thong_bao where da_nhan_luc is null and khoa = 'to:moi:' || (select v from ctx where k='hs54') || ':DS'));
+select kt.dong_vai('duy@gara.vn');
+select public.lap_bao_gia((select v::bigint from ctx where k='hs54'), '[{"ten":"Thay ốp 054","nhom":"phu_tung","gia_bao":300000}]', 0.08);
+select public.lap_lenh_sua_chua((select v::bigint from ctx where k='hs54'), null, (select jsonb_agg(jsonb_build_object('id', id, 'to_id', 'DS'))
+  from public.hang_muc where ho_so_id = (select v::bigint from ctx where k='hs54') and trang_thai = 'duyet'));
+select kt.dong_vai(null);
+select kt.ghi('054 Sau khi đã nhận, giao thêm hạng mục → thông báo MỚI (1 dòng, chưa nhận); thông báo cũ giữ nguyên lúc nhận',
+  (select count(*) = 2 and count(*) filter (where da_nhan_luc is null and so_lan = 1 and chi_tiet = array['Thay ốp 054']) = 1
+          and count(*) filter (where da_nhan_luc is not null and cardinality(chi_tiet) = 2) = 1
+   from public.thong_bao where nguoi_nhan = kt.nv('han@gara.vn') and khoa = 'to:moi:' || (select v from ctx where k='hs54') || ':DS'));
+
+-- ----- Hồ sơ xem được ai nhận lúc nào -----
+select kt.dong_vai('duy@gara.vn');
+select kt.ghi('054 Hồ sơ cho biết thông báo đã gửi: trưởng nhóm đã nhận (có lúc nhận) và thông báo mới chưa nhận',
+  (select jsonb_array_length(r) = 2
+          and exists (select 1 from jsonb_array_elements(r) x where x->>'ho_ten' = 'Đặng Thanh Hận' and x->>'da_nhan_luc' is not null and x->>'to_id' = 'DS' and x->'vai_tro' ? 'truong_nhom')
+          and exists (select 1 from jsonb_array_elements(r) x where x->>'ho_ten' = 'Đặng Thanh Hận' and x->>'da_nhan_luc' is null)
+   from (select public.thong_bao_ho_so((select v::bigint from ctx where k='hs54')) as r) q));
+select kt.dong_vai('han@gara.vn');
+select kt.mong_loi('054 Trưởng nhóm không xem được danh sách thông báo của hồ sơ', format($$select public.thong_bao_ho_so(%s)$$, (select v from ctx where k='hs54')), 'không có quyền');
+select kt.dong_vai('codong@gara.vn');
+select kt.mong_loi('054 Cổ đông không xem danh sách thông báo của hồ sơ', format($$select public.thong_bao_ho_so(%s)$$, (select v from ctx where k='hs54')), 'không có quyền');
+select kt.ghi('054 Cổ đông không có thông báo nào (và không bao giờ là người nhận)', (select count(*) from public.thong_bao) = 0 and cardinality(public.nhan_thong_bao(array[1,2,3])) = 0);
+select kt.dong_vai('thuan@gara.vn');
+select kt.ghi('054 Giám đốc xem được thông báo của hồ sơ (đúng chi nhánh)', jsonb_array_length(public.thong_bao_ho_so((select v::bigint from ctx where k='hs54'))) = 2
+  and public.thong_bao_ho_so(999999) = '[]'::jsonb);
+select kt.dong_vai(null);
+select kt.ghi('054 Chưa đăng nhập (anon) không gọi được hàm thông báo, không đọc được bảng',
+  not has_function_privilege('anon', 'public.nhan_thong_bao(bigint[], integer[])', 'execute') and not has_function_privilege('anon', 'public.thong_bao_ho_so(bigint)', 'execute')
+  and not has_table_privilege('anon', 'public.thong_bao', 'select')
+  and not has_table_privilege('authenticated', 'public.thong_bao', 'insert') and not has_table_privilege('authenticated', 'public.thong_bao', 'update')
+  and not has_table_privilege('authenticated', 'public.thong_bao', 'delete'));
+select kt.ghi('054 Hàm gửi thông báo nội bộ không mở cho người dùng gọi',
+  not has_function_privilege('authenticated', 'app.gui_thong_bao(uuid, text, text, text, text[], text, bigint, text, text)', 'execute')
+  and not has_function_privilege('anon', 'app.gui_thong_bao(uuid, text, text, text, text[], text, bigint, text, text)', 'execute'));
+select kt.ghi('054 Không thông báo nào gửi cho cổ đông hay tài khoản chưa có vai trò',
+  not exists (select 1 from public.thong_bao t join public.nhan_vien n on n.id = t.nguoi_nhan where 'co_dong' = any(n.vai_tro) or cardinality(n.vai_tro) = 0));
+
+-- ----- Chỉ ghi nhận đúng bản đã hiện lên: giữa chừng có dòng mới gộp vào thì chưa tính là đã nhận -----
+select kt.dong_vai('duy@gara.vn');
+insert into ctx select 'hs54c', (public.tiep_nhan_xe(jsonb_build_object('bien_so','51K-054.09','ten_khach','Khách 054c','dien_thoai','0909054009',
+  'dong_xe_id',(select id from public.dong_xe where ten='VF3'),'nguon_tt','khach','tinh_trang_xe','Móp cản','tu_van','Không')))->>'id';
+select public.lap_bao_gia((select v::bigint from ctx where k='hs54c'), '[{"ten":"Gò cản 054c","nhom":"dong","gia_bao":500000}]', 0.08);
+select public.lap_lenh_sua_chua((select v::bigint from ctx where k='hs54c'), now() + interval '1 day',
+  (select jsonb_agg(jsonb_build_object('id', id, 'to_id', 'DS', 'nguoi_lam', 'Minh')) from public.hang_muc where ho_so_id = (select v::bigint from ctx where k='hs54c')));
+select kt.dong_vai('han@gara.vn');
+create temp table tb_c as select id, so_lan from public.thong_bao where da_nhan_luc is null and khoa = 'to:moi:' || (select v from ctx where k='hs54c') || ':DS';
+grant all on tb_c to authenticated;
+select kt.ghi('054 Lệnh mới của hồ sơ 54c: trưởng nhóm có 1 thông báo chưa nhận, so_lan = 1', (select count(*) from tb_c) = 1 and (select so_lan from tb_c) = 1);
+select kt.dong_vai('duy@gara.vn');                                    -- giữa lúc khung đang hiện, CVDV giao thêm 1 hạng mục
+select public.lap_bao_gia((select v::bigint from ctx where k='hs54c'), '[{"ten":"Thay ốp 054c","nhom":"phu_tung","gia_bao":250000}]', 0.08);
+select public.lap_lenh_sua_chua((select v::bigint from ctx where k='hs54c'), null, (select jsonb_agg(jsonb_build_object('id', id, 'to_id', 'DS'))
+  from public.hang_muc where ho_so_id = (select v::bigint from ctx where k='hs54c') and trang_thai = 'duyet'));
+select kt.dong_vai('han@gara.vn');
+select kt.ghi('054 Giao thêm lúc thông báo chưa nhận → gộp vào đúng thông báo đó (so_lan = 2, 2 dòng, vẫn chưa nhận)',
+  (select count(*) = 1 and bool_and(so_lan = 2 and cardinality(chi_tiet) = 2 and da_nhan_luc is null) from public.thong_bao
+    where khoa = 'to:moi:' || (select v from ctx where k='hs54c') || ':DS'));
+create temp table kq_c (ds bigint[]);
+grant all on kq_c to authenticated;
+insert into kq_c select public.nhan_thong_bao((select array_agg(id) from tb_c), (select array_agg(so_lan) from tb_c));   -- bấm theo bản cũ (so_lan = 1)
+select kt.ghi('054 Bấm "Đã nhận" theo bản cũ (so_lan = 1) khi thông báo đã có dòng mới → KHÔNG ghi nhận, người nhận còn thấy nội dung mới',
+  cardinality((select ds from kq_c)) = 0 and exists (select 1 from public.thong_bao t join tb_c x on x.id = t.id where t.da_nhan_luc is null and t.so_lan = 2));
+delete from kq_c;
+insert into kq_c select public.nhan_thong_bao((select array_agg(id) from tb_c),
+  (select array_agg(t.so_lan) from public.thong_bao t join tb_c x on x.id = t.id));                                      -- bấm theo bản đang hiện (so_lan = 2)
+select kt.ghi('054 Bấm "Đã nhận" theo đúng bản đang hiện (so_lan = 2) → ghi nhận, trả về id đã nhận',
+  (select ds from kq_c) = (select array_agg(id) from tb_c) and not exists (select 1 from public.thong_bao t join tb_c x on x.id = t.id where t.da_nhan_luc is null));
+select kt.ghi('054 Nhận lại cùng bản lần nữa không đổi gì (trả danh sách rỗng)',
+  cardinality(public.nhan_thong_bao((select array_agg(id) from tb_c), array[2])) = 0);
+select kt.mong_loi('054 Danh sách thông báo và danh sách số lần cập nhật không cùng độ dài → báo lỗi', $$select public.nhan_thong_bao(array[1,2], array[1])$$, 'không khớp');
+select kt.dong_vai(null);
+
+-- ----- Hồ sơ chuyển từ Excel không phát thông báo -----
+update public.hang_muc set trang_thai = 'xong' where ho_so_id = (select v::bigint from ctx where k='hs54') and ten = 'Thay ốp 054';
+update public.ho_so set tu_excel = true where id = (select v::bigint from ctx where k='hs54');
+update public.hang_muc set trang_thai = 'dang_lam' where ho_so_id = (select v::bigint from ctx where k='hs54') and ten = 'Thay ốp 054';
+update public.ho_so set tu_excel = false where id = (select v::bigint from ctx where k='hs54');
+select kt.ghi('054 Hồ sơ chuyển từ Excel không phát thông báo (hạng mục bị đưa lại "đang làm" vẫn im lặng)',
+  not exists (select 1 from public.thong_bao where khoa like 'to:lam_lai:' || (select v from ctx where k='hs54') || ':%'));
+
+-- ----- Lỗi trong thông báo không bao giờ làm hỏng việc chính -----
+set client_min_messages = error;
+alter table public.thong_bao add constraint tmp_054_loi check (tieu_de = 'khong-bao-gio-khop') not valid;
+select kt.dong_vai('duy@gara.vn');
+insert into ctx select 'dn54b', public.lap_de_nghi_chi(jsonb_build_object('muc_id',(select id from public.muc_thu_chi where ten='Nước'),'so_tien',130000,'noi_dung','Nước uống 054b'))::text;
+select kt.dong_vai(null);
+alter table public.thong_bao drop constraint tmp_054_loi;
+set client_min_messages = warning;
+select kt.ghi('054 Thông báo bị lỗi (ở đây cố ý chặn bảng) vẫn không làm hỏng việc chính: đề nghị chi vẫn được lập, chỉ thiếu thông báo',
+  exists (select 1 from public.de_nghi_chi where id = (select v::bigint from ctx where k='dn54b') and trang_thai = 'cho_duyet')
+  and not exists (select 1 from public.thong_bao where khoa = 'tien:cho_duyet:' || (select v from ctx where k='dn54b')));
+
+-- ----- Xóa tài khoản: thông báo tự sinh không tính là "dữ liệu" của tài khoản -----
+insert into auth.users (email, raw_user_meta_data) values ('tb054@gara.vn', '{"ho_ten":"Kho tạm 054"}');
+select kt.dong_vai('thuan@gara.vn');
+select public.luu_nhan_vien(id, '{"chi_nhanh_id":"TK","vai_tro":["kho"]}') from public.nhan_vien where email = 'tb054@gara.vn';
+select kt.dong_vai('han@gara.vn');
+insert into ctx select 'dx54', (public.lap_de_xuat_vat_tu(jsonb_build_object('ho_so_id',(select v::bigint from ctx where k='hs54'),
+  'dong',jsonb_build_array(jsonb_build_object('hang_id',(select v::bigint from ctx where k='hang_son'),'so_luong',1)))))->>'id';
+select kt.dong_vai(null);
+select kt.ghi('054 Tài khoản kho mới được báo đề xuất vật tư (cùng các thủ kho khác)',
+  exists (select 1 from public.thong_bao where nguoi_nhan = kt.nv('tb054@gara.vn') and khoa = 'kho:de_xuat:' || (select v from ctx where k='dx54'))
+  and exists (select 1 from public.thong_bao where nguoi_nhan = kt.nv('duy@gara.vn') and khoa = 'kho:de_xuat:' || (select v from ctx where k='dx54')));
+select kt.dong_vai('thuan@gara.vn');
+select public.xoa_tai_khoan_nhan_vien((select id from public.nhan_vien where email = 'tb054@gara.vn'));
+select kt.dong_vai(null);
+select kt.ghi('054 Xóa được tài khoản chỉ có thông báo tự sinh; thông báo gửi cho tài khoản đó xóa theo, của người khác còn nguyên',
+  not exists (select 1 from public.nhan_vien where email = 'tb054@gara.vn')
+  and exists (select 1 from public.thong_bao where nguoi_nhan = kt.nv('duy@gara.vn') and khoa = 'kho:de_xuat:' || (select v from ctx where k='dx54')));
+select kt.dong_vai('thuan@gara.vn');
+select kt.mong_loi('054 Tài khoản đã làm việc thật (trưởng nhóm đã đề xuất, lập hồ sơ…) vẫn KHÔNG xóa được – chỉ thông báo tự sinh mới được bỏ qua',
+  format($$select public.xoa_tai_khoan_nhan_vien(%L)$$, (select id from public.nhan_vien where email = 'han@gara.vn')), 'đã có dữ liệu');
+select kt.dong_vai(null);
+
 \o
 \echo '======== KẾT QUẢ ========'
 select stt, case when dat then 'ĐẠT ' else 'LỖI ' end as kq, ten, left(coalesce(chi_tiet,''), 140) as chi_tiet from kt.ket_qua order by stt;
