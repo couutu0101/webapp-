@@ -9,10 +9,10 @@ import * as api from '../api.js';
 import { ghiTiep, tuGhiNgayKhiBam, nhacHetHan, layLichSu, khoiLichSu } from './lich-su-xe.js';
 import { khungChonBaoHiem } from '../chon-bao-hiem.js';
 import { duocDetailing, detailingDat, moDetailingTraVe } from '../detailing.js';
-import { khungAnhNhanXe, anhNhanXeThieu, coFileBaoGiaMoi, coFileDuyetMoi, soAnhKcs, SO_ANH_KCS, NHAN_BUOC_MOI, ANH_NHAN_XE, taiVaoBuoc, oDinhKem } from '../anh-bat-buoc.js';
+import { khungAnhNhanXe, anhNhanXeThieu, coFileBaoGiaMoi, coFileDuyetMoi, soAnhKcs, SO_ANH_KCS, NHAN_BUOC_MOI, NHAN_GIAY_TO_XE, ANH_NHAN_XE, taiVaoBuoc, oDinhKem } from '../anh-bat-buoc.js';
 
 const TT_DONG = { cho_duyet: 'Chờ duyệt', duyet: 'Đã duyệt', tu_choi: 'Không duyệt', dang_lam: 'Đang làm', xong: 'Xong' };
-const BUOC_TEP = { tiep_nhan: 'Nhận xe', ...NHAN_BUOC_MOI, duyet_gia: 'Giám định / duyệt giá / HĐ 3 bên', phat_sinh: 'Phát sinh', huy_vat_tu: 'Hủy vật tư (bảo hiểm)', kcs: 'Sau sửa (KCS)', giao_xe: 'Giao xe', ho_so_bh: 'Hồ sơ bảo hiểm', khac: 'Khác' };
+const BUOC_TEP = { tiep_nhan: 'Nhận xe', ...NHAN_BUOC_MOI, duyet_gia: 'Giám định / duyệt giá / HĐ 3 bên', phat_sinh: 'Phát sinh', huy_vat_tu: 'Hủy vật tư (bảo hiểm)', kcs: 'Sau sửa (KCS)', giao_xe: 'Giao xe', ho_so_bh: 'Hồ sơ bảo hiểm', giay_to_xe: NHAN_GIAY_TO_XE, khac: 'Khác' };
 
 export default async function trangChiTiet(el, idChu) {
   const id = Number(idChu);
@@ -39,7 +39,8 @@ export default async function trangChiTiet(el, idChu) {
 }
 
 const q = (...ds) => api.coVaiTro(...ds);
-const nut = (nhan, onclick, chinh = false) => h('button', { class: `nut ${chinh ? 'chinh' : ''}`, type: 'button', onclick }, nhan);
+// kieu: true = nút chính của thẻ (vàng đặc); 'noi-bat' = nút quan trọng loại 2 (nền vàng nhạt, viền vàng đậm – "+ Thêm dòng", tải ảnh…)
+const nut = (nhan, onclick, kieu = false) => h('button', { class: `nut ${kieu === true ? 'chinh' : kieu || ''}`.trim(), type: 'button', onclick }, nhan);
 
 function dau({ hs, cho }) {
   return h('div', { class: 'tieu-de-trang' },
@@ -86,8 +87,10 @@ function nutDenBuoc(hs) {
     the.scrollIntoView({ behavior: 'smooth', block: 'start' });
     the.classList.remove('nhay-sang'); void the.offsetWidth; the.classList.add('nhay-sang');
   };
+  // 17/10 (anh Thuận): lối tắt quan trọng nhất của trang → nút vàng to, mũi tên nhún (CSS .den-buoc)
   return h('div', { class: 'den-buoc' },
-    h('button', { class: 'nut nho', type: 'button', 'data-den-buoc': so, onclick: den }, `Đến phần làm bước ${dang}: ${BUOC_XE[dang - 1]} ↓`));
+    h('button', { class: 'nut chinh', type: 'button', 'data-den-buoc': so, onclick: den },
+      `Đến phần làm bước ${dang}: ${BUOC_XE[dang - 1]} `, h('span', { class: 'mui-xuong', 'aria-hidden': 'true' }, '↓')));
 }
 
 function tienDo(hs, nk, aiDang) {
@@ -241,7 +244,10 @@ function theBaoGia({ hs, hm, ve, tep }) {
   return h('section', { class: 'the' },
     h('div', { class: 'the-dau' }, h('h2', null, khach ? '2. Báo giá (khách ngoài bảo hiểm)' : '2–3. Báo giá và duyệt giá'),
       h('div', { class: 'hang-nut' },
-        duocBaoGia && (goc || boSung) ? nut(goc ? '+ Thêm dòng báo giá' : '+ Báo giá bổ sung (phát sinh)', () => moBaoGia(hs, hm, ve, boSung, tep)) : null,
+        // 17/10 (anh Thuận): nút nổi bật. Việc chính của thẻ = vàng đặc: "+ Thêm dòng báo giá" khi chưa có dòng nào chờ duyệt;
+        // đã có dòng chờ duyệt thì "Nhập kết quả duyệt" là việc chính, nút thêm dòng còn lại kiểu nổi bật (vàng nhạt, viền đậm)
+        duocBaoGia && (goc || boSung) ? nut(goc ? '+ Thêm dòng báo giá' : '+ Báo giá bổ sung (phát sinh)', () => moBaoGia(hs, hm, ve, boSung, tep),
+          goc && !choDuyet.length ? true : 'noi-bat') : null,
         duocBaoGia && choDuyet.length ? nut(`Nhập kết quả duyệt (${choDuyet.length})`, () => moDuyetGia(hs, choDuyet, ve, hm, tep), true) : null)),
     bang(cot, hm, { trong: hs.trang_thai === 'tiep_nhan' ? 'Chưa có báo giá.' : 'Chưa có dòng nào.', gon: true }),
     hs.bat_buoc_anh && (goc || boSung) && anhNhanXeThieu(tep).length
@@ -301,6 +307,10 @@ function moBaoGia(hs, hm, ve, boSung, tep = []) {
   let daCoFile = coFileBaoGiaMoi(hs, tep);
   const oFileBG = oDinhKem('Ảnh / file báo giá', { batBuoc: hs.bat_buoc_anh && !daCoFile,
     goiY: daCoFile ? 'Đã có file báo giá tải lên – chọn thêm nếu cần.' : 'Chọn ảnh bảng báo giá hoặc file PDF.' });
+  // 053 (anh Thuận 17/10): dòng tải ảnh, giấy tờ xe (đăng ký, đăng kiểm, bảo hiểm xe, CCCD chủ xe…) ngay lúc lập báo giá. Không bắt buộc.
+  const soGiayTo = tep.filter((t) => t.buoc === 'giay_to_xe').length;
+  const oGiayTo = oDinhKem(NHAN_GIAY_TO_XE, {
+    goiY: soGiayTo ? `Hồ sơ đã có ${soGiayTo} tệp – chọn thêm nếu cần. Không bắt buộc.` : 'Ảnh xe, đăng ký, đăng kiểm, bảo hiểm xe, CCCD chủ xe… Không bắt buộc.' });
   const khach = hs.nguon_tt === 'khach';
   const vatCu = [...hm].reverse().find((m) => m.ty_le_vat !== null && m.ty_le_vat !== undefined)?.ty_le_vat;
   const chonVat = oChon('vat', VAT_BAO_GIA.map((r) => ({ value: String(r), label: phanTram(r) })),
@@ -348,8 +358,8 @@ function moBaoGia(hs, hm, ve, boSung, tep = []) {
         khach ? chiXem('Nguồn', 'Khách ngoài bảo hiểm – không qua duyệt giá') : chiXem('Hãng bảo hiểm', hs.hang_bh || 'Chọn khi nhập kết quả duyệt giá'),
         truong('VAT', chonVat)),
       tong),
-    danhSach, nut('+ Thêm dòng', themDong),
-    h('div', { class: 'khoi-dinh-kem' }, oFileBG));
+    danhSach, nut('+ Thêm dòng', themDong, 'noi-bat'),
+    h('div', { class: 'khoi-dinh-kem' }, oFileBG, oGiayTo));
   // Báo giá gốc: chọn người làm bước tiếp theo (xe BH: nhập kết quả duyệt; khách: lập lệnh sửa chữa)
   const giao = boSung ? null : khach ? khungGiaoViec('Lập lệnh sửa chữa', VAI_TRO_BUOC.lenh) : khungGiaoViec('Nhập kết quả duyệt giá', VAI_TRO_BUOC.duyet_gia);
   if (giao) noiDung.append(giao.el);
@@ -368,11 +378,18 @@ function moBaoGia(hs, hm, ve, boSung, tep = []) {
       }
       if (files.length) {
         if (await taiVaoBuoc(hs, 'bao_gia', files)) return false;
-        daCoFile = true; oFileBG.input.value = '';
+        daCoFile = true; oFileBG.xoa();
+      }
+      // Ảnh, giấy tờ xe: tải trước khi lưu báo giá (như file báo giá) để lỗi mạng thì hộp còn mở, chọn lại được
+      const giayTo = [...oGiayTo.input.files];
+      if (giayTo.length) {
+        if (await taiVaoBuoc(hs, 'giay_to_xe', giayTo)) return false;
+        oGiayTo.xoa();
       }
       await api.lapBaoGia(hs.id, dong, tyLe());
       if (giao) await giaoSauKhiLuu(hs.id, giao.nguoi());
-      toast(khach ? 'Đã lưu báo giá – đã duyệt, lập lệnh sửa chữa được ngay.' : 'Đã lưu báo giá.'); await ve();
+      toast((khach ? 'Đã lưu báo giá – đã duyệt, lập lệnh sửa chữa được ngay.' : 'Đã lưu báo giá.')
+        + (giayTo.length ? ` Đã tải ${giayTo.length} ảnh, giấy tờ xe.` : '')); await ve();
     },
   });
 }
@@ -503,7 +520,7 @@ function theSuaChua({ hs, hm, ps, ve, cho }) {
         { nhan: 'Tổ', lay: (m) => api.dm.ten('to_thuc_hien', m.to_id) },
         { nhan: 'Người làm', lay: (m) => chipNguoi(m.nguoi_lam, { vai: 'truong_nhom' }) || '' },
         { nhan: 'Trạng thái', lay: (m) => m.trang_thai === 'xong' ? `Xong ${ngayGio(m.xong_luc)}` :
-          duocLap ? h('button', { class: 'nut nho', type: 'button', onclick: () => chay(() => api.baoXong(m.id), { thanhCong: 'Đã báo xong.' }).then(ve, ve.lai) }, 'Báo xong') : 'Đang làm' },
+          duocLap ? h('button', { class: 'nut nho chinh', type: 'button', onclick: () => chay(() => api.baoXong(m.id), { thanhCong: 'Đã báo xong.' }).then(ve, ve.lai) }, 'Báo xong') : 'Đang làm' },
       ], dangLam),
     khoiPT);
 }
@@ -547,7 +564,7 @@ function moThemBaoHanh(hs, ve) {
   themDong();
   moModal('Thêm hạng mục bảo hành', h('div', null,
     h('p', { class: 'mo-ta' }, 'Làm lại miễn phí, không báo giá, không tính doanh thu. Lưu xong bấm "Giao thêm cho tổ".'),
-    ds, h('button', { class: 'nut', type: 'button', onclick: themDong }, '+ Thêm dòng')), {
+    ds, h('button', { class: 'nut noi-bat', type: 'button', onclick: themDong }, '+ Thêm dòng')), {
     nhanNut: 'Lưu hạng mục',
     nutChinh: async () => {
       const dong = [...ds.children].map((d) => ({ ten: d.querySelector('[name=ten]').value.trim(), nhom: d.querySelector('[name=nhom]').value }))
@@ -697,7 +714,7 @@ function theKcs({ hs, hm, tep, dsKcs, ps, ve }) {
     choKcs && conPhatSinh ? h('p', { class: 'thong-bao canh-bao' }, 'Còn hư hỏng phát sinh chờ xử lý (mục 4–5) – xử lý xong mới ký KCS đạt.') : null,
     choKcs ? h('div', { class: 'dem-anh-kcs' },
       h('span', { class: `nhan ${duAnh ? 'tt-tot' : 'tt-canh-bao'}`, 'data-anh-kcs': soAnh }, `Ảnh KCS: ${soAnh}/${canSo}`),
-      duocKcs && !api.laCoDong() ? h('label', { class: 'nut nho' }, icon('anh'), 'Tải ảnh KCS', oAnh) : null, dangTai,
+      duocKcs && !api.laCoDong() ? h('label', { class: `nut nho${duAnh ? '' : ' noi-bat'}` }, icon('anh'), 'Tải ảnh KCS', oAnh) : null, dangTai,
       !duAnh ? h('small', { class: 'goi-y' }, thieuAnh()) : null) : null,
     dsKcs.length ? h('ul', { class: 'ds-don' }, dsKcs.map((k) => h('li', null, ngayGio(k.luc), ' – ', k.dat ? h('b', { class: 'chu-tot' }, 'Đạt') : h('b', { class: 'chu-loi' }, 'Chưa đạt: '), k.loi || ''))) : null);
 }
@@ -874,7 +891,7 @@ function theHoSoBH({ hs, tep, ve }) {
         hs.hoa_hong_ghi_chu ? h('small', null, ` (${hs.hoa_hong_ghi_chu})`) : null,
         // 043: tháng duyệt giá đã chốt sổ lúc nhập hoa hồng → tính vào tháng đang mở lúc nhập
         thangHH && hs.hoa_hong_gdv !== null ? h('small', { class: 'nhan' }, `tính vào lãi lỗ tháng ${thangHH}`) : null),
-      keToan ? nut(hs.hoa_hong_gdv === null ? 'Nhập hoa hồng' : 'Sửa', () => moHoaHong(hs, ve)) : null) : null);
+      keToan ? nut(hs.hoa_hong_gdv === null ? 'Nhập hoa hồng' : 'Sửa', () => moHoaHong(hs, ve), hs.hoa_hong_gdv === null ? 'noi-bat' : false) : null) : null);
 }
 
 function moHoaHong(hs, ve) {
@@ -988,7 +1005,7 @@ function theTep({ hs, tep, ve }) {
   });
   return h('section', { class: 'the' }, h('h2', null, `Ảnh & giấy tờ (${tep.length})`),
     !api.laCoDong() && (!['dong', 'huy'].includes(hs.trang_thai) || q('ke_toan', 'giam_doc'))
-      ? h('div', { class: 'tai-tep' }, chonBuoc, h('label', { class: 'nut' }, 'Tải ảnh / tệp', oTep), dangTai) : null,
+      ? h('div', { class: 'tai-tep' }, chonBuoc, h('label', { class: 'nut noi-bat' }, 'Tải ảnh / tệp', oTep), dangTai) : null,
     tep.length ? luoi : h('p', { class: 'trong' }, 'Chưa có ảnh.'));
 }
 

@@ -3,7 +3,7 @@ ghi thời gian từng thao tác, chụp màn hình, dò lỗi hiển thị (tr�
 Chạy: test/lam_moi_csdl.sh && (máy chủ thử đang chạy) && python3 test/kich_ban_mot_ngay.py
 Ảnh chụp: /tmp/kich-ban/, kết quả: /tmp/kich-ban/ket-qua.json"""
 import os, re, sys, json, time, random
-from playwright.sync_api import sync_playwright, expect
+from playwright.sync_api import sync_playwright, expect, TimeoutError as PwTimeout
 from PIL import Image
 
 GOC = os.path.dirname(os.path.abspath(__file__))
@@ -45,7 +45,7 @@ def bao(ai, chu):
 
 
 def chup(page, ten, ai):
-    page.wait_for_load_state('networkidle')
+    yen(page)
     page.wait_for_timeout(300)
     page.screenshot(path=os.path.join(RA, f'{ten}.png'), full_page=True)
     # Điện thoại: trang không được tràn ngang
@@ -82,13 +82,22 @@ def mo(b, email, ai, dien_thoai=True):
     page.fill('input[name=mat_khau]', 'matkhau123')
     page.click('button[type=submit]')
     page.wait_for_selector('.menu')
-    page.wait_for_load_state('networkidle')
+    yen(page)
     return page
+
+
+def yen(page, cho=8000):
+    """Đợi mạng yên. Playwright đôi khi đếm sót một yêu cầu đã xong nên "networkidle" không bao giờ tới (đã dò 17/10: trang vẫn vẽ xong,
+    trả lời bình thường, máy chủ thử trả lời trong 0,2 giây; gặp cả ở bản cũ chưa sửa gì, ~1/6 lần, luôn ở bước 23) → quá hạn thì đi tiếp."""
+    try:
+        page.wait_for_load_state('networkidle', timeout=cho)
+    except PwTimeout:
+        print(f'   (ghi chú: mạng chưa "yên" sau {cho // 1000} giây nhưng trang đã vẽ xong – đi tiếp)', flush=True)
 
 
 def ve(page, hash_):
     page.goto(URL + hash_) if page.url != URL + hash_ else page.reload()
-    page.wait_for_load_state('networkidle')
+    yen(page)
     page.wait_for_timeout(300)
     # bỏ thông báo cũ để lần kiểm "đã lưu" sau đó chỉ nhìn thông báo mới
     page.evaluate("document.querySelectorAll('#toast .toast').forEach((x) => x.remove())")
@@ -156,7 +165,9 @@ with sync_playwright() as p:
         if i: m.locator('text=+ Thêm dòng').click()
         r = m.locator('.dong-nhap').nth(i)
         r.locator('[name=ten]').fill(ten); r.locator('[name=nhom]').select_option(label=nhom); r.locator('[name=gia_bao]').fill(gia)
-    m.locator('.khoi-dinh-kem input[type=file]').set_input_files(PDF)
+    m.locator('input[aria-label="Ảnh / file báo giá"]').set_input_files(PDF)
+    # 053: dòng "Ảnh, giấy tờ xe" – CVDV chụp luôn đăng ký, đăng kiểm của xe (2 ảnh) ngay trong hộp báo giá
+    m.locator('input[aria-label="Ảnh, giấy tờ xe"]').set_input_files([ANH[0], ANH[1]])
     a = chup(duy, '03-duy-bao-gia', 'Duy (CVDV)')
     m.locator('text=Lưu báo giá').click()
     toast(duy, 'Đã lưu báo giá')
@@ -209,7 +220,7 @@ with sync_playwright() as p:
     m = modal(duy)
     r = m.locator('.dong-nhap').first
     r.locator('[name=ten]').fill('Gò cản trước'); r.locator('[name=nhom]').select_option(label='Đồng'); r.locator('[name=gia_bao]').fill('700000')
-    m.locator('.khoi-dinh-kem input[type=file]').set_input_files(ANH[7])
+    m.locator('input[aria-label="Ảnh / file báo giá"]').set_input_files(ANH[7])
     m.locator('text=Lưu báo giá').click()
     toast(duy, 'Đã lưu báo giá')
     ve_ho_so(duy, id_le)
@@ -282,7 +293,7 @@ with sync_playwright() as p:
     n = 0
     while han.locator('.the-xe button:has-text("Báo xong")').count():
         han.locator('.the-xe button:has-text("Báo xong")').first.click()
-        han.wait_for_timeout(600); han.wait_for_load_state('networkidle'); n += 1
+        han.wait_for_timeout(600); yen(han); n += 1
         if n > 10: break
     a = chup(han, '10-han-bao-xong', 'Hận (trưởng nhóm Đồng sơn)')
     ghi('Hận (trưởng nhóm Đồng sơn)', f'Bấm "Báo xong" {n} hạng mục của tổ', T() - t0, a)
@@ -295,7 +306,7 @@ with sync_playwright() as p:
     m = modal(duy)
     r = m.locator('.dong-nhap').first
     r.locator('[name=ten]').fill('Thay pát cản sau phải'); r.locator('[name=nhom]').select_option(label='Phụ tùng'); r.locator('[name=gia_bao]').fill('350000')
-    m.locator('.khoi-dinh-kem input[type=file]').set_input_files(ANH[5])
+    m.locator('input[aria-label="Ảnh / file báo giá"]').set_input_files(ANH[5])
     m.locator('button', has_text='Lưu báo giá').click()
     toast(duy, 'Đã lưu')
     ve_ho_so(duy, id_bh)
@@ -321,7 +332,7 @@ with sync_playwright() as p:
     if the.locator('button:has-text("Báo xong")').count():
         the.locator('button:has-text("Báo xong")').first.click()
         toast(giang, 'Đã báo xong')
-        giang.wait_for_load_state('networkidle')
+        yen(giang)
         ghi('Giang (trưởng nhóm Detailing)', 'Báo xong hạng mục "Đánh bóng toàn xe" của tổ Detailing')
     ve(giang, '#/')
     the = giang.locator('.the-xe', has_text='51G-123.45')
@@ -359,6 +370,11 @@ with sync_playwright() as p:
     toast(long_, 'Đã lưu 2 ảnh hủy vật tư', 40000)
     ghi('Long (quản lý chung)', 'Tải 2 ảnh hủy đèn hậu cũ (ảnh hủy vật tư)', T() - t0)
     ve_ho_so(long_, id_bh)
+    # 17/10 (anh Thuận): nút "Đến phần làm bước" phải nổi bật – to, vàng đặc, gần hết bề ngang điện thoại
+    kich = long_.locator('[data-den-buoc]').bounding_box()
+    if not kich or kich['height'] < 48 or kich['width'] < 300 or 'chinh' not in (long_.locator('[data-den-buoc]').get_attribute('class') or ''):
+        bao('Long (quản lý chung)', f'Nút "Đến phần làm bước" trên điện thoại chưa đủ nổi bật: {kich}')
+    chup_man(long_, '15-long-nut-den-buoc-noi-bat')
     long_.locator('[data-den-buoc]').click()
     long_.wait_for_timeout(900)
     a = chup_man(long_, '15a-long-den-buoc-kcs')

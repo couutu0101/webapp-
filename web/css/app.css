@@ -184,6 +184,12 @@ details.the > summary h2 { display: inline; margin: 0; }
   box-shadow: inset 0 -3px 0 #d39f00, 0 2px 6px rgba(217, 164, 0, .28); }
 .nut.chinh:hover { background: #f6c11c; border-color: #c99600; box-shadow: inset 0 -3px 0 #d39f00, 0 6px 14px rgba(217, 164, 0, .36); }
 .nut.chinh:active { background: #e8ab00; box-shadow: inset 0 2px 4px rgba(120, 80, 0, .3); }
+/* Nút quan trọng loại 2 (anh Thuận 17/10): "Thêm dòng", "Đề xuất", "Tải ảnh"… nổi hẳn so với nút trắng thường nhưng không tranh với nút
+   chính của thẻ. Nền vàng nhạt + viền vàng đậm dày 2px + chữ đậm. Chữ vẫn đen trên nền sáng (tương phản > 12:1). */
+.nut.noi-bat { background: var(--vang-nhat); border: 2px solid var(--vang-dam); color: var(--muc); font-weight: 700;
+  box-shadow: inset 0 -3px 0 #ecc54a, 0 2px 6px rgba(217, 164, 0, .22); }
+.nut.noi-bat:hover { background: #ffedaa; border-color: #c99600; box-shadow: inset 0 -3px 0 #e0b21f, 0 6px 14px rgba(217, 164, 0, .32); }
+.nut.noi-bat:active { background: #ffe58a; box-shadow: inset 0 2px 4px rgba(120, 80, 0, .25); }
 .nut:disabled, .nut:disabled:hover { opacity: .55; cursor: progress; transform: none; }
 .nut.nho { min-height: 36px; padding: 0 12px; font-size: .9rem; }
 .nut.rong { width: 100%; }
@@ -885,7 +891,17 @@ label.o-anh-buoc:focus-within { outline: 3px solid var(--lien-ket); outline-offs
 .nut-nhieu-anh input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 
 /* Kịch bản thử 16/10: nút nhảy tới thẻ của bước đang chờ; thẻ nháy viền vàng khi tới */
-.den-buoc { display: flex; justify-content: center; padding: 0 12px 14px; }
+/* 17/10: nút này là lối tắt quan trọng nhất của trang (nhảy tới việc đang chờ) → nút vàng to; khi mở trang vầng sáng nhấp 3 lần, mũi tên nhún 4 lần rồi đứng yên
+   (không để chuyển động chạy mãi: tốn pin điện thoại, làm nặng máy yếu và gây mỏi mắt khi làm việc cả ngày) */
+.den-buoc { display: flex; justify-content: center; padding: 4px 12px 16px; }
+.den-buoc .nut { min-height: 52px; padding: 6px 28px; font-size: 1.05rem; border-radius: 10px; gap: 10px; white-space: normal; text-align: center; line-height: 1.25;
+  text-wrap: balance; animation: den-buoc-nhip 1.9s ease-out 3; }
+.den-buoc .mui-xuong { display: inline-block; font-size: 1.35em; line-height: 1; animation: den-buoc-nhun 1.1s ease-in-out 4; }
+@keyframes den-buoc-nhip {
+  0% { box-shadow: inset 0 -3px 0 #d39f00, 0 2px 6px rgba(217, 164, 0, .28), 0 0 0 0 rgba(242, 183, 5, .65); }
+  70%, 100% { box-shadow: inset 0 -3px 0 #d39f00, 0 2px 6px rgba(217, 164, 0, .28), 0 0 0 14px rgba(242, 183, 5, 0); } }
+@keyframes den-buoc-nhun { 0%, 100% { transform: translateY(-2px); } 50% { transform: translateY(3px); } }
+@media (max-width: 640px) { .den-buoc .nut { width: 100%; padding: 6px 14px; } }
 .nhay-sang { animation: nhay-sang 1.6s ease-out; }
 @keyframes nhay-sang { 0%, 40% { box-shadow: 0 0 0 3px var(--vang); } 100% { box-shadow: 0 0 0 0 transparent; } }
 /* Điện thoại: thông báo hiện ở trên (ở dưới che mất nút Lưu / Gửi của hộp thoại) */

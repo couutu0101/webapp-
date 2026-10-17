@@ -3,7 +3,7 @@ Chạy: test/lam_moi_csdl.sh && python3 test/may_chu_thu.py 8765 & python3 test/
 Thử bản đóng gói: (cd web && node build.mjs --thu) && WEB=web/dist-thu python3 test/may_chu_thu.py 8765 & python3 test/thu_giao_dien.py"""
 import subprocess
 import os, sys, base64, re
-from playwright.sync_api import sync_playwright, expect
+from playwright.sync_api import sync_playwright, expect, TimeoutError as PwTimeout
 
 GOC = os.path.dirname(os.path.abspath(__file__))
 URL = 'http://127.0.0.1:8765/index.html'
@@ -32,8 +32,16 @@ def ghi(msg):
     print(f'[{buoc:02d}] {msg}', flush=True)
 
 
+def yen(page, cho=8000):
+    """Đợi mạng yên; Playwright đôi khi đếm sót một yêu cầu đã xong nên "networkidle" không tới (trang vẫn vẽ xong) → quá hạn thì đi tiếp."""
+    try:
+        page.wait_for_load_state('networkidle', timeout=cho)
+    except PwTimeout:
+        print(f'   (ghi chú: mạng chưa "yên" sau {cho // 1000} giây nhưng trang đã vẽ xong – đi tiếp)', flush=True)
+
+
 def chup(page, ten):
-    page.wait_for_load_state('networkidle')
+    yen(page)
     try:
         page.wait_for_function("!document.querySelector('#noi-dung .dang-tai')", timeout=8000)
     except Exception:
@@ -64,7 +72,7 @@ def mo(browser, email, rong=1280):
 def cho_xong(page):
     """Chờ mọi nút đang chạy thao tác mở khóa lại (trang đã vẽ lại xong)."""
     page.wait_for_function("!document.querySelector('button[data-dang-chay]')", timeout=15000)
-    page.wait_for_load_state('networkidle')
+    yen(page)
 
 
 def toast_co(page, chu):
@@ -76,7 +84,7 @@ def ve_trang(page, hash_):
         page.reload()
     else:
         page.goto(URL + hash_)
-    page.wait_for_load_state('networkidle')
+    yen(page)
     page.wait_for_timeout(300)
 
 
@@ -180,9 +188,27 @@ with sync_playwright() as p:
     ghi('047 Hồ sơ có thẻ "Ảnh nhận xe (6/6)", đủ 6 ô có tên')
 
     # ---------- Báo giá ----------
+    # 17/10 (anh Thuận): nút quan trọng nổi bật – lối tắt "Đến phần làm bước…" và "+ Thêm dòng báo giá" là nút vàng đặc (nút chính)
+    nut_den = duy.locator('[data-den-buoc]')
+    expect(nut_den).to_have_class(re.compile(r'\bchinh\b'))
+    expect(nut_den).to_have_text(re.compile(r'Đến phần làm bước 2: Báo giá\s*↓'))
+    assert nut_den.bounding_box()['height'] >= 48, 'Nút "Đến phần làm bước" phải to (>= 48px)'
+    expect(nut_den.locator('.mui-xuong')).to_have_count(1)
+    expect(duy.locator('button', has_text='+ Thêm dòng báo giá')).to_have_class(re.compile(r'\bchinh\b'))
+    ghi('Nút nổi bật: "Đến phần làm bước 2: Báo giá ↓" (cao ' + str(round(nut_den.bounding_box()['height'])) + 'px) và "+ Thêm dòng báo giá" là nút vàng đặc')
+    chup(duy, '17-nut-noi-bat-truoc-bao-gia')
     duy.click('text=+ Thêm dòng báo giá')
     m = modal(duy)
     expect(m.locator('.dau-bao-gia')).to_contain_text('Chọn khi nhập kết quả duyệt giá')
+    # Dòng "Ảnh, giấy tờ xe" (053): có, không bắt buộc; nút "+ Thêm dòng" trong hộp là nút nổi bật loại 2
+    o_gt = m.locator('input[aria-label="Ảnh, giấy tờ xe"]')
+    lbl_gt = m.locator('label.chon-tep', has=duy.locator('input[aria-label="Ảnh, giấy tờ xe"]'))
+    expect(o_gt).to_have_count(1)
+    expect(lbl_gt).to_have_count(1)
+    expect(lbl_gt).not_to_have_class(re.compile(r'\bbb\b'))
+    expect(lbl_gt).to_contain_text('Không bắt buộc')
+    expect(m.locator('button', has_text='+ Thêm dòng')).to_have_class(re.compile(r'\bnoi-bat\b'))
+    ghi('053 Hộp Lập báo giá có dòng "Ảnh, giấy tờ xe" (không bắt buộc) và nút "+ Thêm dòng" kiểu nổi bật')
     expect(m.locator('[name=nguoi_tra]')).to_have_count(0)
     expect(m.locator('[name=gia_sau_vat]')).to_have_count(0)
     dong = [('Gò sơn cửa trước trái', 'Đồng', '3000000'), ('Thay tay nắm cửa', 'Phụ tùng', '2000000'),
@@ -201,15 +227,26 @@ with sync_playwright() as p:
     gt_long = m.locator('select[name=giao_cho] option', has_text='Trần Tử Long').get_attribute('value')
     m.locator('select[name=giao_cho]').select_option(gt_long)
     chup(duy, '03-bao-gia')
+    o_gt.set_input_files([ANH, ANH])
+    expect(lbl_gt.locator('.chon-tep-dem')).to_have_text('Đã chọn 2 tệp')
+    chup(duy, '03b-bao-gia-giay-to-xe')
     m.locator('text=Lưu báo giá').click()
     toast_co(duy, 'Đính kèm ảnh hoặc file báo giá')
-    ghi('047 Báo giá chưa đính kèm ảnh / file báo giá bị chặn')
-    m.locator('.khoi-dinh-kem input[type=file]').set_input_files(ANH)
+    ghi('047 Báo giá chưa đính kèm ảnh / file báo giá bị chặn (dù đã chọn 2 ảnh, giấy tờ xe – dòng đó không thay được file báo giá)')
+    m.locator('input[aria-label="Ảnh / file báo giá"]').set_input_files(ANH)
     m.locator('text=Lưu báo giá').click()
     toast_co(duy, 'Đã lưu báo giá')
+    toast_co(duy, 'Đã tải 2 ảnh, giấy tờ xe')
     ve_ds(duy, id_hs)
     expect(duy.locator('h1 .nhan')).to_contain_text('Chờ duyệt giá')
     ghi('Lập báo giá 3 dòng → Chờ duyệt giá')
+    # 053: 2 tệp giấy tờ xe nằm trong thẻ "Ảnh & giấy tờ" với nhãn "Ảnh, giấy tờ xe"
+    expect(duy.locator('.luoi-anh a.o-anh[title="Ảnh, giấy tờ xe"]')).to_have_count(2, timeout=10000)
+    expect(duy.locator('.luoi-anh a.o-anh small', has_text='Ảnh, giấy tờ xe')).to_have_count(2)
+    ghi('053 Hồ sơ hiện 2 tệp nhãn "Ảnh, giấy tờ xe" trong thẻ Ảnh & giấy tờ; thẻ Báo giá: "+ Thêm dòng báo giá" chuyển nút nổi bật loại 2, "Nhập kết quả duyệt" là nút chính')
+    expect(duy.locator('button', has_text='+ Thêm dòng báo giá')).to_have_class(re.compile(r'\bnoi-bat\b'))
+    expect(duy.locator('button', has_text='Nhập kết quả duyệt')).to_have_class(re.compile(r'\bchinh\b'))
+    chup(duy, '17b-nut-noi-bat-sau-bao-gia')
     expect(duy.locator('.dang-cho')).to_contain_text('Trần Tử Long')
     ghi('Báo giá giao bước "Nhập kết quả duyệt giá" cho anh Long: ' + duy.locator('.dang-cho').inner_text().replace('\n', ' ')[:90])
     lg = mo(b, 'long@gara.vn')
@@ -749,9 +786,10 @@ with sync_playwright() as p:
     expect(m.locator('.tong-bao-gia dd b')).to_have_text('1.100.000')
     ghi('Khách ngoài BH: đơn giá 1.000.000, VAT 10% → khối 1: ' + m.locator('.tong-bao-gia').inner_text().replace('\n', ' '))
     chup(duy, '03b-bao-gia-khach')
-    m.locator('.khoi-dinh-kem input[type=file]').set_input_files(ANH)
+    m.locator('input[aria-label="Ảnh / file báo giá"]').set_input_files(ANH)
     m.locator('text=Lưu báo giá').click()
     toast_co(duy, 'đã duyệt')
+    ghi('053 Khách ngoài BH: không chọn ảnh, giấy tờ xe vẫn lưu được báo giá (dòng này không bắt buộc)')
     ve_ds(duy, id_k)
     expect(duy.locator('h1 .nhan')).to_contain_text('Đã duyệt giá')
     ghi('Khách ngoài BH: lưu báo giá → ' + duy.locator('h1 .nhan').inner_text() + ' ngay, không qua duyệt; nút lập lệnh: '

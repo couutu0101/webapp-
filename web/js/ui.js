@@ -693,7 +693,7 @@ export function bang(cot, dong, { trong = 'Chưa có dữ liệu.', onRow, idDon
 // Nén ảnh điện thoại trước khi tải lên (cạnh dài tối đa 1600px)
 // Ảnh xe: cạnh dài 1280px (~0,2 MB) – đủ nhìn rõ vết trầy, móp.
 // Giấy tờ (giám định, duyệt giá, HĐ 3 bên, hồ sơ bảo hiểm, khác): 1600px để đọc được chữ.
-const BUOC_GIAY_TO = ['duyet_gia', 'ho_so_bh', 'khac'];
+const BUOC_GIAY_TO = ['duyet_gia', 'ho_so_bh', 'khac', 'giay_to_xe'];
 async function veLai(file, canh, chatLuong) {
   const bmp = await createImageBitmap(file);
   const tile = Math.min(1, canh / Math.max(bmp.width, bmp.height));

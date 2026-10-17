@@ -2112,6 +2112,29 @@ select kt.ghi('051 Tải được ảnh bước "huy_vat_tu"', (select count(*) 
 select kt.mong_loi('051 Bước tệp lạ vẫn bị chặn', format($$select public.them_tep(%s, 'linh_tinh', 'anh', 'TK/' || (select ma from public.ho_so where id = %s) || '/y.jpg')$$, (select v from ctx where k='hs47'), (select v from ctx where k='hs47')), 'không hợp lệ');
 select kt.dong_vai(null);
 -- ---------------------------------------------------------------------
+-- 053: ảnh, giấy tờ xe tải ngay trong hộp "Lập báo giá" (bước tệp 'giay_to_xe', không bắt buộc)
+-- ---------------------------------------------------------------------
+select kt.dong_vai('duy@gara.vn');
+select kt.tep((select v from ctx where k='hs47'), 'giay_to_xe', 2);
+select kt.tep((select v from ctx where k='hs47'), 'giay_to_xe', 1, 'bien_ban');
+select kt.ghi('053 CVDV tải được ảnh và PDF bước "giay_to_xe" (3 tệp, 1 PDF)',
+  (select count(*) from public.ho_so_tep where ho_so_id = (select v::bigint from ctx where k='hs47') and buoc = 'giay_to_xe') = 3
+  and (select count(*) from public.ho_so_tep where ho_so_id = (select v::bigint from ctx where k='hs47') and buoc = 'giay_to_xe' and loai = 'bien_ban') = 1);
+select kt.ghi('053 Tệp giấy tờ xe không làm đổi việc khác: bước "huy_vat_tu" (051) vẫn còn 2 tệp',
+  (select count(*) from public.ho_so_tep where ho_so_id = (select v::bigint from ctx where k='hs47') and buoc = 'huy_vat_tu') = 2);
+select kt.mong_loi('053 Bước "giay_to_xe": đường dẫn ngoài thư mục của hồ sơ vẫn bị chặn',
+  format($$select public.them_tep(%s, 'giay_to_xe', 'anh', 'TK/TK-0000-KHAC/giay_to_xe-1.jpg')$$, (select v from ctx where k='hs47')), 'không thuộc thư mục');
+select kt.mong_loi('053 Bước "giay_to_xe": đường dẫn có ".." vẫn bị chặn',
+  format($$select public.them_tep(%s, 'giay_to_xe', 'anh', 'TK/' || (select ma from public.ho_so where id = %s) || '/../x.jpg')$$, (select v from ctx where k='hs47'), (select v from ctx where k='hs47')), 'không thuộc thư mục');
+select kt.mong_loi('053 Bước tệp lạ vẫn bị chặn sau khi thêm "giay_to_xe"',
+  format($$select public.them_tep(%s, 'giay_to_xe_2', 'anh', 'TK/' || (select ma from public.ho_so where id = %s) || '/z.jpg')$$, (select v from ctx where k='hs47'), (select v from ctx where k='hs47')), 'không hợp lệ');
+select kt.mong_loi('053 Loại tệp lạ vẫn bị chặn với bước "giay_to_xe"',
+  format($$select public.them_tep(%s, 'giay_to_xe', 'video', 'TK/' || (select ma from public.ho_so where id = %s) || '/v.mp4')$$, (select v from ctx where k='hs47'), (select v from ctx where k='hs47')), 'không hợp lệ');
+select kt.dong_vai('codong@gara.vn');
+select kt.mong_loi('053 Cổ đông (chỉ xem) không tải được tệp "giay_to_xe"',
+  format($$select public.them_tep(%s, 'giay_to_xe', 'anh', 'TK/' || (select ma from public.ho_so where id = %s) || '/c.jpg')$$, (select v from ctx where k='hs47'), (select v from ctx where k='hs47')), 'không có quyền');
+select kt.dong_vai(null);
+-- ---------------------------------------------------------------------
 -- 052: tối ưu tốc độ – hàm tính tiền nhẹ hơn, khởi động một lượt, Việc hôm nay một lượt
 -- ---------------------------------------------------------------------
 select kt.dong_vai(null);

@@ -19,6 +19,8 @@ export const NHAN_BUOC_MOI = {
   ...Object.fromEntries(ANH_NHAN_XE.map((a) => [a.buoc, a.buoc.startsWith('nt') ? a.ten : `Nhận xe – ${a.ten.toLowerCase()}`])),
 };
 export const SO_ANH_KCS = 6;
+// 053: ảnh, giấy tờ xe (đăng ký, đăng kiểm, bảo hiểm xe, CCCD chủ xe…) tải ngay trong hộp Lập báo giá; không bắt buộc. Bước tệp = 'giay_to_xe'.
+export const NHAN_GIAY_TO_XE = 'Ảnh, giấy tờ xe';
 
 const sau = (t, moc) => !moc || new Date(t.tai_luc) > new Date(moc);
 export const anhNhanXeThieu = (tep) => ANH_NHAN_XE.filter((a) => !tep.some((t) => t.buoc === a.buoc));
@@ -93,7 +95,7 @@ export function khungAnhNhanXe({ hs = null, tep = [], link = {}, choSua = true, 
     if (hs) { if (daLuu) toast(`Đã lưu ${daLuu} ảnh nhận xe.`); khiXong?.(); }
   });
   const khung = h('div', { class: 'khung-anh-nhan-xe' },
-    choSua ? h('label', { class: 'nut nho nut-nhieu-anh' }, oNhieu, icon('anh'), 'Chọn nhiều ảnh một lần') : null,
+    choSua ? h('label', { class: 'nut nho noi-bat nut-nhieu-anh' }, oNhieu, icon('anh'), 'Chọn nhiều ảnh một lần') : null,
     luoi);
   khung.chon = chon;
   khung.thieu = () => ANH_NHAN_XE.filter((a) => !chon.has(a.buoc) && !tep.some((t) => t.buoc === a.buoc));
@@ -112,5 +114,7 @@ export function oDinhKem(nhan, { batBuoc = false, chiAnh = false, goiY = '' } = 
   const nhanEl = h('label', { class: `chon-tep${batBuoc ? ' bb' : ''}` }, input, icon('anh'),
     h('span', null, nhan, batBuoc ? ' *' : '', goiY ? h('small', { class: 'goi-y' }, h('br'), goiY) : null), dem);
   nhanEl.input = input;
+  // Xóa các tệp đã chọn (sau khi đã tải lên) và đưa dòng đếm về "Chưa chọn tệp"
+  nhanEl.xoa = () => { input.value = ''; input.dispatchEvent(new Event('change')); };
   return nhanEl;
 }

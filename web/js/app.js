@@ -192,8 +192,11 @@ async function dieuHuong() {
     a.classList.toggle('dang-chon', duong === a.dataset.duong || duong.startsWith(a.dataset.duong + '/'));
   }
   if (duong === 'co-dong') {
-    dat(khung.noiDung, h('div', { class: 'dang-tai' }, 'Đang tải…'));
-    import('./trang/co-dong.js').then((m) => m.default(khung.noiDung)).catch((e) => baoLoi(e));
+    // 17/10: dùng vùng riêng như các trang khác. Trước đây báo cáo ghi thẳng vào khung nội dung nên tải xong muộn thì ĐÈ LÊN trang cổ đông vừa
+    // bấm sang (đăng nhập xong bấm ngay "Hồ sơ xe" → vẫn ra báo cáo cổ đông, danh sách hồ sơ không hiện; đo 10/10 lần). Vùng cũ bị bỏ thì vẽ muộn vô hại.
+    const vung = h('div', { class: 'trang' }, h('div', { class: 'dang-tai', role: 'status' }, 'Đang tải…'));
+    dat(khung.noiDung, vung);
+    import('./trang/co-dong.js').then((m) => m.default(vung)).catch((e) => baoLoi(e));
     return;
   }
   // Thiết bị đồ nghề đã gộp vào Kho (thẻ "Thiết bị đồ nghề"); giữ đường cũ cho liên kết đã lưu

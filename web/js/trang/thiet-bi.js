@@ -212,7 +212,7 @@ export default async function veThietBi(el, nut = null) {
     const conDung = t.dang_dung;
     let dong = null;
     const lam = (fn) => () => { dong?.(); fn(); };
-    const nut = (nhan, fn, chinh = false) => h('button', { class: `nut nho${chinh ? ' chinh' : ''}`, type: 'button', onclick: lam(fn) }, nhan);
+    const nut = (nhan, fn, chinh = false) => h('button', { class: `nut nho${chinh === true ? ' chinh' : chinh ? ` ${chinh}` : ''}`, type: 'button', onclick: lam(fn) }, nhan);
     const anh = h('div', { class: 'ts-anh' }, h('span', { class: 'mo' }, 'Chưa có ảnh'));
     if (t.anh) api.linkTepNhieu([t.anh]).then((l) => { const u = l[t.anh]; if (u?.nho) dat(anh, h('a', { href: u.lon, target: '_blank', rel: 'noopener' }, h('img', { src: u.nho, alt: t.ten }))); }).catch(() => {});
     const dongTT = (nhan, gt) => (gt === null || gt === undefined || gt === '' ? null : [h('dt', null, nhan), h('dd', null, gt)]);
@@ -241,7 +241,7 @@ export default async function veThietBi(el, nut = null) {
         quanLy() ? nut('Thanh lý', () => moThanhLy(t)) : null) : null,
       t.loai === 'may_moc' || lich.length ? h('section', { class: 'ts-khoi' },
         h('div', { class: 'the-dau' }, h('h3', null, 'Lịch bảo dưỡng'),
-          conDung && ghiBaoDuongDuoc(n) ? nut('+ Lịch bảo dưỡng', () => moLichBaoDuong(t, null)) : null),
+          conDung && ghiBaoDuongDuoc(n) ? nut('+ Lịch bảo dưỡng', () => moLichBaoDuong(t, null), 'noi-bat') : null),
         lich.length ? h('ul', { class: 'ds-lich-bd' }, lich.map((l) => {
           const han = l.hoat_dong ? congNgay(l.lan_cuoi || l.bat_dau, l.chu_ky_ngay) : null;
           return h('li', { class: l.hoat_dong ? null : 'tat' },

@@ -113,7 +113,7 @@ function khungDong(taoDong, nhanThem = '+ Thêm dòng') {
   const them = (...a) => { const d = taoDong(...a); const dong = h('div', { class: 'dong-kho' }, d.o,
     h('button', { class: 'nut-chu', type: 'button', onclick: () => { dong.remove(); d.khiBo?.(); }, 'aria-label': 'Bỏ dòng này' }, 'Bỏ dòng'));
     dong.doc = d.doc; ds.append(dong); return dong; };
-  return { el: h('div', null, ds, h('button', { class: 'nut', type: 'button', onclick: () => them() }, nhanThem)), them,
+  return { el: h('div', null, ds, h('button', { class: 'nut noi-bat', type: 'button', onclick: () => them() }, nhanThem)), them,
     doc: () => [...ds.children].map((d) => d.doc()).filter(Boolean), ds };
 }
 
@@ -877,7 +877,7 @@ function nutTaiTep(loai, r, sau) {
     for (const x of kq.loi) toast(`Không tải được ${x.ten}: ${x.e?.message || x.e}`, 'loi');
     if (kq.xong) { toast(`Đã tải ${kq.xong} tệp.`); await sau(); }
   });
-  return h('label', { class: 'nut' }, loai === 'phieu_nhap' ? '+ Ảnh hóa đơn' : '+ Báo giá', o);
+  return h('label', { class: 'nut noi-bat' }, loai === 'phieu_nhap' ? '+ Ảnh hóa đơn' : '+ Báo giá', o);
 }
 
 // Xuất dùng chung xưởng (không theo xe)
@@ -985,7 +985,7 @@ export async function khoiPhuTungXe(hs, veLai, cho) {
   const giaVon = px.reduce((s, p) => s + Number(p.gia_von), 0);
   return h('div', { class: 'khoi-phu-tung' },
     h('div', { class: 'the-dau' }, h('h3', null, 'Cấp phụ tùng, vật tư'),
-      duocDeXuat ? h('button', { class: 'nut', type: 'button', onclick: () => moLapDeXuat(hs, veLai) }, '+ Đề xuất vật tư') : null),
+      duocDeXuat ? h('button', { class: 'nut noi-bat', type: 'button', onclick: () => moLapDeXuat(hs, veLai) }, '+ Đề xuất vật tư') : null),
     cho ? h('p', { class: 'thong-bao canh-bao' }, `Chờ phụ tùng ${cho.so_ngay} ngày (từ ${ngay(cho.tu_ngay)}).`) : null,
     dx.length ? bang([
       { nhan: 'Phiếu', lay: (r) => h('b', null, r.ma) },
