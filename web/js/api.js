@@ -261,7 +261,9 @@ export async function taiNhieu(files, buoc, taiMot, { toiDa = 3, tienDo = null }
 }
 
 // Ảnh và biên bản: tải lên kho 'ho-so-xe' rồi ghi nhận vào hồ sơ
-export async function taiTep(hoSo, buoc, file, loai = 'anh') {
+// 055: lyDo – quản lý chung / giám đốc tải vào bước đã khóa (máy chủ bắt lý do, ghi nhật ký). Không có lý do thì không gửi
+// tham số này (CSDL chưa có 055 vẫn chạy).
+export async function taiTep(hoSo, buoc, file, loai = 'anh', lyDo = null) {
   const duongDan = `${hoSo.chi_nhanh_id}/${hoSo.ma}/${buoc}-${tenLuu(file)}`;
   const kho = sb.storage.from('ho-so-xe');
   // 052: ảnh thu nhỏ làm và tải lên cùng lúc với ảnh chính (trước: xong ảnh chính mới bắt đầu). Lỗi ảnh nhỏ thì bỏ qua,
@@ -272,7 +274,7 @@ export async function taiTep(hoSo, buoc, file, loai = 'anh') {
   const { error } = await kho.upload(duongDan, file, { upsert: false });
   await anhNho;
   if (error) throw loi(error);
-  return rpc('them_tep', { p_ho_so: hoSo.id, p_buoc: buoc, p_loai: loai, p_duong_dan: duongDan });
+  return rpc('them_tep', { p_ho_so: hoSo.id, p_buoc: buoc, p_loai: loai, p_duong_dan: duongDan, ...(lyDo ? { p_ly_do: lyDo } : {}) });
 }
 // Lấy link cho nhiều tệp một lần: { duong_dan: { lon, nho } }. Ảnh cũ chưa có bản nhỏ thì nho = lon.
 export async function linkTepNhieu(dsDuongDan) {

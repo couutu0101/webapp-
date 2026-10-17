@@ -10,7 +10,7 @@ import * as api from '../api.js';
 import { ghiTiep, tuGhiNgayKhiBam, nhacHetHan, layLichSu, khoiLichSu } from './lich-su-xe.js';
 import { khungChonBaoHiem } from '../chon-bao-hiem.js';
 import { duocDetailing, detailingDat, moDetailingTraVe } from '../detailing.js';
-import { khungAnhNhanXe, anhNhanXeThieu, coFileBaoGiaMoi, coFileDuyetMoi, soAnhKcs, SO_ANH_KCS, NHAN_BUOC_MOI, NHAN_GIAY_TO_XE, ANH_NHAN_XE, taiVaoBuoc, oDinhKem } from '../anh-bat-buoc.js';
+import { khungAnhNhanXe, anhNhanXeThieu, coFileBaoGiaMoi, coFileDuyetMoi, soAnhKcs, SO_ANH_KCS, NHAN_BUOC_MOI, NHAN_GIAY_TO_XE, ANH_NHAN_XE, taiVaoBuoc, oDinhKem, buocTepMo, duocMoKhoa, hoiLyDoMoKhoa } from '../anh-bat-buoc.js';
 
 const TT_DONG = { cho_duyet: 'Chờ duyệt', duyet: 'Đã duyệt', tu_choi: 'Không duyệt', dang_lam: 'Đang làm', xong: 'Xong' };
 const BUOC_TEP = { tiep_nhan: 'Nhận xe', ...NHAN_BUOC_MOI, duyet_gia: 'Giám định / duyệt giá / HĐ 3 bên', phat_sinh: 'Phát sinh', huy_vat_tu: 'Hủy vật tư (bảo hiểm)', kcs: 'Sau sửa (KCS)', giao_xe: 'Giao xe', ho_so_bh: 'Hồ sơ bảo hiểm', giay_to_xe: NHAN_GIAY_TO_XE, khac: 'Khác' };
@@ -19,6 +19,9 @@ export default async function trangChiTiet(el, idChu) {
   const id = Number(idChu);
   // Lưu xong bất kỳ thao tác nào: về danh sách Hồ sơ xe; lỗi thì vẽ lại trang để thấy dữ liệu mới nhất
   let hsDangXem = { id, ma: '' };
+  // 17/10 (anh Thuận): mở hồ sơ chỉ hiện BƯỚC ĐANG LÀM (+ Thông tin xe và khách, Tiền); nút "Hiện tất cả công đoạn".
+  // Mỗi lần mở hồ sơ đều gọn; trong lúc đang xem (lưu xong vẽ lại) thì giữ lựa chọn.
+  let hienTatCa = !!window.__HIEN_TAT_CA;   // móc kiểm thử: bộ thử cũ mở hồ sơ là thấy đủ các thẻ
   const ve = () => veDanhSachHoSo(hsDangXem);
   const veLai = ve.lai = async () => {
     const [hs, hm, nk, tep, ps, dsKcs, dsDet, [viec], [gv], [cho], tb] = await Promise.all([
@@ -31,17 +34,53 @@ export default async function trangChiTiet(el, idChu) {
       api.laNhanVien() ? api.thongBaoHoSo(id).catch(() => []) : []]);
     if (!hs) { dat(el, h('p', { class: 'trong' }, 'Không tìm thấy hồ sơ, hoặc bạn không có quyền xem.')); return; }
     hsDangXem = hs;
-    const ctx = { hs, hm, nk, tep, ps, dsKcs, dsDet, ve, viec, giaVon: Number(gv?.gia_von || 0), cho, tb: Array.isArray(tb) ? tb : [] };
+    veTrang({ hs, hm, nk, tep, ps, dsKcs, dsDet, ve, viec, giaVon: Number(gv?.gia_von || 0), cho, tb: Array.isArray(tb) ? tb : [] });
+  };
+  // Vẽ trang từ dữ liệu đã tải (bấm "Hiện tất cả công đoạn" chỉ vẽ lại, không tải lại)
+  const veTrang = (ctx) => {
+    const hien = phanCuaBuoc(ctx);
+    const chon = (ten, fn) => (hienTatCa || !hien || hien.has(ten) ? fn(ctx) : null);
+    const trai = [['thong_tin', theThongTin], ['anh_nhan_xe', theAnhNhanXe], ['bao_gia', theBaoGia], ['sua_chua', theSuaChua],
+      ['huy_vat_tu', theHuyVatTu], ['detailing', theDetailing], ['kcs', theKcs], ['giao_xe', theGiaoXe], ['ho_so_bh', theHoSoBH], ['cham_soc', theChamSoc]];
+    const phai = [['tien', theTien], ['tep', theTep], ['thong_bao', theThongBao], ['nhat_ky', theNhatKy]];
+    const nutHien = hien
+      ? h('div', { class: 'hien-tat-ca' }, h('button', { class: 'nut noi-bat', type: 'button', 'data-hien-tat-ca': hienTatCa ? '1' : '0',
+          'aria-expanded': String(hienTatCa), onclick: () => { hienTatCa = !hienTatCa; veTrang(ctx); } },
+        hienTatCa ? 'Chỉ hiện bước đang làm' : 'Hiện tất cả công đoạn'))
+      : null;
     dat(el, 
-      dau(ctx), theTienDo(ctx, veLai),
+      dau(ctx), theTienDo(ctx, veLai), nutHien,
       h('div', { class: 'cot-doi' },
-        h('div', null, theThongTin(ctx), theAnhNhanXe(ctx), theBaoGia(ctx), theSuaChua(ctx), theHuyVatTu(ctx), theDetailing(ctx), theKcs(ctx), theGiaoXe(ctx), theHoSoBH(ctx), theChamSoc(ctx)),
-        h('div', null, theTien(ctx), theTep(ctx), theThongBao(ctx), theNhatKy(ctx))));
+        h('div', null, trai.map(([ten, fn]) => chon(ten, fn))),
+        h('div', null, phai.map(([ten, fn]) => chon(ten, fn)))));
   };
   await veLai();
 }
 
 const q = (...ds) => api.coVaiTro(...ds);
+
+// Các phần hiện khi xem gọn, theo bước đang chờ (buocXe). null = hiện tất cả (hồ sơ hủy, đã xong cả 10 bước, chuyển từ Excel).
+function phanCuaBuoc({ hs, hm, ps, tep }) {
+  const { dang } = buocXe(hs);
+  if (!dang) return null;
+  const s = new Set(['thong_tin', 'tien']);
+  const thieuAnh = hs.bat_buoc_anh && anhNhanXeThieu(tep).length > 0;
+  if (dang <= 3) { s.add('bao_gia'); if (thieuAnh || dang === 1) s.add('anh_nhan_xe'); }
+  else if (dang <= 5) {
+    s.add('sua_chua');
+    // đang sửa mà có phát sinh chờ xử lý / dòng chờ duyệt: cần thẻ báo giá (báo giá bổ sung, duyệt bổ sung)
+    if (ps.some((p) => !p.da_xu_ly) || hm.some((m) => m.trang_thai === 'cho_duyet')) s.add('bao_gia');
+    if (thieuAnh) s.add('anh_nhan_xe');
+  } else if (dang === 6) s.add('detailing');
+  else if (dang === 7) s.add('kcs');
+  else if (dang === 8) { s.add('giao_xe'); s.add('tep'); }
+  // Sau giao xe các việc chạy song song (036): gửi hồ sơ BH / thu nợ BH / hoa hồng GDV (kế toán) và chăm sóc (quản lý chung)
+  else if (dang === 9) { s.add('ho_so_bh'); s.add('cham_soc'); s.add('tep'); }
+  else if (dang === 10) { s.add('cham_soc'); s.add('ho_so_bh'); }
+  // Ảnh hủy vật tư (xe bảo hiểm) chụp được từ lúc thay phụ tùng tới khi gửi hồ sơ BH → hiện suốt bước 4 – 9 (thẻ tự ẩn với xe khác)
+  if (dang >= 4 && dang <= 9) s.add('huy_vat_tu');
+  return s;
+}
 // kieu: true = nút chính của thẻ (vàng đặc); 'noi-bat' = nút quan trọng loại 2 (nền vàng nhạt, viền vàng đậm – "+ Thêm dòng", tải ảnh…)
 const nut = (nhan, onclick, kieu = false) => h('button', { class: `nut ${kieu === true ? 'chinh' : kieu || ''}`.trim(), type: 'button', onclick }, nhan);
 
@@ -991,20 +1030,33 @@ function theTep({ hs, tep, ve }) {
         h('small', null, BUOC_TEP[t.buoc] || t.buoc)));
     }
   })();
-  const chonBuoc = oChon('buoc', Object.entries(BUOC_TEP).map(([value, label]) => ({ value, label })),
-    { tiep_nhan: 'tiep_nhan', bao_gia: 'duyet_gia', da_duyet: 'duyet_gia', dang_sua: 'phat_sinh', cho_detailing: 'kcs', cho_kcs: 'kcs', dat_kcs: 'giao_xe', da_giao: 'ho_so_bh' }[hs.trang_thai] || 'khac',
-    { trong: null, 'aria-label': 'Ảnh của bước' });
+  // 055: chỉ chọn được bước còn mở (hồ sơ đã qua bước thì ảnh bước đó khóa); quản lý chung / giám đốc thấy cả bước đã
+  // khóa (ghi "đã khóa"), chọn thì phải ghi lý do trước khi tải
+  const moKhoa = duocMoKhoa();
+  const dsBuoc = Object.entries(BUOC_TEP).map(([value, label]) => ({ value, label, mo: buocTepMo(hs, value, tep) }))
+    .filter((b) => b.mo || moKhoa)
+    .map((b) => ({ value: b.value, label: b.mo ? b.label : `${b.label} (đã khóa)` }));
+  const goiYBuoc = { tiep_nhan: 'tiep_nhan', bao_gia: 'duyet_gia', da_duyet: 'duyet_gia', dang_sua: 'phat_sinh', cho_detailing: 'kcs', cho_kcs: 'kcs', dat_kcs: 'giao_xe', da_giao: 'ho_so_bh', da_gui_hs: 'ho_so_bh' }[hs.trang_thai];
+  const chonBuoc = oChon('buoc', dsBuoc, buocTepMo(hs, goiYBuoc, tep) ? goiYBuoc : 'khac', { trong: null, 'aria-label': 'Ảnh của bước' });
   const oTep = h('input', { type: 'file', accept: 'image/*,application/pdf', multiple: true, 'aria-label': 'Chọn ảnh hoặc tệp' });
   const dangTai = h('small', { class: 'goi-y', role: 'status', 'aria-live': 'polite' });
-  oTep.addEventListener('change', async () => {
-    const ds = [...oTep.files]; const buoc = chonBuoc.value;
-    if (!ds.length) return;
+  const taiLen = async (ds, buoc, lyDo) => {
     oTep.disabled = true; chonBuoc.disabled = true; dangTai.textContent = `Đang tải 0/${ds.length}…`;
-    const kq = await api.taiNhieu(ds, buoc, (f, goc) => api.taiTep(hs, buoc, f, goc.type === 'application/pdf' ? 'bien_ban' : 'anh'),
+    const kq = await api.taiNhieu(ds, buoc, (f, goc) => api.taiTep(hs, buoc, f, goc.type === 'application/pdf' ? 'bien_ban' : 'anh', lyDo),
       { tienDo: (n, t) => { dangTai.textContent = `Đang tải ${n}/${t}…`; } });
     oTep.value = ''; oTep.disabled = false; chonBuoc.disabled = false; dangTai.textContent = '';
     for (const x of kq.loi) toast(`Không tải được ${x.ten}: ${x.e?.message || x.e}`, 'loi');
     if (kq.xong) { toast(`Đã tải ${kq.xong} tệp.`); ve(); }
+  };
+  oTep.addEventListener('change', async () => {
+    const ds = [...oTep.files]; const buoc = chonBuoc.value;
+    if (!ds.length) return;
+    if (!buocTepMo(hs, buoc, tep)) {
+      hoiLyDoMoKhoa((BUOC_TEP[buoc] || buoc).toLowerCase(), (lyDo) => { taiLen(ds, buoc, lyDo); });
+      oTep.value = '';
+      return;
+    }
+    await taiLen(ds, buoc, null);
   });
   return h('section', { class: 'the' }, h('h2', null, `Ảnh & giấy tờ (${tep.length})`),
     !api.laCoDong() && (!['dong', 'huy'].includes(hs.trang_thai) || q('ke_toan', 'giam_doc'))

@@ -194,6 +194,7 @@ export function bienSo(raw, { lon = false, maThay = '' } = {}) {
 
 // ---------- Biểu tượng (SVG nét, 24px) ----------
 const ICON = {
+  khoa: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
   viec: '<path d="M9 4h6v3H9z"/><path d="M15 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/>',
   xe: '<path d="M5 16V11l2-5h10l2 5v5"/><path d="M3 16h18v3H3z"/><path d="M5 11h14"/><circle cx="7.5" cy="19.5" r="1.5"/><circle cx="16.5" cy="19.5" r="1.5"/>',
   nhanh: '<path d="M13 3 5 14h6l-1 7 8-11h-6z"/>',

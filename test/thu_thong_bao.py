@@ -47,7 +47,7 @@ def sql(cau):
 def mo(browser, email, rong=1280, cao=900, hoi_ms=600, tat_tb=False):
     ctx = browser.new_context(viewport={'width': rong, 'height': cao}, locale='vi-VN')
     ctx.add_init_script(MOD_JS)
-    ctx.add_init_script(f'window.__HOI_TB_MS = {hoi_ms};' + (' window.__TAT_THONG_BAO = true;' if tat_tb else ''))
+    ctx.add_init_script(f'window.__HOI_TB_MS = {hoi_ms}; window.__HIEN_TAT_CA = true;' + (' window.__TAT_THONG_BAO = true;' if tat_tb else ''))
     page = ctx.new_page()
     page.route(re.compile(r'.*supabase-js@2\.45\.4/\+esm$'), lambda r: r.fulfill(status=200, content_type='application/javascript', body=GIA))
     page.route(re.compile(r'.*/test-anh\.svg(\?.*)?$'), lambda r: r.fulfill(status=200, content_type='image/svg+xml', body=SVG))

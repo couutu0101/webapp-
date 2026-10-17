@@ -169,6 +169,8 @@ details.the > summary h2 { display: inline; margin: 0; }
 .dang-tai { color: var(--muc-phu); padding: var(--k5) 0; }
 .thong-bao { background: var(--xanh-nhat); border-left: 4px solid var(--xanh); border-radius: 0 var(--bo) var(--bo) 0; padding: 10px 14px; margin: var(--k2) 0; font-size: .92rem; }
 .thong-bao.canh-bao { background: var(--cam-nhat); border-left-color: var(--cam); color: #4d2c00; }
+.hien-tat-ca { display: flex; justify-content: center; margin: calc(-1 * var(--k2)) 0 var(--k3); }
+.hien-tat-ca .nut { min-width: min(100%, 320px); max-width: 100%; white-space: normal; text-wrap: balance; }
 .cot-doi { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(300px, 1fr); gap: var(--k4); align-items: start; }
 @media (max-width: 1080px) { .cot-doi { grid-template-columns: 1fr; } }
 
@@ -874,6 +876,11 @@ label.o-anh-buoc:focus-within { outline: 3px solid var(--lien-ket); outline-offs
 .o-anh-buoc.du .o-anh-buoc-tt { color: var(--tot); }
 .o-anh-buoc.thieu, .chon-tep.thieu { border-color: var(--loi); border-style: solid; background: var(--loi-nhat); }
 .o-anh-buoc.thieu .o-anh-buoc-tt { color: var(--loi); }
+/* 055: ảnh đã khóa (hồ sơ đã qua bước) – viền liền xám, chữ "Đã khóa" có ổ khóa; QL / GĐ có nút "Thay ảnh" */
+.o-anh-buoc.khoa { border-style: solid; border-color: var(--vien-dam); background: var(--mat-lom); }
+.o-anh-buoc.khoa .o-anh-buoc-tt { color: var(--muc-phu); display: inline-flex; align-items: center; gap: 2px; }
+.o-anh-buoc.khoa .o-anh-buoc-tt .ic svg { width: 14px; height: 14px; }
+.o-anh-buoc-thay { align-self: flex-start; margin-top: 2px; }
 .chon-tep.bb { border-left: 4px solid var(--vang); }
 .khoi-dinh-kem { margin-top: var(--k4); }
 .dem-anh-kcs { display: flex; flex-wrap: wrap; align-items: center; gap: var(--k2) var(--k3); margin: var(--k2) 0; }

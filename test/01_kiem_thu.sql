@@ -2549,6 +2549,83 @@ select kt.mong_loi('054 Tài khoản đã làm việc thật (trưởng nhóm đ
   format($$select public.xoa_tai_khoan_nhan_vien(%L)$$, (select id from public.nhan_vien where email = 'han@gara.vn')), 'đã có dữ liệu');
 select kt.dong_vai(null);
 
+-- =====================================================================
+-- 055: KHÓA ẢNH THEO BƯỚC – qua bước thì ảnh bước đó khóa; quản lý chung / giám đốc thay được khi ghi lý do
+-- =====================================================================
+create or replace function kt.ma55(p_hs bigint) returns text language sql security definer as $$ select ma from public.ho_so where id = p_hs $$;
+grant execute on function kt.ma55(bigint) to authenticated;
+create or replace function kt.tep55(p_hs bigint, p_buoc text, p_ly_do text default null) returns bigint language plpgsql as $$
+begin
+  return public.them_tep(p_hs, p_buoc, 'anh', 'TK/' || kt.ma55(p_hs) || '/' || p_buoc || '-55-' || clock_timestamp()::text || '.jpg', p_ly_do);
+end $$;
+grant execute on function kt.tep55(bigint, text, text) to authenticated;
+select kt.dong_vai('duy@gara.vn');
+insert into ctx select 'hs55', (public.tiep_nhan_xe(jsonb_build_object('bien_so','51A-055.55','ten_khach','Khách 055','dien_thoai','0909055055',
+  'dong_xe_id',(select id from public.dong_xe where ten='VF3'),'nguon_tt','khach','tinh_trang_xe','Trầy cửa','tu_van','Không','so_km',5500,'bat_buoc_km',true,
+  'bat_buoc_anh',true,'bo_qua_canh_bao',true)))->>'id';
+select kt.tep55((select v::bigint from ctx where k='hs55'), b) from unnest(array['nx_truoc','nx_sau','nx_trai','nx_phai','nt_truoc']) b;
+select kt.tep55((select v::bigint from ctx where k='hs55'), 'nx_trai');
+select kt.ghi('055 Đang tiếp nhận: CVDV thay ảnh nhận xe được (ô bên trái có 2 ảnh)',
+  (select count(*) from public.ho_so_tep where ho_so_id = (select v::bigint from ctx where k='hs55') and buoc = 'nx_trai') = 2);
+select kt.tep55((select v::bigint from ctx where k='hs55'), 'nt_sau');
+select kt.tep55((select v::bigint from ctx where k='hs55'), 'bao_gia');
+select public.lap_bao_gia((select v::bigint from ctx where k='hs55'), '[{"ten":"Sơn cửa","nhom":"son","gia_bao":1200000}]', 0.08);
+select kt.mong_loi('055 Qua báo giá: CVDV THAY ảnh nhận xe đã có bị chặn',
+  format($$select kt.tep55(%s, 'nx_trai')$$, (select v from ctx where k='hs55')), 'đã khóa');
+select kt.mong_loi('055 Bước đã qua: tải ảnh nhận xe kiểu cũ vào hồ sơ đã có ảnh cũng bị chặn (gọi 4 tham số như giao diện cũ)',
+  format($$select public.them_tep(%s, 'nx_truoc', 'anh', 'TK/%s/nx_truoc-cu.jpg')$$, (select v from ctx where k='hs55'),
+    (select ma from public.ho_so where id = (select v::bigint from ctx where k='hs55'))), 'đã khóa');
+select kt.ghi('055 Báo giá bổ sung / ảnh báo giá vẫn tải được khi đang ở các bước sửa (bao_gia mở)',
+  kt.tep55((select v::bigint from ctx where k='hs55'), 'bao_gia') > 0);
+select kt.ghi('055 Giấy tờ xe và tệp khác không khóa', kt.tep55((select v::bigint from ctx where k='hs55'), 'giay_to_xe') > 0
+  and kt.tep55((select v::bigint from ctx where k='hs55'), 'khac') > 0);
+select kt.dong_vai('long@gara.vn');
+select kt.mong_loi('055 Quản lý chung thay ảnh đã khóa mà không ghi lý do → bị chặn',
+  format($$select kt.tep55(%s, 'nx_trai')$$, (select v from ctx where k='hs55')), 'ghi lý do');
+select kt.tep55((select v::bigint from ctx where k='hs55'), 'nx_trai', 'Chụp nhầm xe khác');
+select kt.dong_vai(null);
+select kt.ghi('055 Quản lý chung thay ảnh đã khóa có lý do: lưu lý do ở tệp + nhật ký hồ sơ',
+  exists (select 1 from public.ho_so_tep where ho_so_id = (select v::bigint from ctx where k='hs55') and buoc = 'nx_trai' and ly_do_mo_khoa = 'Chụp nhầm xe khác')
+  and exists (select 1 from public.ho_so_nhat_ky where ho_so_id = (select v::bigint from ctx where k='hs55') and ghi_chu like '%nhận xe – bên trái khi đã khóa – lý do: Chụp nhầm xe khác%'));
+select kt.dong_vai('duy@gara.vn');
+insert into ctx select 'tep55', kt.tep55((select v::bigint from ctx where k='hs55'), 'khac', 'thử')::text;
+select kt.ghi('055 Tệp tải vào bước còn mở không lưu lý do (lý do gửi kèm bị bỏ)',
+  (select ly_do_mo_khoa is null from public.ho_so_tep where id = (select v::bigint from ctx where k='tep55')));
+select public.lap_lenh_sua_chua((select v::bigint from ctx where k='hs55'), now() + interval '1 day',
+  (select jsonb_agg(jsonb_build_object('id',id,'to_id','DS')) from public.hang_muc where ho_so_id=(select v::bigint from ctx where k='hs55')));
+select kt.dong_vai('han@gara.vn');
+select kt.ghi('055 Đang sửa: trưởng nhóm tải ảnh phát sinh được', kt.tep55((select v::bigint from ctx where k='hs55'), 'phat_sinh') > 0);
+select kt.mong_loi('055 Trưởng nhóm không thay ảnh nhận xe đã khóa (không phải QL / GĐ)',
+  format($$select kt.tep55(%s, 'nx_truoc', 'thử')$$, (select v from ctx where k='hs55')), 'đã khóa');
+select kt.dong_vai('duy@gara.vn');
+select kt.mong_loi('055 Ảnh giao xe chưa tới bước giao: bị chặn',
+  format($$select kt.tep55(%s, 'giao_xe')$$, (select v from ctx where k='hs55')), 'đã khóa');
+select kt.ghi('055 Ảnh sau sửa (KCS) tải được khi đang sửa', kt.tep55((select v::bigint from ctx where k='hs55'), 'kcs') > 0);
+select kt.dong_vai(null);
+-- Đưa hồ sơ tới "Đạt KCS – chờ giao" (giả lập) rồi kiểm khóa ảnh KCS / phát sinh, mở ảnh giao xe
+update public.ho_so set trang_thai = 'dat_kcs' where id = (select v::bigint from ctx where k='hs55');
+select kt.dong_vai('duy@gara.vn');
+select kt.mong_loi('055 KCS đạt: ảnh KCS khóa', format($$select kt.tep55(%s, 'kcs')$$, (select v from ctx where k='hs55')), 'Ảnh KCS đã khóa');
+select kt.mong_loi('055 KCS đạt: ảnh phát sinh khóa', format($$select kt.tep55(%s, 'phat_sinh')$$, (select v from ctx where k='hs55')), 'đã khóa');
+select kt.mong_loi('055 KCS đạt: ảnh báo giá khóa', format($$select kt.tep55(%s, 'bao_gia')$$, (select v from ctx where k='hs55')), 'đã khóa');
+select kt.ghi('055 Chờ giao xe: tải ảnh giao xe được', kt.tep55((select v::bigint from ctx where k='hs55'), 'giao_xe') > 0);
+select kt.dong_vai(null);
+update public.ho_so set trang_thai = 'da_giao', giao_luc = now() - interval '2 day' where id = (select v::bigint from ctx where k='hs55');
+select kt.dong_vai('duy@gara.vn');
+select kt.mong_loi('055 Giao xe từ hôm trước: ảnh giao xe khóa', format($$select kt.tep55(%s, 'giao_xe')$$, (select v from ctx where k='hs55')), 'đã khóa');
+select kt.dong_vai(null);
+update public.ho_so set giao_luc = now() where id = (select v::bigint from ctx where k='hs55');
+select kt.dong_vai('duy@gara.vn');
+select kt.ghi('055 Trong ngày giao xe: vẫn bổ sung ảnh giao xe được', kt.tep55((select v::bigint from ctx where k='hs55'), 'giao_xe') > 0);
+select kt.dong_vai('thuan@gara.vn');
+select kt.ghi('055 Giám đốc tải ảnh KCS khi đã khóa (có lý do) được', kt.tep55((select v::bigint from ctx where k='hs55'), 'kcs', 'Bổ sung ảnh còn thiếu') > 0);
+select kt.dong_vai('codong@gara.vn');
+select kt.mong_loi('055 Cổ đông không tải ảnh', format($$select kt.tep55(%s, 'khac')$$, (select v from ctx where k='hs55')), 'không có quyền');
+select kt.dong_vai(null);
+select kt.ghi('055 Hàm kiểm khóa: hồ sơ hủy khóa mọi bước, giấy tờ xe mở ở mọi trạng thái khác',
+  not app.buoc_tep_mo('huy', 'khac', false, null) and app.buoc_tep_mo('dong', 'giay_to_xe', true, null)
+  and app.buoc_tep_mo('dang_sua', 'nx_trai', false, null) and not app.buoc_tep_mo('dang_sua', 'nx_trai', true, null));
+
 \o
 \echo '======== KẾT QUẢ ========'
 select stt, case when dat then 'ĐẠT ' else 'LỖI ' end as kq, ten, left(coalesce(chi_tiet,''), 140) as chi_tiet from kt.ket_qua order by stt;
