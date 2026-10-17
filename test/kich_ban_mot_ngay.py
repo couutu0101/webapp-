@@ -147,6 +147,16 @@ def mo_menu(page):
     return nut
 
 
+
+def lenh_giao_viec(m, anh):
+    """056: hộp lệnh sửa chữa theo tổ – tổ chưa có người thì chọn Hận (trưởng nhóm Đồng sơn), kèm ảnh lệnh."""
+    for sel in m.locator('select[data-nguoi-to]').all():
+        if not sel.input_value():
+            sel.select_option(sel.locator('option', has_text='Hận').first.get_attribute('value'))
+    m.locator('.khoi-dinh-kem input[type=file]').set_input_files(anh)
+    m.locator('text=Giao việc').click()
+
+
 with sync_playwright() as p:
     b = p.chromium.launch()
     T = time.time
@@ -206,19 +216,19 @@ with sync_playwright() as p:
     m.locator('select[name=hang_bh_id]').select_option(label='Tasco')
     m.locator('select[name=gdv_id]').select_option(label='Hảo (Tasco)')
     m.locator('.khoi-dinh-kem input[type=file]').set_input_files(ANH[6])
-    m.locator('tbody tr').nth(2).locator('input.o-tien').fill('3900000')
+    m.locator('[name=bao_hiem]').fill('8000000'); m.locator('[name=bao_hiem]').dispatch_event('input')
     a = chup(duy, '04-duy-nhap-duyet-gia', 'Duy (CVDV)')
     m.locator('text=Lưu kết quả').click()
-    toast(duy, 'khách chi trả')
-    ghi('Duy (CVDV)', 'Nhập kết quả duyệt giá: Tasco, GDV Hảo, ảnh biên bản duyệt, đèn hậu duyệt 3.900.000', T() - t0, a)
+    toast(duy, 'khách thanh toán')
+    ghi('Duy (CVDV)', 'Nhập kết quả duyệt giá (056: chỉ 2 ô): Tasco, GDV Hảo, ảnh biên bản duyệt, bảo hiểm thanh toán 8.000.000, khách 0', T() - t0, a)
     ve_ho_so(duy, id_bh)
     t0 = T()
     duy.locator('button', has_text='Lập lệnh sửa chữa').click()
     m = modal(duy)
     a = chup(duy, '05-duy-lenh-sua-chua', 'Duy (CVDV)')
-    m.locator('text=Giao việc').click()
+    lenh_giao_viec(m, ANH[7])
     toast(duy, 'Đã giao việc')
-    ghi('Duy (CVDV)', 'Lập lệnh sửa chữa: đồng–sơn–phụ tùng cho tổ Đồng sơn, đánh bóng cho tổ Detailing', T() - t0, a)
+    ghi('Duy (CVDV)', 'Lập lệnh sửa chữa (056: theo tổ, người thực hiện theo tài khoản, ảnh lệnh): đồng–sơn → Đồng sơn, phụ tùng → ĐMG (giao Hận), đánh bóng → Detailing', T() - t0, a)
 
     # Xe khách lẻ: thay dầu, không qua Detailing
     ve(duy, '#/ho-so/moi')
@@ -250,7 +260,7 @@ with sync_playwright() as p:
     toast(duy, 'Đã lưu báo giá')
     ve_ho_so(duy, id_le)
     duy.locator('button', has_text='Lập lệnh sửa chữa').click()
-    modal(duy).locator('text=Giao việc').click()
+    lenh_giao_viec(modal(duy), ANH[7])
     toast(duy, 'Đã giao việc')
     ve_ho_so(duy, id_le)
     a = chup(duy, '06-duy-xe-le-dang-sua', 'Duy (CVDV)')
@@ -339,10 +349,10 @@ with sync_playwright() as p:
     m = modal(duy)
     m.locator('.khoi-dinh-kem input[type=file]').set_input_files(ANH[6])
     m.locator('text=Lưu kết quả').click()
-    toast(duy, 'khách chi trả')
+    toast(duy, 'khách thanh toán')
     ve_ho_so(duy, id_bh)
     duy.locator('button', has_text='Giao thêm cho tổ').click()
-    modal(duy).locator('text=Giao việc').click()
+    lenh_giao_viec(modal(duy), ANH[7])
     toast(duy, 'Đã giao việc')
     ghi('Duy (CVDV)', 'Phát sinh: báo giá bổ sung pát cản (kèm ảnh) → nhập duyệt bổ sung (kèm ảnh) → giao thêm tổ Đồng sơn', T() - t0, a)
     ve(han, '#/')

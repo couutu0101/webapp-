@@ -31,7 +31,8 @@ const BANG_THEO_CHI_NHANH = new Set([
   'de_nghi_mua', 'v_de_nghi_mua', 'de_xuat_vat_tu', 'v_de_xuat', 'hang_kho', 'lo_kho', 'v_ton_kho', 'v_the_kho',
   'phieu_nhap', 'v_phieu_nhap', 'phieu_xuat', 'v_phieu_xuat', 'kiem_ke', 'kiem_quy', 'v_so_du_quy', 'v_cong_no_ncc',
   'v_cong_no_noi_bo', 'v_doanh_thu', 'v_canh_bao', 'bang_luong_thang', 'chot_thang', 'chot_thang_lich_su',
-  'tai_san', 'v_tai_san', 'kiem_tra_tai_san', 'su_co_tai_san', 'v_viec_tai_san', 'v_nhom_tai_san', 'nhat_ky_xuat_file']);
+  'tai_san', 'v_tai_san', 'kiem_tra_tai_san', 'su_co_tai_san', 'v_viec_tai_san', 'v_nhom_tai_san', 'nhat_ky_xuat_file',
+  'de_nghi_dieu_chinh', 'v_de_nghi_dieu_chinh']);
 // doc('v_ho_so', q => q.eq('id', 5).single())
 export async function doc(bang, tuyChinh = (q) => q, cot = '*') {
   let q = sb.from(bang).select(cot);
@@ -180,7 +181,8 @@ export const giaoViec = (id, nguoi) => rpc('giao_viec', { p_ho_so: id, p_nguoi: 
 export const xoaHangMuc = (id) => rpc('xoa_hang_muc', { p_id: id });
 // Duyệt giá + chia công nợ BH / khách (020): khachTra = tổng khách chi trả (có VAT), null = giữ như cũ
 export const duyetGiaChia = (id, ngay, ketQua, khachTra) => rpc('duyet_gia_chia', { p_ho_so: id, p_ngay: ngay, ket_qua: ketQua, p_khach_tra: khachTra });
-export const lapLenh = (id, henGiao, phanCong) => rpc('lap_lenh_sua_chua', { p_ho_so: id, p_hen_giao: henGiao, phan_cong: phanCong });
+// 056: batBuocAnh – giao diện mới bắt ảnh lệnh sửa chữa (CSDL chưa có 056 thì không gửi tham số này)
+export const lapLenh = (id, henGiao, phanCong, batBuocAnh = false) => rpc('lap_lenh_sua_chua', { p_ho_so: id, p_hen_giao: henGiao, phan_cong: phanCong, ...(batBuocAnh ? { p_bat_buoc_anh: true } : {}) });
 export const baoXong = (hangMucId) => rpc('bao_xong_hang_muc', { p_id: hangMucId });
 export const baoPhatSinh = (id, moTa) => rpc('bao_phat_sinh', { p_ho_so: id, p_mo_ta: moTa });
 // 045: máy chủ trả xe của mọi chi nhánh cho giám đốc → chỉ giữ chi nhánh đang chọn
@@ -222,6 +224,12 @@ export const nhapHoaHong = (id, soTien, ghiChu, boQua) =>
 export const ghiChamSoc = (id, ketQua, henBD) => rpc('ghi_cham_soc', { p_ho_so: id, p_ket_qua: ketQua, p_hen_bao_duong: henBD });
 // 041: boQua = false → máy chủ hỏi lại (CANH_BAO) nếu hồ sơ đã thu cọc; dùng với chay()
 export const huyHoSo = (id, lyDo, boQua = false) => rpc('huy_ho_so', { p_ho_so: id, p_ly_do: lyDo, p_bo_qua_canh_bao: !!boQua });
+// 056: giám đốc hủy mọi bước; duyệt giá xe BH bằng 2 số; chỉnh công nợ theo thực thu
+export const huyHoSoGiamDoc = (id, lyDo, doanhThu, traKho, boQua = false) =>
+  rpc('huy_ho_so_giam_doc', { p_ho_so: id, p_ly_do: lyDo, p_doanh_thu: doanhThu, p_tra_kho: traKho || [], p_bo_qua_canh_bao: !!boQua });
+export const duyetGiaTong = (id, ngay, baoHiem, khach) => rpc('duyet_gia_tong', { p_ho_so: id, p_ngay: ngay, p_bao_hiem: baoHiem, p_khach: khach });
+export const duyetDieuChinh = (id, dongY, lyDo = null) => rpc('duyet_dieu_chinh_cong_no', { p_id: id, p_dong_y: dongY, p_ly_do: lyDo });
+export const layDieuChinh = (hoSoId) => doc('v_de_nghi_dieu_chinh', (q) => (hoSoId ? q.eq('ho_so_id', hoSoId) : q.eq('trang_thai', 'cho_duyet')).order('id', { ascending: false }));
 // 041: phát sinh không cần làm thêm; hồ sơ bảo hành thêm hạng mục miễn phí
 export const xuLyPhatSinh = (id, ghiChu) => rpc('xu_ly_phat_sinh', { p_ho_so: id, p_ghi_chu: ghiChu });
 export const themHangMucBaoHanh = (id, dong) => rpc('them_hang_muc_bao_hanh', { p_ho_so: id, p_dong: dong });
@@ -231,8 +239,10 @@ export const layHoSo = async (id) => {
   const hs = (await doc('v_ho_so', (q) => q.eq('id', id)))[0] ?? null;
   if (!hs) return hs;
   // 047: cờ bắt ảnh / file và lúc lưu báo giá gần nhất (cột ở bảng ho_so; vai không đọc được bảng thì coi như không bắt)
-  const [x] = await doc('ho_so', (q) => q.eq('id', id), 'bat_buoc_anh,bao_gia_luc').catch(() => []);
-  return { ...hs, bat_buoc_anh: !!x?.bat_buoc_anh, bao_gia_luc: x?.bao_gia_luc || null };
+  // 056: cờ hủy theo thỏa thuận (CSDL chưa có 056 thì đọc lại kiểu cũ)
+  const [x] = await doc('ho_so', (q) => q.eq('id', id), 'bat_buoc_anh,bao_gia_luc,huy_thoa_thuan,huy_luc')
+    .catch(() => doc('ho_so', (q) => q.eq('id', id), 'bat_buoc_anh,bao_gia_luc')).catch(() => []);
+  return { ...hs, bat_buoc_anh: !!x?.bat_buoc_anh, bao_gia_luc: x?.bao_gia_luc || null, huy_thoa_thuan: !!x?.huy_thoa_thuan, huy_luc: x?.huy_luc || null };
 };
 export const layHangMuc = (id) => doc('hang_muc', (q) => q.eq('ho_so_id', id).order('lan_bao_gia').order('id'));
 export const layNhatKy = (id) => doc('ho_so_nhat_ky', (q) => q.eq('ho_so_id', id).order('luc', { ascending: false }));
@@ -245,10 +255,10 @@ export const layDetailing = (id) => doc('ket_qua_detailing', (q) => q.eq('ho_so_
 // (điện thoại hay đặt cùng tên image.jpg) không đè nhau
 const tenLuu = (file) => `${Date.now()}-${Math.random().toString(36).slice(2, 7)}-${file.name.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w.-]+/g, '-')}`;
 
-// Tải nhiều tệp: nén ảnh lần lượt (đỡ tốn bộ nhớ điện thoại), tải lên 3 tệp cùng lúc; tệp lỗi không chặn tệp khác.
+// Tải nhiều tệp: nén ảnh (1 – 2 ảnh cùng lúc, xem ui.nenAnh), tải lên 3 tệp cùng lúc; tệp lỗi không chặn tệp khác.
 // taiMot(tepDaNen, tepGoc) → Promise; tienDo(soXong, tong) báo sau mỗi tệp. Trả { tong, xong, loi: [{ ten, e }] }.
-let hangNen = Promise.resolve();
-const nenLanLuot = (f, buoc) => { const p = hangNen.then(() => nenAnh(f, buoc)); hangNen = p.catch(() => {}); return p; };
+// 056: nenAnh tự giới hạn số ảnh nén cùng lúc (1 – 2) và nhớ kết quả đã nén sẵn lúc chọn ảnh
+const nenLanLuot = (f, buoc) => nenAnh(f, buoc);
 export async function taiNhieu(files, buoc, taiMot, { toiDa = 3, tienDo = null } = {}) {
   const ds = [...(files || [])];
   let daXong = 0;

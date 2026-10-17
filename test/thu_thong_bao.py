@@ -61,6 +61,11 @@ def mo(browser, email, rong=1280, cao=900, hoi_ms=600, tat_tb=False):
     return page
 
 
+ANH_LENH = '/tmp/anh-lenh-thu.png'
+with open(ANH_LENH, 'wb') as _f:
+    import base64 as _b64
+    _f.write(_b64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='))
+
 def ve_trang(page, hash_):
     page.evaluate('(h) => { location.hash = h; }', hash_)
     yen(page)
@@ -113,8 +118,9 @@ with sync_playwright() as p:
     expect(duy.locator('details.the-thong-bao')).to_have_count(0)           # chưa có thông báo nào về hồ sơ này
     duy.locator('button', has_text='Lập lệnh sửa chữa').click()
     m = duy.locator('.modal').last
-    for i in range(m.locator('[name=to]').count()):
-        m.locator('[name=to]').nth(i).select_option('DS')
+    # 056: lệnh gọn theo tổ (Đồng + Sơn → tổ Đồng sơn, người thực hiện mặc định trưởng nhóm Hận), bắt ảnh lệnh sửa chữa
+    expect(m.locator('select[name=nguoi_DS] option:checked')).to_contain_text('Hận')
+    m.locator('.khoi-dinh-kem input[type=file]').set_input_files(ANH_LENH)
     m.locator('text=Giao việc').click()
     toast_co(duy, 'Đã giao việc')
     expect(duy.locator('.tb-nen')).to_have_count(0)                         # người lập lệnh không tự nhận thông báo của mình

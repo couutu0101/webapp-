@@ -7,6 +7,7 @@
 --    tiep_nhan (ảnh nhận xe kiểu cũ): tiep_nhan; hồ sơ chưa có ảnh nhận xe nào (cả 6 ô) thì bổ sung được
 --    bao_gia, duyet_gia          : tiep_nhan → cho_kcs (còn lập báo giá / duyệt giá bổ sung được)
 --    phat_sinh                   : dang_sua, cho_detailing, cho_kcs
+--    lenh_sua_chua (056, ảnh lệnh): da_duyet → cho_kcs (giao thêm cho tổ cũng chụp lệnh)
 --    kcs (ảnh sau sửa)           : dang_sua, cho_detailing, cho_kcs – khóa khi KCS đạt
 --    giao_xe                     : dat_kcs; và trong NGÀY giao xe (giao xong chụp bổ sung trong ngày)
 --    huy_vat_tu                  : da_duyet → da_gui_hs (như 051)
@@ -30,6 +31,7 @@ language sql stable set search_path = public as $$
     when p_buoc = 'tiep_nhan' then p_tt = 'tiep_nhan' or not p_co_san
     when p_buoc in ('bao_gia', 'duyet_gia') then p_tt in ('tiep_nhan','bao_gia','da_duyet','dang_sua','cho_detailing','cho_kcs')
     when p_buoc = 'phat_sinh' then p_tt in ('dang_sua','cho_detailing','cho_kcs')
+    when p_buoc = 'lenh_sua_chua' then p_tt in ('da_duyet','dang_sua','cho_detailing','cho_kcs')
     when p_buoc = 'kcs' then p_tt in ('dang_sua','cho_detailing','cho_kcs')
     when p_buoc = 'giao_xe' then p_tt = 'dat_kcs'
       or (p_giao_luc is not null and timezone('Asia/Ho_Chi_Minh', p_giao_luc)::date = timezone('Asia/Ho_Chi_Minh', now())::date)
@@ -48,7 +50,7 @@ declare h public.ho_so; v_id bigint; v_goc text; v_mo boolean; v_ly_do text := n
     when 'nx_truoc' then 'nhận xe – phía trước' when 'nx_sau' then 'nhận xe – phía sau' when 'nx_trai' then 'nhận xe – bên trái'
     when 'nx_phai' then 'nhận xe – bên phải' when 'nt_truoc' then 'nội thất phía trước' when 'nt_sau' then 'nội thất phía sau'
     when 'tiep_nhan' then 'nhận xe' when 'bao_gia' then 'báo giá' when 'duyet_gia' then 'duyệt giá' when 'phat_sinh' then 'phát sinh'
-    when 'kcs' then 'KCS' when 'giao_xe' then 'giao xe' when 'huy_vat_tu' then 'hủy vật tư' when 'ho_so_bh' then 'hồ sơ bảo hiểm'
+    when 'kcs' then 'KCS' when 'lenh_sua_chua' then 'lệnh sửa chữa' when 'giao_xe' then 'giao xe' when 'huy_vat_tu' then 'hủy vật tư' when 'ho_so_bh' then 'hồ sơ bảo hiểm'
     else p_buoc end;
 begin
   if not (app.la_nhan_vien() or app.co_vai_tro('truong_nhom')) then
@@ -59,7 +61,7 @@ begin
     raise exception 'Tệp không thuộc thư mục của hồ sơ % – tải lại ảnh từ trang hồ sơ.', h.ma;
   end if;
   if p_buoc not in ('tiep_nhan','duyet_gia','phat_sinh','kcs','giao_xe','ho_so_bh','khac',
-                    'bao_gia','nx_truoc','nx_sau','nx_trai','nx_phai','nt_truoc','nt_sau','huy_vat_tu','giay_to_xe') then
+                    'bao_gia','nx_truoc','nx_sau','nx_trai','nx_phai','nt_truoc','nt_sau','huy_vat_tu','giay_to_xe','lenh_sua_chua') then
     raise exception 'Bước của tệp không hợp lệ.';
   end if;
   if coalesce(p_loai, 'anh') not in ('anh','bien_ban') then raise exception 'Loại tệp không hợp lệ.'; end if;

@@ -2626,6 +2626,173 @@ select kt.ghi('055 Hàm kiểm khóa: hồ sơ hủy khóa mọi bước, giấy
   not app.buoc_tep_mo('huy', 'khac', false, null) and app.buoc_tep_mo('dong', 'giay_to_xe', true, null)
   and app.buoc_tep_mo('dang_sua', 'nx_trai', false, null) and not app.buoc_tep_mo('dang_sua', 'nx_trai', true, null));
 
+-- =====================================================================
+-- 056: GĐ hủy mọi bước · duyệt giá bằng 2 số · lệnh sửa chữa theo tài khoản + ảnh lệnh · phiếu thu lệch công nợ
+-- =====================================================================
+-- ----- 2. Duyệt giá xe bảo hiểm bằng 2 số -----
+select kt.dong_vai('duy@gara.vn');
+insert into ctx select 'hs56a', (public.tiep_nhan_xe(jsonb_build_object('bien_so','51A-056.01','ten_khach','Khách 056A','dien_thoai','0909056001',
+  'dong_xe_id',(select id from public.dong_xe where ten='VF3'),'nguon_tt','bao_hiem','hang_bh_id',(select id from public.hang_bao_hiem where ten='Tasco'),
+  'gdv_id',(select id from public.giam_dinh_vien where ten='Hảo'),'han_bao_hiem','2027-03-01','tinh_trang_xe','Móp cản','tu_van','Không','bo_qua_canh_bao',true)))->>'id';
+select public.lap_bao_gia((select v::bigint from ctx where k='hs56a'),
+  '[{"ten":"Gò cản","nhom":"dong","gia_bao":1000000},{"ten":"Thay đèn","nhom":"phu_tung","gia_bao":3000000}]', 0.08);
+select public.duyet_gia_tong((select v::bigint from ctx where k='hs56a'), current_date, 3500000, 500000);
+select kt.ghi('056 Duyệt giá bằng 2 số: hồ sơ Đã duyệt giá, BH phải thu 3.500.000, khách 500.000, tổng các dòng đúng 4.000.000',
+  (select trang_thai from public.ho_so where id = (select v::bigint from ctx where k='hs56a')) = 'da_duyet'
+  and (select phai_thu_bh = 3500000 and phai_thu_khach = 500000 from app.tien_ho_so((select v::bigint from ctx where k='hs56a')))
+  and (select sum(public.tien_dong_co_vat(gia_duyet, true, ngay_duyet, ty_le_vat)) from public.hang_muc where ho_so_id = (select v::bigint from ctx where k='hs56a')) = 4000000);
+select kt.ghi('056 Giá duyệt từng dòng chia theo tỷ lệ giá báo (1 : 3)',
+  (select abs(max(gia_duyet) - 3 * min(gia_duyet)) <= 3 from public.hang_muc where ho_so_id = (select v::bigint from ctx where k='hs56a')));
+select public.lap_bao_gia((select v::bigint from ctx where k='hs56a'), '[{"ten":"Pát cản","nhom":"phu_tung","gia_bao":500000}]', 0.08);
+select kt.mong_loi('056 Báo giá bổ sung: hai số là của CẢ XE – nhỏ hơn phần đã duyệt thì báo lỗi',
+  format($$select public.duyet_gia_tong(%s, current_date, 300000, 100000)$$, (select v from ctx where k='hs56a')), 'CẢ XE');
+select public.duyet_gia_tong((select v::bigint from ctx where k='hs56a'), current_date, 4040000, 500000);
+select kt.ghi('056 Bổ sung: dòng mới được duyệt phần chênh (540.000 sau VAT), BH phải thu 4.040.000',
+  (select public.tien_dong_co_vat(gia_duyet, true, ngay_duyet, ty_le_vat) from public.hang_muc where ho_so_id = (select v::bigint from ctx where k='hs56a') and ten = 'Pát cản') = 540000
+  and (select phai_thu_bh from app.tien_ho_so((select v::bigint from ctx where k='hs56a'))) = 4040000);
+
+-- ----- 3. Lệnh sửa chữa: người thực hiện theo tài khoản, ảnh lệnh bắt buộc -----
+select kt.mong_loi('056 Lệnh sửa chữa từ giao diện mới chưa có ảnh lệnh → chặn',
+  format($$select public.lap_lenh_sua_chua(%s, now() + interval '1 day',
+    (select jsonb_agg(jsonb_build_object('id',id,'to_id','DS','nguoi_lam_id',%L)) from public.hang_muc where ho_so_id=%s and trang_thai='duyet'), true)$$,
+    (select v from ctx where k='hs56a'), kt.nv('han@gara.vn'), (select v from ctx where k='hs56a')), 'ảnh lệnh sửa chữa');
+select public.them_tep((select v::bigint from ctx where k='hs56a'), 'lenh_sua_chua', 'anh',
+  'TK/' || (select ma from public.ho_so where id = (select v::bigint from ctx where k='hs56a')) || '/lenh_sua_chua-1.jpg');
+select public.lap_lenh_sua_chua((select v::bigint from ctx where k='hs56a'), now() + interval '1 day',
+  (select jsonb_agg(jsonb_build_object('id',id,'to_id',case when nhom = 'dong' then 'DS' else 'DMG' end,
+     'nguoi_lam_id',case when nhom = 'dong' then kt.nv('han@gara.vn') else kt.nv('long@gara.vn') end))
+   from public.hang_muc where ho_so_id=(select v::bigint from ctx where k='hs56a') and trang_thai='duyet'), true);
+select kt.dong_vai(null);
+select kt.ghi('056 Có ảnh lệnh: giao việc được; hạng mục lưu tài khoản + tên người thực hiện',
+  (select trang_thai from public.ho_so where id = (select v::bigint from ctx where k='hs56a')) = 'dang_sua'
+  and exists (select 1 from public.hang_muc where ho_so_id = (select v::bigint from ctx where k='hs56a') and nhom = 'dong'
+              and nguoi_lam_id = kt.nv('han@gara.vn') and nguoi_lam = 'Đặng Thanh Hận'));
+select kt.ghi('056 Thông báo việc mới gửi đúng tài khoản người thực hiện (tổ ĐMG giao cho quản lý Long → Long nhận, không gửi trưởng nhóm khác)',
+  exists (select 1 from public.thong_bao where nguoi_nhan = kt.nv('long@gara.vn') and khoa = 'to:moi:' || (select v from ctx where k='hs56a') || ':DMG')
+  and exists (select 1 from public.thong_bao where nguoi_nhan = kt.nv('han@gara.vn') and khoa = 'to:moi:' || (select v from ctx where k='hs56a') || ':DS'));
+select kt.ghi('056 Giao diện cũ (không gửi cờ ảnh) vẫn lập lệnh được như trước – hàm có tham số mặc định',
+  (select pronargdefaults from pg_proc where proname = 'lap_lenh_sua_chua') = 1);
+
+-- ----- 4. Phiếu thu lệch công nợ -----
+select kt.dong_vai('duy@gara.vn');
+insert into ctx select 'hs56b', (public.tiep_nhan_xe(jsonb_build_object('bien_so','51A-056.02','ten_khach','Khách 056B','dien_thoai','0909056002',
+  'dong_xe_id',(select id from public.dong_xe where ten='VF3'),'nguon_tt','khach','tinh_trang_xe','Sơn','tu_van','Không','bo_qua_canh_bao',true)))->>'id';
+select public.lap_bao_gia((select v::bigint from ctx where k='hs56b'), '[{"ten":"Sơn cửa","nhom":"son","gia_bao":1000000}]', 0.08);
+insert into ctx select 'hs56c', (public.tiep_nhan_xe(jsonb_build_object('bien_so','51A-056.03','ten_khach','Khách 056C','dien_thoai','0909056003',
+  'dong_xe_id',(select id from public.dong_xe where ten='VF3'),'nguon_tt','khach','tinh_trang_xe','Sơn','tu_van','Không','bo_qua_canh_bao',true)))->>'id';
+select public.lap_bao_gia((select v::bigint from ctx where k='hs56c'), '[{"ten":"Sơn cản","nhom":"son","gia_bao":1000000}]', 0.08);
+select kt.dong_vai('tien@gara.vn');
+select kt.mong_loi('056 Thu lệch mà không ghi lý do → chặn',
+  format($$select public.lap_phieu_thu(jsonb_build_object('tai_khoan_id',(select id from public.tai_khoan_quy where ten='Tiền mặt' and chi_nhanh_id='TK'),
+    'muc_id',(select id from public.muc_thu_chi where tinh_chat='thu_khach' order by id limit 1),'so_tien',1000000,
+    'phan_bo',jsonb_build_array(jsonb_build_object('ho_so_id',%s,'so_tien',1000000,'lech',true))))$$, (select v from ctx where k='hs56b')), 'ghi lý do lệch');
+insert into ctx select 'pt56b', public.lap_phieu_thu(jsonb_build_object('tai_khoan_id',(select id from public.tai_khoan_quy where ten='Tiền mặt' and chi_nhanh_id='TK'),
+  'muc_id',(select id from public.muc_thu_chi where tinh_chat='thu_khach' order by id limit 1),'so_tien',1000000,'noi_dung','Khách 056B trả',
+  'phan_bo',jsonb_build_array(jsonb_build_object('ho_so_id',(select v::bigint from ctx where k='hs56b'),'so_tien',1000000,'lech',true,'ly_do','Khách xin bớt lẻ'))))::text;
+insert into ctx select 'pt56c', public.lap_phieu_thu(jsonb_build_object('tai_khoan_id',(select id from public.tai_khoan_quy where ten='Tiền mặt' and chi_nhanh_id='TK'),
+  'muc_id',(select id from public.muc_thu_chi where tinh_chat='thu_khach' order by id limit 1),'so_tien',1100000,'noi_dung','Khách 056C trả',
+  'phan_bo',jsonb_build_array(jsonb_build_object('ho_so_id',(select v::bigint from ctx where k='hs56c'),'so_tien',1100000,'lech',true,'ly_do','Khách trả tròn, không lấy lại'))))::text;
+select kt.dong_vai(null);
+select kt.ghi('056 Phiếu thu lệch: ghi đủ số thực thu (cả khi vượt nợ), tạo đề nghị chỉnh chờ duyệt, báo quản lý / giám đốc',
+  (select count(*) from public.de_nghi_dieu_chinh where ho_so_id in ((select v::bigint from ctx where k='hs56b'), (select v::bigint from ctx where k='hs56c')) and trang_thai = 'cho_duyet') = 2
+  and (select con_no_khach from app.tien_ho_so((select v::bigint from ctx where k='hs56b'))) = 80000
+  and (select con_no_khach from app.tien_ho_so((select v::bigint from ctx where k='hs56c'))) = -20000
+  and exists (select 1 from public.thong_bao where nguoi_nhan = kt.nv('long@gara.vn') and khoa like 'tien:dieu_chinh:%'));
+select kt.dong_vai('tien@gara.vn');
+select kt.mong_loi('056 Kế toán không tự duyệt chỉnh công nợ',
+  format($$select public.duyet_dieu_chinh_cong_no(%s, true)$$, (select id from public.de_nghi_dieu_chinh where ho_so_id = (select v::bigint from ctx where k='hs56b'))), 'quyền');
+select kt.dong_vai('long@gara.vn');
+select public.duyet_dieu_chinh_cong_no((select id from public.de_nghi_dieu_chinh where ho_so_id = (select v::bigint from ctx where k='hs56b')), true);
+select public.duyet_dieu_chinh_cong_no((select id from public.de_nghi_dieu_chinh where ho_so_id = (select v::bigint from ctx where k='hs56c')), true);
+select kt.dong_vai(null);
+select kt.ghi('056 Duyệt thu thiếu: doanh thu −80.000 (dòng "Điều chỉnh theo thực thu"), khách hết nợ',
+  (select con_no_khach from app.tien_ho_so((select v::bigint from ctx where k='hs56b'))) = 0
+  and exists (select 1 from public.v_doanh_thu where ho_so_id = (select v::bigint from ctx where k='hs56b') and so_tien = -80000 and ngay = current_date));
+select kt.ghi('056 Duyệt thu dư: doanh thu +20.000, khách hết nợ (không còn "trả dư")',
+  (select con_no_khach from app.tien_ho_so((select v::bigint from ctx where k='hs56c'))) = 0
+  and exists (select 1 from public.hang_muc where ho_so_id = (select v::bigint from ctx where k='hs56c') and loai_dong = 'dieu_chinh' and gia_duyet = 20000));
+select kt.ghi('056 Đề nghị lưu số đã chỉnh và người duyệt',
+  (select so_tien_dieu_chinh = -80000 and duyet_boi = kt.nv('long@gara.vn') and trang_thai = 'da_duyet' from public.de_nghi_dieu_chinh where ho_so_id = (select v::bigint from ctx where k='hs56b')));
+select kt.dong_vai('long@gara.vn');
+select kt.mong_loi('056 Đề nghị đã duyệt không duyệt lại được',
+  format($$select public.duyet_dieu_chinh_cong_no(%s, true)$$, (select id from public.de_nghi_dieu_chinh where ho_so_id = (select v::bigint from ctx where k='hs56b'))), 'đã được xử lý');
+select kt.dong_vai(null);
+
+-- ----- 1. Giám đốc hủy hồ sơ ở mọi bước -----
+insert into public.hang_kho (chi_nhanh_id, ma, ten, nhom, dvt) values ('TK', 'TEST-056', 'Đèn thử 056', 'Phụ tùng', 'Cái');
+insert into public.lo_kho (chi_nhanh_id, hang_id, ngay, so_luong, con_lai, don_gia_von)
+select 'TK', id, current_date - 1, 5, 5, 100000 from public.hang_kho where ma = 'TEST-056';
+select kt.dong_vai('duy@gara.vn');
+insert into ctx select 'hs56d', (public.tiep_nhan_xe(jsonb_build_object('bien_so','51A-056.04','ten_khach','Khách 056D','dien_thoai','0909056004',
+  'dong_xe_id',(select id from public.dong_xe where ten='VF3'),'nguon_tt','khach','tinh_trang_xe','Đèn','tu_van','Không','bo_qua_canh_bao',true)))->>'id';
+select public.lap_bao_gia((select v::bigint from ctx where k='hs56d'), '[{"ten":"Thay đèn","nhom":"phu_tung","gia_bao":2000000},{"ten":"Sơn cản","nhom":"son","gia_bao":1000000}]', 0.08);
+select public.lap_lenh_sua_chua((select v::bigint from ctx where k='hs56d'), now() + interval '1 day',
+  (select jsonb_agg(jsonb_build_object('id',id,'to_id','DS')) from public.hang_muc where ho_so_id=(select v::bigint from ctx where k='hs56d')));
+select public.bao_xong_hang_muc((select id from public.hang_muc where ho_so_id = (select v::bigint from ctx where k='hs56d') and ten = 'Sơn cản'));
+insert into ctx select 'dx56', (public.lap_de_xuat_vat_tu(jsonb_build_object('ho_so_id',(select v::bigint from ctx where k='hs56d'),
+  'dong',jsonb_build_array(jsonb_build_object('hang_id',(select id from public.hang_kho where ma='TEST-056'),'so_luong',3)))))->>'id';
+select public.xuat_kho_de_xuat((select v::bigint from ctx where k='dx56'));
+select kt.dong_vai('long@gara.vn');
+select kt.mong_loi('056 Quản lý chung không hủy được xe đang sửa (chỉ giám đốc)',
+  format($$select public.huy_ho_so_giam_doc(%s, 'thử', 0)$$, (select v from ctx where k='hs56d')), 'quyền');
+select kt.dong_vai('thuan@gara.vn');
+select kt.mong_loi('056 Giám đốc hủy phải ghi lý do', format($$select public.huy_ho_so_giam_doc(%s, ' ', 0)$$, (select v from ctx where k='hs56d')), 'lý do');
+select public.huy_ho_so_giam_doc((select v::bigint from ctx where k='hs56d'), 'Khách không sửa tiếp, đã sơn xong cản', 1200000,
+  (select jsonb_agg(jsonb_build_object('dong_id', d.id, 'so_luong', 2)) from public.phieu_xuat_dong d join public.phieu_xuat p on p.id = d.phieu_id
+   where p.ho_so_id = (select v::bigint from ctx where k='hs56d')));
+select kt.dong_vai(null);
+select kt.ghi('056 GĐ hủy xe đang sửa, thu theo thỏa thuận 1.200.000: hồ sơ Đã giao + cờ hủy, khách phải trả đúng 1.200.000, hạng mục chưa làm thôi tính',
+  (select trang_thai = 'da_giao' and huy_thoa_thuan and ly_do_huy like 'Khách không sửa tiếp%' from public.ho_so where id = (select v::bigint from ctx where k='hs56d'))
+  and (select phai_thu_khach from app.tien_ho_so((select v::bigint from ctx where k='hs56d'))) = 1200000
+  and (select trang_thai from public.hang_muc where ho_so_id = (select v::bigint from ctx where k='hs56d') and ten = 'Thay đèn') = 'tu_choi'
+  and (select trang_thai from public.hang_muc where ho_so_id = (select v::bigint from ctx where k='hs56d') and ten = 'Sơn cản') = 'xong');
+select kt.ghi('056 Vật tư chưa dùng (2/3 cái) về kho: tồn 4, phiếu xuất của xe còn 1 cái, giá vốn 100.000',
+  (select sum(con_lai) from public.lo_kho l join public.hang_kho h on h.id = l.hang_id where h.ma = 'TEST-056') = 4
+  and (select so_luong = 1 and gia_von = 100000 from public.phieu_xuat_dong d join public.phieu_xuat p on p.id = d.phieu_id
+       where p.ho_so_id = (select v::bigint from ctx where k='hs56d')));
+select kt.ghi('056 Doanh thu của xe hủy = đúng số thương lượng (v_doanh_thu cộng lại 1.200.000)',
+  (select sum(so_tien) from public.v_doanh_thu where ho_so_id = (select v::bigint from ctx where k='hs56d')) = 1200000);
+-- Hủy không thu (0 đ) khi xe đang sửa, trả hết vật tư
+select kt.dong_vai('duy@gara.vn');
+insert into ctx select 'hs56e', (public.tiep_nhan_xe(jsonb_build_object('bien_so','51A-056.05','ten_khach','Khách 056E','dien_thoai','0909056005',
+  'dong_xe_id',(select id from public.dong_xe where ten='VF3'),'nguon_tt','khach','tinh_trang_xe','Đèn','tu_van','Không','bo_qua_canh_bao',true)))->>'id';
+select public.lap_bao_gia((select v::bigint from ctx where k='hs56e'), '[{"ten":"Thay đèn","nhom":"phu_tung","gia_bao":2000000}]', 0.08);
+select public.lap_lenh_sua_chua((select v::bigint from ctx where k='hs56e'), now() + interval '1 day',
+  (select jsonb_agg(jsonb_build_object('id',id,'to_id','DMG')) from public.hang_muc where ho_so_id=(select v::bigint from ctx where k='hs56e')));
+insert into ctx select 'dx56e', (public.lap_de_xuat_vat_tu(jsonb_build_object('ho_so_id',(select v::bigint from ctx where k='hs56e'),
+  'dong',jsonb_build_array(jsonb_build_object('hang_id',(select id from public.hang_kho where ma='TEST-056'),'so_luong',1)))))->>'id';
+select public.xuat_kho_de_xuat((select v::bigint from ctx where k='dx56e'));
+select kt.dong_vai('thuan@gara.vn');
+select public.huy_ho_so_giam_doc((select v::bigint from ctx where k='hs56e'), 'Khách đổi ý', 0,
+  (select jsonb_agg(jsonb_build_object('dong_id', d.id, 'so_luong', 1)) from public.phieu_xuat_dong d join public.phieu_xuat p on p.id = d.phieu_id
+   where p.ho_so_id = (select v::bigint from ctx where k='hs56e')));
+select kt.dong_vai(null);
+select kt.ghi('056 GĐ hủy 0 đ xe đang sửa: hồ sơ Đã hủy (vẫn giữ dữ liệu), không doanh thu, vật tư về kho, phiếu xuất hủy',
+  (select trang_thai = 'huy' and ly_do_huy = 'Khách đổi ý' and huy_boi = kt.nv('thuan@gara.vn') from public.ho_so where id = (select v::bigint from ctx where k='hs56e'))
+  and not exists (select 1 from public.v_doanh_thu where ho_so_id = (select v::bigint from ctx where k='hs56e'))
+  and (select sum(con_lai) from public.lo_kho l join public.hang_kho h on h.id = l.hang_id where h.ma = 'TEST-056') = 4
+  and (select trang_thai from public.phieu_xuat where ho_so_id = (select v::bigint from ctx where k='hs56e')) = 'huy');
+select kt.ghi('056 Anon không gọi được hàm mới',
+  not has_function_privilege('anon', 'public.huy_ho_so_giam_doc(bigint,text,numeric,jsonb,boolean)', 'execute')
+  and not has_function_privilege('anon', 'public.duyet_gia_tong(bigint,date,numeric,numeric)', 'execute')
+  and not has_function_privilege('anon', 'public.duyet_dieu_chinh_cong_no(bigint,boolean,text)', 'execute'));
+
+-- Người thực hiện là tài khoản ngoài tổ: thấy việc trong bảng việc tổ và tự báo xong được
+select kt.dong_vai('duy@gara.vn');
+insert into ctx select 'hs56f', (public.tiep_nhan_xe(jsonb_build_object('bien_so','51A-056.06','ten_khach','Khách 056F','dien_thoai','0909056006',
+  'dong_xe_id',(select id from public.dong_xe where ten='VF3'),'nguon_tt','khach','tinh_trang_xe','Đèn','tu_van','Không','bo_qua_canh_bao',true)))->>'id';
+select public.lap_bao_gia((select v::bigint from ctx where k='hs56f'), '[{"ten":"Thay bóng đèn","nhom":"phu_tung","gia_bao":300000}]', 0.08);
+select public.lap_lenh_sua_chua((select v::bigint from ctx where k='hs56f'), now() + interval '1 day',
+  (select jsonb_agg(jsonb_build_object('id',id,'to_id','DMG','nguoi_lam_id',kt.nv('han@gara.vn'))) from public.hang_muc where ho_so_id=(select v::bigint from ctx where k='hs56f')));
+select kt.dong_vai(null);
+insert into ctx select 'hm56f', id::text from public.hang_muc where ho_so_id = (select v::bigint from ctx where k='hs56f');
+select kt.dong_vai('han@gara.vn');
+select kt.ghi('056 Trưởng nhóm Đồng sơn được giao việc tổ ĐMG (theo tài khoản) → thấy xe trong bảng việc tổ',
+  public.bang_viec_to()::text like '%51A-056.06%Thay bóng đèn%');
+select public.bao_xong_hang_muc((select v::bigint from ctx where k='hm56f'));
+select kt.dong_vai(null);
+select kt.ghi('056 … và tự báo xong được', (select trang_thai from public.hang_muc where ho_so_id = (select v::bigint from ctx where k='hs56f')) = 'xong');
+
 \o
 \echo '======== KẾT QUẢ ========'
 select stt, case when dat then 'ĐẠT ' else 'LỖI ' end as kq, ten, left(coalesce(chi_tiet,''), 140) as chi_tiet from kt.ket_qua order by stt;

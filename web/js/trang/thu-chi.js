@@ -9,6 +9,7 @@ export default async function trangThuChi(el) {
 
   const soDu = h('section', { class: 'luoi-dem' });
   const chuaChia = h('div');          // 043: tiền bảo hiểm đã về chưa chia vào xe (mọi tháng)
+  const thuLech = h('div');           // 056: phiếu thu lệch công nợ chờ giám đốc / quản lý chung duyệt
   const so = h('div');
   const oThang = h('input', { type: 'month', value: thang, 'aria-label': 'Tháng' });
   oThang.addEventListener('change', () => { thang = oThang.value; taiSo(); });
@@ -21,6 +22,7 @@ export default async function trangThuChi(el) {
         h('button', { class: 'nut', type: 'button', onclick: moKiemQuy }, 'Kiểm quỹ'),
         h('a', { class: 'nut', href: '#/de-nghi' }, 'Phiếu chi (từ đề nghị chi)')) : null),
     soDu,
+    thuLech,
     chuaChia,
     h('section', { class: 'the' }, h('div', { class: 'the-dau' }, h('h2', null, 'Sổ thu chi'), oThang), so));
 
@@ -79,7 +81,23 @@ export default async function trangThuChi(el) {
         { nhan: '', lay: (p) => nutPhieu(p) },
       ], ds, { gon: true })));
   }
-  const taiLai = () => Promise.all([taiSoDu(), taiSo(), taiChuaChia()]);
+  // 056: thu lệch công nợ chờ duyệt – bấm dòng mở hồ sơ (thẻ Tiền có nút Duyệt cho giám đốc / quản lý chung)
+  async function taiThuLech() {
+    const ds = await api.layDieuChinh(null).catch(() => []);
+    if (!ds.length) { dat(thuLech); return; }
+    dat(thuLech, h('section', { class: 'the', id: 'thu-lech' },
+      h('h2', null, `Thu lệch công nợ chờ duyệt (${ds.length})`),
+      h('p', { class: 'goi-y' }, 'Giám đốc / quản lý chung mở hồ sơ, bấm "Duyệt chỉnh công nợ" ở thẻ Tiền để công nợ về đúng số thực thu.'),
+      bang([
+        { nhan: 'Xe', lay: (d) => h('a', { href: `#/ho-so/${d.ho_so_id}` }, d.bien_so || d.ma_ho_so) },
+        { nhan: 'Bên trả', lay: (d) => (d.nguoi_tra === 'bao_hiem' ? 'Bảo hiểm' : 'Khách') },
+        { nhan: 'Công nợ', so: true, lay: (d) => tien(d.cong_no) },
+        { nhan: 'Thực thu', so: true, lay: (d) => tien(d.thuc_thu) },
+        { nhan: 'Lệch', so: true, lay: (d) => h('b', null, tien(Number(d.thuc_thu) - Number(d.cong_no))) },
+        { nhan: 'Lý do', lay: (d) => d.ly_do },
+      ], ds, { gon: true, onRow: (d) => { location.hash = `#/ho-so/${d.ho_so_id}`; } })));
+  }
+  const taiLai = () => Promise.all([taiSoDu(), taiSo(), taiChuaChia(), taiThuLech()]);
 
   // ---------- Phiếu thu ----------
   async function moPhieuThu({ hoSoId, dvnId }) {
@@ -91,7 +109,7 @@ export default async function trangThuChi(el) {
     form.append(
       truong('Tài khoản nhận', oChon('tai_khoan_id', dsTaiKhoan().map((t) => ({ value: t.id, label: t.ten })), (dsTaiKhoan().find((t) => t.mac_dinh) || dsTaiKhoan()[0])?.id, { trong: null }), 'Mặc định: tài khoản công ty (đổi ở Danh mục → Tài khoản quỹ)'),
       truong('Mục thu', chonMuc, null, { batBuoc: true }),
-      truong('Số tiền', oSoTien, null, { batBuoc: true }),
+      truong('Số tiền thu thực tế', oSoTien, null, { batBuoc: true }),
       truong('Ngày', oNgay('ngay', homNay(), { max: homNay() })),
       truong('Nội dung', oChu('noi_dung', ''), null, { rong: true }),
       vungRieng);
@@ -119,29 +137,46 @@ export default async function trangThuChi(el) {
         // Khách trả nhiều hơn số còn nợ: hỏi phần dư là tiền bo hay trả dư (sẽ trả lại).
         // 043: khối dựng một lần – gõ tiếp số tiền chỉ đổi dòng chữ, không làm mất lựa chọn đã bấm
         const chuDu = h('b');
+        // 056 (anh Thuận 17/10): số thu thực tế lệch công nợ (thiếu hoặc dư) → chọn "Thu lệch", ghi lý do; giám đốc / quản lý
+        // chung duyệt thì công nợ chỉnh về đúng số thực thu (doanh thu tăng / giảm phần lệch) và hồ sơ đóng
+        const oLyDoLech = oVung('ly_do_lech', '', { rows: 2, placeholder: 'Ví dụ: khách xin bớt phần lẻ, khách trả tròn số' });
+        const khoiLyDo = h('div', { class: 'ly-do-lech', hidden: true }, truong('Lý do lệch', oLyDoLech, 'Giám đốc / quản lý chung duyệt để chỉnh công nợ về số thực thu', { batBuoc: true, rong: true }));
+        const nutBo = h('label', null, h('input', { type: 'radio', name: 'phan_du', value: 'bo', checked: true }), h('span', null, 'Tiền bo cho thợ'));
+        const nutTraLai = h('label', null, h('input', { type: 'radio', name: 'phan_du', value: 'tra_lai' }), h('span', null, 'Trả dư – sẽ trả lại khách'));
+        const nutConNo = h('label', null, h('input', { type: 'radio', name: 'phan_du', value: 'con_no' }), h('span', null, 'Khách còn nợ phần thiếu (thu tiếp sau)'));
+        const nutLech = h('label', null, h('input', { type: 'radio', name: 'phan_du', value: 'lech' }), h('span', null, 'Thu lệch – chỉnh công nợ về số thực thu (cần duyệt)'));
+        const goiYDu = h('small', { class: 'goi-y' });
         const khoiDu = h('div', { class: 'rong khoi-tra-du', hidden: true },
-          h('div', { class: 'thong-bao canh-bao' }, chuDu,
-            h('div', { class: 'chon-nut' },
-              h('label', null, h('input', { type: 'radio', name: 'phan_du', value: 'bo', checked: true }), h('span', null, 'Tiền bo cho thợ')),
-              h('label', null, h('input', { type: 'radio', name: 'phan_du', value: 'tra_lai' }), h('span', null, 'Trả dư – sẽ trả lại khách'))),
-            h('small', { class: 'goi-y' }, 'Tiền bo: ghi thành phiếu thu riêng "Tiền bo của khách", không tính vào xe. Trả dư: hồ sơ ghi khách trả dư, kế toán lập đề nghị chi "Trả lại cọc cho khách" để trả.')));
+          h('div', { class: 'thong-bao canh-bao' }, chuDu, h('div', { class: 'chon-nut' }, nutBo, nutTraLai, nutConNo, nutLech), goiYDu, khoiLyDo));
         vungRieng.append(khoiDu);
+        const chonPhanDu = () => form.querySelector('[name=phan_du]:checked')?.value;
         const capNhatDu = () => {
           const x = ds.find((y) => String(y.id) === chon.value);
           const du = x && m.tinh_chat === 'thu_khach' ? (docTien(oSoTien.value) || 0) - Number(x.con_no_khach) : 0;
-          khoiDu.hidden = !(du > 0);
-          if (du > 0) dat(chuDu, `Khách trả dư ${tien(du)} đ so với số còn nợ ${tien(x.con_no_khach)} đ. Phần dư là:`);
+          // thu ĐỦ thì không hỏi; thu thiếu chỉ hỏi khi đã nhập số (thu thiếu mặc định: khách còn nợ)
+          khoiDu.hidden = !(x && m.tinh_chat === 'thu_khach' && du !== 0 && docTien(oSoTien.value));
+          nutBo.hidden = nutTraLai.hidden = !(du > 0); nutConNo.hidden = !(du < 0);
+          const dangChon = form.querySelector('[name=phan_du]:checked');
+          if (dangChon?.closest('label')?.hidden) form.querySelector(`[name=phan_du][value=${du > 0 ? 'bo' : 'con_no'}]`).checked = true;
+          if (du > 0) dat(chuDu, `Khách trả dư ${tien(du)} đ so với công nợ ${tien(x.con_no_khach)} đ. Phần dư là:`);
+          if (du < 0) dat(chuDu, `Thực thu ít hơn công nợ ${tien(-du)} đ (công nợ ${tien(x.con_no_khach)} đ). Phần thiếu là:`);
+          khoiLyDo.hidden = chonPhanDu() !== 'lech';
+          goiYDu.textContent = chonPhanDu() === 'lech'
+            ? (du > 0 ? 'Duyệt xong: doanh thu của xe TĂNG phần dư, khách hết nợ.' : 'Duyệt xong: doanh thu của xe GIẢM phần thiếu, khách hết nợ – xe đã giao thì hồ sơ tự đóng.')
+            : du > 0 ? 'Tiền bo: ghi thành phiếu thu riêng "Tiền bo của khách", không tính vào xe. Trả dư: hồ sơ ghi khách trả dư, kế toán lập đề nghị chi "Trả lại cọc cho khách" để trả.' : '';
         };
-        choTraDu = () => !khoiDu.hidden && form.querySelector('[name=phan_du]:checked')?.value === 'tra_lai';
+        khoiDu.addEventListener('change', capNhatDu);
+        choTraDu = () => !khoiDu.hidden && chonPhanDu() === 'tra_lai';
         oSoTien.addEventListener('input', capNhatDu);
         chon.addEventListener('change', capNhatDu);
         if (hoSoId) chon.dispatchEvent(new Event('change'));
-        layPhanBo = () => (chon.value ? [{ ho_so_id: Number(chon.value), so_tien: docTien(oSoTien.value) }] : []);
+        layPhanBo = () => (chon.value ? [{ ho_so_id: Number(chon.value), so_tien: docTien(oSoTien.value),
+          ...(!khoiDu.hidden && chonPhanDu() === 'lech' ? { lech: true, ly_do: oLyDoLech.value.trim() } : {}) }] : []);
         // Tiền bo: tách thành 2 phiếu (xe nhận đúng số nợ, phần dư vào mục Tiền bo)
         tachTienBo = () => {
           const x = ds.find((y) => String(y.id) === chon.value);
           if (!x || m.tinh_chat !== 'thu_khach' || khoiDu.hidden) return null;
-          if (form.querySelector('[name=phan_du]:checked')?.value !== 'bo') return null;
+          if (chonPhanDu() !== 'bo') return null;
           const du = (docTien(oSoTien.value) || 0) - Number(x.con_no_khach);
           return du > 0 ? { du, noNo: Number(x.con_no_khach), hoSoId: x.id, x } : null;
         };
@@ -151,19 +186,34 @@ export default async function trangThuChi(el) {
         let dongs = [];
         chonHang.addEventListener('change', () => {
           const ds = hoSoMo.filter((x) => String(x.hang_bh_id) === chonHang.value && Number(x.con_no_bh) > 0);
-          dongs = ds.map((x) => ({ x, o: oTien(`pb_${x.id}`, null, { 'aria-label': `Số tiền cho ${nhanHoSo(x)}`, placeholder: tien(x.con_no_bh) }) }));
-          dat(dsXe, ds.length ? h('p', { class: 'goi-y' }, 'Nhập số tiền cho từng xe theo bảng kê của bảo hiểm. Phần chưa chia sẽ nằm ở "chưa phân bổ" để chia sau.') : h('p', { class: 'trong' }, 'Hãng này không có xe nào còn nợ.'),
-            ...dongs.map((d) => h('div', { class: 'dong-phan-bo' }, h('span', null, nhanHoSo(d.x), h('small', null, ` còn nợ ${tien(d.x.con_no_bh)} đ`)),
-              h('button', { class: 'nut-chu', type: 'button', onclick: () => { d.o.value = tien(d.x.con_no_bh); } }, 'Đủ'), d.o)));
+          // 056: số bảo hiểm thực trả khác công nợ của xe → tích "Lệch – chỉnh công nợ" + lý do (giám đốc / quản lý chung duyệt)
+          dongs = ds.map((x) => {
+            const o = oTien(`pb_${x.id}`, null, { 'aria-label': `Số tiền cho ${nhanHoSo(x)}`, placeholder: tien(x.con_no_bh) });
+            const lech = h('input', { type: 'checkbox', 'data-lech': x.id, 'aria-label': `Thu lệch xe ${nhanHoSo(x)}` });
+            const lyDo = oChu(`ly_do_${x.id}`, '', { placeholder: 'Lý do lệch (vd: bảo hiểm trừ khấu hao)', 'aria-label': `Lý do lệch xe ${nhanHoSo(x)}` });
+            const khoiLech = h('div', { class: 'phan-bo-lech', hidden: true },
+              h('label', null, lech, ' Lệch – chỉnh công nợ về số thực thu (cần duyệt)'), lyDo);
+            const cap = () => {
+              const v = docTien(o.value);
+              khoiLech.hidden = !(v && v !== Number(x.con_no_bh));
+              lyDo.hidden = !lech.checked;
+            };
+            o.addEventListener('input', cap); lech.addEventListener('change', cap);
+            return { x, o, lech, lyDo, khoiLech, cap };
+          });
+          dat(dsXe, ds.length ? h('p', { class: 'goi-y' }, 'Nhập số tiền cho từng xe theo bảng kê của bảo hiểm. Phần chưa chia sẽ nằm ở "chưa phân bổ" để chia sau. Bảo hiểm trả khác công nợ: tích "Lệch" và ghi lý do.') : h('p', { class: 'trong' }, 'Hãng này không có xe nào còn nợ.'),
+            ...dongs.map((d) => h('div', { class: 'dong-phan-bo-khoi' }, h('div', { class: 'dong-phan-bo' }, h('span', null, nhanHoSo(d.x), h('small', null, ` còn nợ ${tien(d.x.con_no_bh)} đ`)),
+              h('button', { class: 'nut-chu', type: 'button', onclick: () => { d.o.value = tien(d.x.con_no_bh); d.cap(); } }, 'Đủ'), d.o), d.khoiLech)));
         });
         vungRieng.append(truong('Hãng bảo hiểm', chonHang, null, { batBuoc: true }), dsXe);
-        layPhanBo = () => dongs.map((d) => ({ ho_so_id: d.x.id, so_tien: docTien(d.o.value) })).filter((d) => d.so_tien);
+        layPhanBo = () => dongs.map((d) => ({ ho_so_id: d.x.id, so_tien: docTien(d.o.value),
+          ...(!d.khoiLech.hidden && d.lech.checked ? { lech: true, ly_do: d.lyDo.value.trim() } : {}) })).filter((d) => d.so_tien);
         const xHs = hoSoId ? hoSoMo.find((y) => String(y.id) === String(hoSoId)) : null;
         if (xHs && xHs.hang_bh_id) {
           chonHang.value = String(xHs.hang_bh_id);
           chonHang.dispatchEvent(new Event('change'));
           const d = dongs.find((z) => z.x.id === xHs.id);
-          if (d) { d.o.value = tien(xHs.con_no_bh); oSoTien.value = tien(xHs.con_no_bh); }
+          if (d) { d.o.value = tien(xHs.con_no_bh); oSoTien.value = tien(xHs.con_no_bh); d.cap(); }
           if (!form.noi_dung.value) form.noi_dung.value = `${xHs.hang_bh || 'Bảo hiểm'} trả xe ${xHs.bien_so_hien_thi || xHs.ma} – ${xHs.ten_khach}`;
         }
       } else if (m.tinh_chat === 'thu_dich_vu_nhanh') {
@@ -199,6 +249,8 @@ export default async function trangThuChi(el) {
       rong: true, nhanNut: 'Lập phiếu thu',
       nutChinh: async () => {
         const d = docForm(form);
+        const thieuLyDo = layPhanBo().find((p) => p.lech && !p.ly_do);
+        if (thieuLyDo) { toast('Thu lệch công nợ: ghi lý do lệch.', 'loi'); return false; }
         const bo = tachTienBo();
         if (bo) {
           // 038: máy chủ tách 2 phiếu trong MỘT giao dịch (trước đây gọi 2 lần, lỗi giữa chừng thì thiếu phiếu tiền bo)
@@ -211,7 +263,7 @@ export default async function trangThuChi(el) {
             hang_bh_id: d.hang_bh_id, don_vi_lien_quan_id: d.don_vi_lien_quan_id, phan_bo: layPhanBo(),
             cho_tra_du: choTraDu() };
           await api.lapPhieuThu(p);
-          toast('Đã lập phiếu thu.');
+          toast(p.phan_bo.some((x) => x.lech) ? 'Đã lập phiếu thu. Phần lệch chờ giám đốc / quản lý chung duyệt chỉnh công nợ.' : 'Đã lập phiếu thu.');
         }
         // Phiếu thu lập từ hồ sơ xe (036): quay về đúng hồ sơ đó để làm tiếp (giao xe…), không về danh sách
         if (hoSoId) { location.hash = `#/ho-so/${hoSoId}`; return; }

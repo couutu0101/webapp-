@@ -3,7 +3,7 @@
 //  - Báo giá: mỗi lần lưu (cả bổ sung) kèm ảnh / PDF báo giá tải lên sau lần lưu trước (ho_so.bao_gia_luc)
 //  - Duyệt giá xe bảo hiểm: ảnh / PDF duyệt giá của bảo hiểm tải lên sau lần báo giá gần nhất
 //  - KCS đạt: tối thiểu 6 ảnh KCS (tổng các lần), sau lần chưa đạt có ít nhất 1 ảnh mới
-import { h, icon, toast, hoiLyDo } from './ui.js';
+import { h, icon, toast, hoiLyDo, nenTruoc } from './ui.js';
 import * as api from './api.js';
 
 export const ANH_NHAN_XE = [
@@ -37,6 +37,7 @@ export function buocTepMo(hs, buoc, tep = []) {
   switch (buoc) {
     case 'bao_gia': case 'duyet_gia': return ['tiep_nhan', 'bao_gia', 'da_duyet', ...SUA_XE].includes(tt);
     case 'phat_sinh': return SUA_XE.includes(tt);
+    case 'lenh_sua_chua': return ['da_duyet', ...SUA_XE].includes(tt);
     case 'kcs': return SUA_XE.includes(tt);
     case 'giao_xe': return tt === 'dat_kcs' || (!!hs.giao_luc && homNayVN(hs.giao_luc) === homNayVN(Date.now()));
     case 'huy_vat_tu': return ['da_duyet', ...SUA_XE, 'dat_kcs', 'da_giao', 'da_gui_hs'].includes(tt);
@@ -102,7 +103,7 @@ export function khungAnhNhanXe({ hs = null, tep = [], link = {}, choSua = true, 
     if (khoa) trangThai.prepend(icon('khoa'), ' ');
     const nhan = async (f, { im = false } = {}) => {
       ve(URL.createObjectURL(f), hs ? 'Đang tải…' : 'Đã chọn', !hs);
-      if (!hs) { chon.set(a.buoc, f); return; }
+      if (!hs) { chon.set(a.buoc, f); nenTruoc([f], a.buoc); return; }
       input.disabled = true;
       const loi = await taiVaoBuoc(hs, a.buoc, [f], null, lyDoKhoa);
       lyDoKhoa = null;
@@ -128,9 +129,11 @@ export function khungAnhNhanXe({ hs = null, tep = [], link = {}, choSua = true, 
     if (!trong.length) { toast('Đủ 6 ô rồi – muốn đổi ảnh nào thì bấm vào ô đó.'); return; }
     if (ds.length > trong.length) toast(`Chỉ còn ${trong.length} ô trống – lấy ${trong.length} ảnh đầu.`);
     const so = Math.min(ds.length, trong.length);
-    let daLuu = 0;
     oNhieu.disabled = true;
-    for (let i = 0; i < so; i++) if (await trong[i].nhan(ds[i], { im: true })) daLuu++;
+    // 056: tải các ô cùng lúc (trước đây xong ô này mới tới ô sau); nén vẫn lần lượt trong api.taiNhieu
+    if (!hs) for (let i = 0; i < so; i++) trong[i].nhan(ds[i], { im: true });
+    const kq = hs ? await Promise.all(ds.slice(0, so).map((f, i) => trong[i].nhan(f, { im: true }))) : [];
+    const daLuu = kq.filter(Boolean).length;
     oNhieu.disabled = false;
     if (hs) { if (daLuu) toast(`Đã lưu ${daLuu} ảnh nhận xe.`); khiXong?.(); }
   });
@@ -146,10 +149,11 @@ export function khungAnhNhanXe({ hs = null, tep = [], link = {}, choSua = true, 
 }
 
 // Ô chọn ảnh / PDF đính kèm (báo giá, duyệt giá, KCS)
-export function oDinhKem(nhan, { batBuoc = false, chiAnh = false, goiY = '' } = {}) {
+export function oDinhKem(nhan, { batBuoc = false, chiAnh = false, goiY = '', buoc = 'khac' } = {}) {
   const input = h('input', { type: 'file', multiple: true, accept: chiAnh ? 'image/*' : 'image/*,application/pdf', 'aria-label': nhan });
   const dem = h('span', { class: 'chon-tep-dem' }, 'Chưa chọn tệp');
   input.addEventListener('change', () => {
+    nenTruoc(input.files, buoc);   // 056: nén sẵn trong lúc người dùng điền tiếp
     dem.textContent = input.files.length ? `Đã chọn ${input.files.length} tệp` : 'Chưa chọn tệp';
     nhanEl.classList.remove('thieu');
   });

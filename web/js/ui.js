@@ -696,28 +696,114 @@ export function bang(cot, dong, { trong = 'Chưa có dữ liệu.', onRow, idDon
 // Nén ảnh điện thoại trước khi tải lên (cạnh dài tối đa 1600px)
 // Ảnh xe: cạnh dài 1280px (~0,2 MB) – đủ nhìn rõ vết trầy, móp.
 // Giấy tờ (giám định, duyệt giá, HĐ 3 bên, hồ sơ bảo hiểm, khác): 1600px để đọc được chữ.
-const BUOC_GIAY_TO = ['duyet_gia', 'ho_so_bh', 'khac', 'giay_to_xe'];
-async function veLai(file, canh, chatLuong) {
-  const bmp = await createImageBitmap(file);
-  const tile = Math.min(1, canh / Math.max(bmp.width, bmp.height));
-  const c = document.createElement('canvas');
-  c.width = Math.round(bmp.width * tile); c.height = Math.round(bmp.height * tile);
-  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
-  bmp.close?.();
-  return new Promise((r) => c.toBlob(r, 'image/jpeg', chatLuong));
+const BUOC_GIAY_TO = ['duyet_gia', 'ho_so_bh', 'khac', 'giay_to_xe', 'lenh_sua_chua'];
+// 056 – tăng tốc tải ảnh (anh Thuận 17/10: "ảnh tải lên rất chậm"):
+//  (1) nén trong Web Worker (OffscreenCanvas) – không làm đơ màn hình, điện thoại nhiều nhân nén 2 ảnh cùng lúc;
+//      trình duyệt không hỗ trợ thì nén như cũ trên trang;
+//  (2) ảnh nhỏ (ô vuông trong hồ sơ) vẽ từ chính ảnh vừa nén, không giải mã lại;
+//  (3) nén ngay lúc người dùng CHỌN ảnh (nenTruoc) – lúc bấm Lưu chỉ còn tải lên.
+//  Đo 17/10 (ảnh 4032×3024, CPU chậm 4 lần): thu nhỏ ngay lúc giải mã (createImageBitmap resizeWidth) KHÔNG nhanh hơn → không dùng.
+const MA_WORKER = `self.onmessage = async (e) => {
+  const { id, file, canh, chatLuong, canhNho } = e.data;
+  try {
+    const bmp = await createImageBitmap(file);
+    const tile = Math.min(1, canh / Math.max(bmp.width, bmp.height));
+    const c = new OffscreenCanvas(Math.max(1, Math.round(bmp.width * tile)), Math.max(1, Math.round(bmp.height * tile)));
+    c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+    bmp.close();
+    const blob = await c.convertToBlob({ type: 'image/jpeg', quality: chatLuong });
+    let nho = null;
+    if (canhNho) {
+      const t2 = Math.min(1, canhNho / Math.max(c.width, c.height));
+      const c2 = new OffscreenCanvas(Math.max(1, Math.round(c.width * t2)), Math.max(1, Math.round(c.height * t2)));
+      c2.getContext('2d').drawImage(c, 0, 0, c2.width, c2.height);
+      nho = await c2.convertToBlob({ type: 'image/jpeg', quality: 0.7 });
+    }
+    self.postMessage({ id, blob, nho });
+  } catch (err) { self.postMessage({ id, loi: String(err && err.message || err) }); }
+};`;
+let dsWorker = null; let soViec = 0; const choKq = new Map(); let luotWorker = 0;
+function layWorker() {
+  if (dsWorker !== null) return dsWorker;
+  dsWorker = [];
+  try {
+    if (typeof OffscreenCanvas === 'undefined' || typeof Worker === 'undefined' || !OffscreenCanvas.prototype.convertToBlob) return dsWorker;
+    const url = URL.createObjectURL(new Blob([MA_WORKER], { type: 'text/javascript' }));
+    const so = Math.min(2, Math.max(1, (navigator.hardwareConcurrency || 2) >= 4 ? 2 : 1));
+    for (let i = 0; i < so; i++) {
+      const w = new Worker(url);
+      w.onmessage = (e) => { const cb = choKq.get(e.data.id); choKq.delete(e.data.id); cb?.(e.data); };
+      w.onerror = () => { for (const [, cb] of choKq) cb({ loi: 'worker' }); choKq.clear(); dsWorker = []; };
+      dsWorker.push(w);
+    }
+  } catch { dsWorker = []; }
+  return dsWorker;
 }
-export async function nenAnh(file, buoc = 'tiep_nhan') {
+function nenTrongWorker(file, canh, chatLuong, canhNho) {
+  const ws = layWorker();
+  if (!ws.length) return null;
+  const id = ++soViec;
+  return new Promise((ok, loi) => {
+    choKq.set(id, (d) => (d.loi ? loi(new Error(d.loi)) : ok(d)));
+    ws[luotWorker++ % ws.length].postMessage({ id, file, canh, chatLuong, canhNho });
+  });
+}
+async function giaiMa(file) { return createImageBitmap(file); }
+const veCanvas = (nguon, w, h) => {
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(w)); c.height = Math.max(1, Math.round(h));
+  c.getContext('2d').drawImage(nguon, 0, 0, c.width, c.height);
+  return c;
+};
+const sangBlob = (c, chatLuong) => new Promise((r) => c.toBlob(r, 'image/jpeg', chatLuong));
+async function veLai(file, canh, chatLuong, canhNho = 0) {
+  if (canhNho) {
+    const w = nenTrongWorker(file, canh, chatLuong, canhNho);
+    if (w) { try { return await w; } catch { /* worker lỗi: làm trên trang */ } }
+  }
+  const bmp = await giaiMa(file);
+  const tile = Math.min(1, canh / Math.max(bmp.width, bmp.height));
+  const c = veCanvas(bmp, bmp.width * tile, bmp.height * tile);
+  bmp.close?.();
+  const blob = await sangBlob(c, chatLuong);
+  if (!canhNho) return blob;
+  const t2 = Math.min(1, canhNho / Math.max(c.width, c.height));
+  return { blob, nho: await sangBlob(veCanvas(c, c.width * t2, c.height * t2), 0.7) };
+}
+const daNen = new WeakMap();   // tệp gốc → Promise tệp đã nén (nén trước lúc chọn ảnh)
+async function nenAnhThat(file, buoc) {
   if (!file.type.startsWith('image/')) return file;
   const giayTo = BUOC_GIAY_TO.includes(buoc);
   try {
-    const blob = await veLai(file, giayTo ? 1600 : 1280, giayTo ? 0.85 : 0.78);
-    if (!blob || blob.size >= file.size) return file;
-    return new File([blob], file.name.replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' });
+    const { blob, nho } = await veLai(file, giayTo ? 1600 : 1280, giayTo ? 0.85 : 0.78, 360);
+    const ra = !blob || blob.size >= file.size ? file : new File([blob], file.name.replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' });
+    if (nho) daNho.set(ra, nho);
+    return ra;
   } catch { return file; }
 }
-// Ảnh thu nhỏ ~20 KB để hiện ô vuông trong hồ sơ; bấm vào mới tải ảnh lớn
+// Số ảnh nén cùng lúc: 2 khi có Web Worker và máy ≥ 4 nhân, còn lại 1 (đỡ tốn bộ nhớ điện thoại)
+let dangNen = 0; const hangCho = [];
+const choLuot = () => new Promise((ok) => {
+  const toiDa = layWorker().length || 1;
+  if (dangNen < toiDa) { dangNen++; ok(); } else hangCho.push(ok);
+});
+const traLuot = () => { const tiep = hangCho.shift(); if (tiep) tiep(); else dangNen--; };
+export function nenAnh(file, buoc = 'tiep_nhan') {
+  const khoa = `${BUOC_GIAY_TO.includes(buoc) ? 'gt' : 'xe'}`;
+  let m = daNen.get(file);
+  if (!m) { m = {}; daNen.set(file, m); }
+  if (!m[khoa]) m[khoa] = (async () => { await choLuot(); try { return await nenAnhThat(file, buoc); } finally { traLuot(); } })();
+  return m[khoa];
+}
+// Nén sẵn ngay khi chọn ảnh (chạy nền); lúc tải lên lấy lại kết quả đã nén
+export function nenTruoc(files, buoc = 'tiep_nhan') {
+  for (const f of [...(files || [])]) if (f?.type?.startsWith('image/')) nenAnh(f, buoc).catch(() => {});
+}
+// Ảnh thu nhỏ ~20 KB để hiện ô vuông trong hồ sơ; bấm vào mới tải ảnh lớn. Ảnh vừa nén thì đã có sẵn (daNho).
+const daNho = new WeakMap();
 export async function taoAnhNho(file) {
   if (!file.type.startsWith('image/')) return null;
+  if (daNho.has(file)) return daNho.get(file);
   try { return await veLai(file, 360, 0.7); } catch { return null; }
 }
 export const duongDanAnhNho = (duongDan) => `${duongDan}.nho.jpg`;
