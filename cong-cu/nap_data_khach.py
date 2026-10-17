@@ -78,7 +78,7 @@ def main(duong, ra):
         if dt_ and not re.fullmatch(r'0\d{9}', dt_): can_xem.append(f'Dòng {r}: SĐT "{d["dien_thoai"]}" không đủ 10 số – để trống')
         d['dien_thoai'] = dt_ if re.fullmatch(r'0\d{9}', dt_ or '') else None
         n = chuan(d.get('nguon'))
-        d['nguon'] = 'khach' if 'khách' in n else ('bao_hiem' if n or d.get('hang_bh') else ('bao_hiem' if d.get('hang_bh') else 'khach'))
+        d['nguon'] = 'khach' if ('khách' in n or 'tiền mặt' in n or n == 'tm') else ('bao_hiem' if n or d.get('hang_bh') else 'khach')   # "Tiền mặt" = khách tự trả
         for k in ('con_no_khach', 'con_no_bh'):
             if (d.get(k) or 0) < 0: can_xem.append(f'Dòng {r}: {k} âm ({d[k]}) – để 0'); d[k] = 0
         if (d.get('con_no_khach') or d.get('con_no_bh')) and not d.get('ngay_vao'):
